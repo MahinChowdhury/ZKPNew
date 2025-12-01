@@ -42,7 +42,7 @@ export FABRIC_CFG_PATH=${PWD}/../config/
 
 # 7. Package the chaincode
 peer lifecycle chaincode package identity.tar.gz \
-    --path ../zkp-chain/chaincode/identity \
+    --path ../../zkp-chain/chaincode/identity \
     --lang node \
     --label identity_1.0
 
@@ -81,6 +81,7 @@ peer lifecycle chaincode approveformyorg -o localhost:7050 \
     --package-id $CC_PACKAGE_ID --sequence 1 --tls \
     --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem"
 
+
 # 12. Approve for Org1
 export CORE_PEER_LOCALMSPID="Org1MSP"
 export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
@@ -93,11 +94,13 @@ peer lifecycle chaincode approveformyorg -o localhost:7050 \
     --package-id $CC_PACKAGE_ID --sequence 1 --tls \
     --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem"
 
+
 # 13. Check commit readiness
 peer lifecycle chaincode checkcommitreadiness --channelID mychannel \
     --name identity --version 1.0 --sequence 1 --tls \
     --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem" \
     --output json
+
 
 # 14. Commit chaincode definition
 peer lifecycle chaincode commit -o localhost:7050 \
@@ -107,8 +110,10 @@ peer lifecycle chaincode commit -o localhost:7050 \
     --peerAddresses localhost:7051 --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt" \
     --peerAddresses localhost:9051 --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt"
 
+
 # 15. Verify commitment
 peer lifecycle chaincode querycommitted --channelID mychannel --name identity
+
 
 # 16. Initialize ledger
 peer chaincode invoke -o localhost:7050 \
@@ -119,8 +124,10 @@ peer chaincode invoke -o localhost:7050 \
     --peerAddresses localhost:9051 --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt" \
     -c '{"function":"initLedger","Args":[]}'
 
+
 # 17. Test query
 peer chaincode query -C mychannel -n identity -c '{"function":"getRegisteredCount","Args":[]}'
+
 
 ```
 
@@ -144,6 +151,7 @@ pip install mediapipe
 pip install deepface
 pip install numpy
 pip install scikit-learn
+pip install tf-keras
 ```
 
 
