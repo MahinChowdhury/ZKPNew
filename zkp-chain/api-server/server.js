@@ -89,6 +89,78 @@ function deriveK(faceHash, salt) {
 }
 
 // ============================
+// Schnorr ZKP Functions
+// ============================
+
+/**
+ * Generate Schnorr proof commitment (Step 1: Prover)
+ * @param {BN} k - The secret scalar
+ * @returns {{ r: BN, R: Point }} - Random nonce and commitment R = rG
+ */
+function schnorrProverStep1(k) {
+  // Generate random nonce r ∈ [1, n-1]
+  const r = new BN(crypto.randomBytes(32)).umod(ec.curve.n);
+  if (r.isZero()) throw new Error("Invalid random nonce");
+  
+  // Compute R = rG
+  const R = ec.g.mul(r);
+  
+  return { r, R };
+}
+
+/**
+ * Generate Schnorr challenge (Step 2: Verifier)
+ * @param {Point} R - Commitment from prover
+ * @param {Point} S - Public key S = kG
+ * @param {string} nidHash - Context binding
+ * @returns {BN} challenge c
+ */
+function schnorrVerifierChallenge(R, S, nidHash) {
+  // Create challenge: c = H(R || S || nidHash)
+  const Rx = R.getX().toString(16, 64);
+  const Ry = R.getY().toString(16, 64);
+  const Sx = S.getX().toString(16, 64);
+  const Sy = S.getY().toString(16, 64);
+  
+  const challengeInput = Rx + Ry + Sx + Sy + nidHash;
+  const challengeHash = keccak256(challengeInput);
+  
+  const c = new BN(challengeHash, 16).umod(ec.curve.n);
+  return c;
+}
+
+/**
+ * Generate Schnorr response (Step 3: Prover)
+ * @param {BN} r - Random nonce from step 1
+ * @param {BN} c - Challenge from verifier
+ * @param {BN} k - The secret scalar
+ * @returns {BN} response s = r + c·k mod n
+ */
+function schnorrProverStep3(r, c, k) {
+  // Compute s = r + c·k mod n
+  const s = r.add(c.mul(k)).umod(ec.curve.n);
+  return s;
+}
+
+/**
+ * Verify Schnorr proof (Step 4: Verifier)
+ * @param {Point} R - Commitment from prover
+ * @param {BN} c - Challenge that was sent
+ * @param {BN} s - Response from prover
+ * @param {Point} S - Public key S = kG
+ * @returns {boolean} true if proof is valid
+ */
+function schnorrVerify(R, c, s, S) {
+  // Verify: sG = R + cS
+  const sG = ec.g.mul(s);
+  const cS = S.mul(c);
+  const RplusCsS = R.add(cS);
+  
+  // Check if points are equal
+  return sG.eq(RplusCsS);
+}
+
+// ============================
 // External Python API
 // ============================
 
@@ -154,11 +226,11 @@ app.post("/api/v1/register", upload.single("faceImg"), async (req, res) => {
     const faceHash = keccak256(JSON.stringify(embedding));
     console.log("Face Hash:", faceHash);
 
-    // 4. Derive k
+    // 4. Derive k (this becomes the secret)
     const salt = crypto.randomBytes(16).toString("hex");
     const k = deriveK(faceHash, salt);
 
-    // 5. S = kG
+    // 5. S = kG (public key)
     const S = ec.g.mul(k);
     const Sx = S.getX().toString(16);
     const Sy = S.getY().toString(16);
@@ -167,16 +239,16 @@ app.post("/api/v1/register", upload.single("faceImg"), async (req, res) => {
     console.log("Sy:", Sy);
     console.log("Salt:", salt);
 
-    // 6. Register on blockchain
+    // 6. Register on blockchain (store S, not k)
     await fabricClient.registerUser(nidHash, Sx, Sy, salt);
     console.log("✅ Registered on blockchain");
 
-    // 7. QR payload
+    // 7. QR payload (store k indirectly via faceHash + salt)
     const qrPayload = {
       nidHash,
       faceHash,
       salt,
-      faceEmbedding: embedding  // Store embedding in QR
+      faceEmbedding: embedding
     };
 
     // 8. Encrypt
@@ -200,7 +272,155 @@ app.post("/api/v1/register", upload.single("faceImg"), async (req, res) => {
 });
 
 // --------------------------------------
-// LOGIN
+// LOGIN - Step 1: Request Challenge
+// --------------------------------------
+app.post(
+  "/api/v1/login/challenge",
+  upload.fields([{ name: "qrCode" }, { name: "faceImg" }]),
+  async (req, res) => {
+    try {
+      const { password } = req.body;
+      const qrFile = req.files.qrCode?.[0];
+      const faceFile = req.files.faceImg?.[0];
+
+      if (!password || !qrFile || !faceFile) {
+        return res.status(400).json({ ok: false, error: "Missing fields" });
+      }
+
+      console.log("\n=== LOGIN CHALLENGE START ===");
+
+      // 1. Decode QR
+      const encrypted = await decodeQRCode(qrFile);
+      console.log("✅ QR decoded");
+
+      // 2. Decrypt QR
+      const qrData = decryptPayload(encrypted, password);
+      console.log("✅ QR decrypted");
+
+      // 3. Get login embedding
+      const faceLogin = await getFaceEmbedding(faceFile);
+      console.log("✅ Login face embedding extracted");
+
+      // 4. Compare embeddings
+      const registeredEmbedding = qrData.faceEmbedding;
+      
+      if (!registeredEmbedding) {
+        throw new Error("No face embedding found in QR code");
+      }
+
+      const isMatch = await compareEmbeddings(faceLogin, registeredEmbedding);
+      console.log("Face match result:", isMatch);
+
+      if (!isMatch) {
+        return res.json({
+          ok: false,
+          error: "Face does not match",
+          isMatch: false
+        });
+      }
+
+      // 5. Derive k (secret) from QR data
+      const k = deriveK(qrData.faceHash, qrData.salt);
+
+      // 6. Schnorr Step 1: Generate commitment
+      const { r, R } = schnorrProverStep1(k);
+      
+      const Rx = R.getX().toString(16);
+      const Ry = R.getY().toString(16);
+      
+      console.log("Generated R commitment");
+      console.log("Rx:", Rx);
+      console.log("Ry:", Ry);
+
+      // 7. Get blockchain data for verification
+      const userData = await fabricClient.getUserData(qrData.nidHash);
+      const { Sx, Sy } = userData;
+      const S = ec.curve.point(new BN(Sx, 16), new BN(Sy, 16));
+
+      // 8. Schnorr Step 2: Generate challenge
+      const c = schnorrVerifierChallenge(R, S, qrData.nidHash);
+      const cHex = c.toString(16);
+      
+      console.log("Generated challenge c:", cHex);
+
+      // 9. Schnorr Step 3: Generate response
+      const s = schnorrProverStep3(r, c, k);
+      const sHex = s.toString(16);
+      
+      console.log("Generated response s:", sHex);
+      console.log("=== LOGIN CHALLENGE COMPLETE ===\n");
+
+      // Return the proof components
+      res.json({
+        ok: true,
+        isMatch: true,
+        proof: {
+          Rx,
+          Ry,
+          c: cHex,
+          s: sHex
+        },
+        nidHash: qrData.nidHash
+      });
+
+    } catch (err) {
+      console.error("LOGIN CHALLENGE ERROR:", err);
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  }
+);
+
+// --------------------------------------
+// LOGIN - Step 2: Verify Proof
+// --------------------------------------
+app.post("/api/v1/login/verify", async (req, res) => {
+  try {
+    const { nidHash, proof } = req.body;
+
+    if (!nidHash || !proof) {
+      return res.status(400).json({ ok: false, error: "Missing fields" });
+    }
+
+    console.log("\n=== SCHNORR VERIFICATION START ===");
+
+    // 1. Get blockchain data
+    const userData = await fabricClient.getUserData(nidHash);
+    const { Sx, Sy } = userData;
+    
+    // 2. Reconstruct points
+    const S = ec.curve.point(new BN(Sx, 16), new BN(Sy, 16));
+    const R = ec.curve.point(new BN(proof.Rx, 16), new BN(proof.Ry, 16));
+    const c = new BN(proof.c, 16);
+    const s = new BN(proof.s, 16);
+
+    console.log("Verifying proof...");
+    console.log("S (public key):", Sx.slice(0, 16) + "...");
+    console.log("R (commitment):", proof.Rx.slice(0, 16) + "...");
+    console.log("c (challenge):", proof.c.slice(0, 16) + "...");
+    console.log("s (response):", proof.s.slice(0, 16) + "...");
+
+    // 3. Schnorr Step 4: Verify proof
+    const zkpVerified = schnorrVerify(R, c, s, S);
+
+    console.log("ZKP verification result:", zkpVerified);
+    console.log("=== SCHNORR VERIFICATION COMPLETE ===");
+    console.log("Result:", zkpVerified ? "SUCCESS ✅" : "FAILED ❌");
+    console.log("");
+
+    res.json({
+      ok: zkpVerified,
+      isVerified: zkpVerified,
+      nidHash
+    });
+
+  } catch (err) {
+    console.error("VERIFICATION ERROR:", err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// --------------------------------------
+// LEGACY LOGIN (Combined - for backward compatibility)
 // --------------------------------------
 app.post(
   "/api/v1/login",
@@ -215,60 +435,56 @@ app.post(
         return res.status(400).json({ ok: false, error: "Missing fields" });
       }
 
-      console.log("\n=== LOGIN START ===");
+      console.log("\n=== COMBINED LOGIN START ===");
 
-      // 1. Decode QR
+      // 1. Decode & Decrypt QR
       const encrypted = await decodeQRCode(qrFile);
-      console.log("✅ QR decoded");
-
-      // 2. Decrypt QR
       const qrData = decryptPayload(encrypted, password);
       console.log("✅ QR decrypted");
-      console.log("QR Data keys:", Object.keys(qrData));
 
-      // 3. Get login embedding
+      // 2. Face verification
       const faceLogin = await getFaceEmbedding(faceFile);
-      console.log("✅ Login face embedding extracted");
-
-      // 4. Compare embeddings
-      // Use faceEmbedding from QR (not face_reg)
       const registeredEmbedding = qrData.faceEmbedding;
       
       if (!registeredEmbedding) {
         throw new Error("No face embedding found in QR code");
       }
 
-      console.log("Registered embedding dimension:", registeredEmbedding.length);
-      
       const isMatch = await compareEmbeddings(faceLogin, registeredEmbedding);
-      console.log("Face match result:", isMatch);
+      console.log("Face match:", isMatch);
 
-      // 5. Get blockchain data
+      if (!isMatch) {
+        return res.json({
+          ok: false,
+          isMatch: false,
+          isVerified: false,
+          nidHash: qrData.nidHash
+        });
+      }
+
+      // 3. Schnorr ZKP
+      const k = deriveK(qrData.faceHash, qrData.salt);
+      const { r, R } = schnorrProverStep1(k);
+      
       const userData = await fabricClient.getUserData(qrData.nidHash);
-      const { Sx, Sy, salt } = userData;
-      console.log("✅ Retrieved from blockchain");
-
-      // 6. ZKP Verification
-      const S = ec.curve.point(new BN(Sx, 16), new BN(Sy, 16));
-      const k = deriveK(qrData.faceHash, salt);
-      const S2 = ec.g.mul(k);
-
-      const zkpVerified =
-        S2.getX().eq(new BN(Sx, 16)) && S2.getY().eq(new BN(Sy, 16));
-
-      console.log("ZKP verification:", zkpVerified);
+      const S = ec.curve.point(new BN(userData.Sx, 16), new BN(userData.Sy, 16));
+      
+      const c = schnorrVerifierChallenge(R, S, qrData.nidHash);
+      const s = schnorrProverStep3(r, c, k);
+      
+      const zkpVerified = schnorrVerify(R, c, s, S);
+      console.log("ZKP verified:", zkpVerified);
 
       const loginSuccess = isMatch && zkpVerified;
 
-      console.log("=== LOGIN COMPLETE ===");
-      console.log("Result:", loginSuccess ? "SUCCESS ✅" : "FAILED ❌");
-      console.log("");
+      console.log("=== COMBINED LOGIN COMPLETE ===");
+      console.log("Result:", loginSuccess ? "SUCCESS ✅" : "FAILED ❌\n");
 
       res.json({
         ok: loginSuccess,
         isMatch,
         isVerified: zkpVerified,
-        nidHash: qrData.nidHash,
+        nidHash: qrData.nidHash
       });
 
     } catch (err) {
