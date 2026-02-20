@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Protocol Specification — Privacy-Preserving Distributed Voting System</title>
+
+  <!-- KaTeX for math rendering -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+
+  <style>
+    :root {
+      --primary: #1a2744;
+      --accent: #2563eb;
+      --accent-light: #dbeafe;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --muted: #64748b;
+      --code-bg: #f1f5f9;
+      --phase-colors: #7c3aed, #0891b2, #059669, #d97706, #dc2626, #9333ea;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Georgia', 'Times New Roman', serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.75;
+      font-size: 15px;
+    }
+
+    .page-header {
+      background: linear-gradient(135deg, #1a2744 0%, #2563eb 100%);
+      color: white;
+      padding: 48px 40px 36px;
+    }
+    .page-header .label {
+      font-family: 'Arial', sans-serif;
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #93c5fd;
+      margin-bottom: 12px;
+    }
+    .page-header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      font-family: 'Arial', sans-serif;
+      line-height: 1.3;
+      margin-bottom: 10px;
+    }
+    .page-header p {
+      color: #bfdbfe;
+      font-size: 14px;
+      font-family: 'Arial', sans-serif;
+    }
+
+    .toc-bar {
+      background: var(--primary);
+      padding: 14px 40px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .toc-bar span {
+      color: #94a3b8;
+      font-family: 'Arial', sans-serif;
+      font-size: 11px;
+      letter-spacing: 1px;
+    }
+    .toc-bar a {
+      font-family: 'Arial', sans-serif;
+      font-size: 12px;
+      color: #93c5fd;
+      text-decoration: none;
+      padding: 3px 10px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      transition: background 0.2s;
+    }
+    .toc-bar a:hover { background: #2563eb; color: white; border-color: #2563eb; }
+
+    .container { max-width: 960px; margin: 0 auto; padding: 48px 40px 80px; }
+
+    /* ---- Phase Sections ---- */
+    .phase {
+      margin-bottom: 56px;
+    }
+
+    .phase-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--border);
+    }
+    .phase-badge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      border-radius: 12px;
+      font-family: 'Arial', sans-serif;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .phase-badge .num { font-size: 22px; line-height: 1; }
+    .phase-badge .lbl { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; opacity: 0.8; }
+
+    .p1 { background: #ede9fe; color: #6d28d9; }
+    .p2 { background: #cffafe; color: #0e7490; }
+    .p3 { background: #dcfce7; color: #15803d; }
+    .p4 { background: #fef9c3; color: #a16207; }
+    .p5 { background: #fee2e2; color: #b91c1c; }
+    .p6 { background: #fae8ff; color: #9333ea; }
+
+    .phase-title { font-family: 'Arial', sans-serif; }
+    .phase-title h2 { font-size: 22px; font-weight: 700; color: var(--primary); }
+    .phase-title p { font-size: 13px; color: var(--muted); margin-top: 3px; }
+
+    /* ---- Protocol Diagram ---- */
+    .diagram-box {
+      background: #0f172a;
+      border-radius: 10px;
+      padding: 24px;
+      overflow-x: auto;
+      margin: 20px 0;
+    }
+    .diagram-box pre {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #e2e8f0;
+      line-height: 1.6;
+      white-space: pre;
+    }
+    .diagram-box .comment { color: #64748b; }
+    .diagram-box .arrow { color: #38bdf8; }
+    .diagram-box .action { color: #86efac; }
+    .diagram-box .crypto { color: #fbbf24; }
+
+    /* ---- Algorithm Blocks ---- */
+    .algorithm {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin: 24px 0;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .algorithm-header {
+      background: var(--primary);
+      color: white;
+      padding: 12px 20px;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      font-family: 'Arial', sans-serif;
+    }
+    .algorithm-header .alg-id { font-size: 11px; color: #93c5fd; letter-spacing: 1px; }
+    .algorithm-header .alg-name { font-size: 15px; font-weight: 600; }
+    .algorithm-io {
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      font-size: 13px;
+      font-family: 'Arial', sans-serif;
+    }
+    .algorithm-io .io-label { color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+    .algorithm-body { padding: 16px 20px; }
+
+    /* ---- Steps ---- */
+    .steps { counter-reset: step; list-style: none; padding: 0; }
+    .steps li {
+      counter-increment: step;
+      display: flex;
+      gap: 14px;
+      padding: 8px 0;
+      border-bottom: 1px dashed #f1f5f9;
+      font-size: 14px;
+      align-items: flex-start;
+    }
+    .steps li:last-child { border-bottom: none; }
+    .steps li::before {
+      content: counter(step);
+      min-width: 24px;
+      height: 24px;
+      background: var(--accent-light);
+      color: var(--accent);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Arial', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .sub-steps { counter-reset: sub; list-style: none; padding: 0; margin-top: 6px; }
+    .sub-steps li {
+      counter-increment: sub;
+      display: flex;
+      gap: 10px;
+      padding: 4px 0;
+      font-size: 13px;
+      border-bottom: none;
+    }
+    .sub-steps li::before {
+      content: counter(sub, lower-alpha);
+      min-width: 20px;
+      height: 20px;
+      background: #f0fdf4;
+      color: #15803d;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Arial', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    /* ---- Phase Sub-Sections ---- */
+    .phase-section {
+      margin: 20px 0;
+    }
+    .phase-section-title {
+      font-family: 'Arial', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+      padding: 4px 0;
+      border-bottom: 1px solid var(--accent-light);
+    }
+
+    /* ---- Math / Formula Boxes ---- */
+    .math-box {
+      background: var(--accent-light);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      padding: 14px 18px;
+      margin: 10px 0;
+      overflow-x: auto;
+    }
+    .math-box.gold {
+      background: #fffbeb;
+      border-color: #d97706;
+    }
+    .math-box.green {
+      background: #f0fdf4;
+      border-color: #16a34a;
+    }
+    .math-box.purple {
+      background: #faf5ff;
+      border-color: #9333ea;
+    }
+
+    /* ---- Theorem / Proof Blocks ---- */
+    .theorem-block {
+      background: #fafafa;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      margin: 20px 0;
+      overflow: hidden;
+    }
+    .theorem-block .thm-label {
+      background: #f1f5f9;
+      padding: 8px 16px;
+      font-family: 'Arial', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+    .theorem-block .thm-body {
+      padding: 14px 16px;
+      font-size: 14px;
+    }
+
+    .proof-block {
+      background: #fff;
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 8px 0;
+      font-size: 14px;
+    }
+    .proof-block .proof-label {
+      font-family: 'Arial', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    /* ---- Security Box ---- */
+    .security-note {
+      background: #fffbeb;
+      border: 1px solid #fbbf24;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin: 16px 0;
+      font-size: 13px;
+    }
+    .security-note strong { color: #92400e; font-family: 'Arial', sans-serif; }
+
+    .info-note {
+      background: #f0f9ff;
+      border: 1px solid #38bdf8;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin: 16px 0;
+      font-size: 13px;
+    }
+    .info-note strong { color: #0369a1; font-family: 'Arial', sans-serif; }
+
+    /* ---- Inline Code ---- */
+    code {
+      font-family: 'Courier New', monospace;
+      background: var(--code-bg);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 13px;
+      color: #9333ea;
+    }
+
+    /* ---- Separator ---- */
+    .sep {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 36px 0;
+    }
+
+    /* ---- Verification table ---- */
+    .verify-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      font-family: 'Arial', sans-serif;
+      margin-top: 12px;
+    }
+    .verify-table th {
+      background: var(--primary);
+      color: white;
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+    .verify-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .verify-table tr:nth-child(even) td { background: #f8fafc; }
+
+    .check { color: #16a34a; font-weight: 700; }
+
+    /* ---- KaTeX overrides ---- */
+    .katex { font-size: 1em; }
+    .katex-display { margin: 8px 0; overflow-x: auto; }
+  </style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="label">Technical Documentation · Section 5</div>
+  <h1>Protocol Specification</h1>
+  <p>A Privacy-Preserving Distributed Voting System Using Zero-Knowledge Proofs and Biometric Authentication</p>
+</div>
+
+<div class="toc-bar">
+  <span>PHASES →</span>
+  <a href="#p1">1 · Registration</a>
+  <a href="#p2">2 · Ballot Creation</a>
+  <a href="#p3">3 · Vote Casting</a>
+  <a href="#p4">4 · Revote Prevention</a>
+  <a href="#p5">5 · Tallying</a>
+  <a href="#p6">6 · Vote Validity Proof</a>
+</div>
+
+<div class="container">
+
+<!-- ========================================================= -->
+<!-- PHASE 1 -->
+<!-- ========================================================= -->
+<div class="phase" id="p1">
+  <div class="phase-header">
+    <div class="phase-badge p1"><span class="num">1</span><span class="lbl">Phase</span></div>
+    <div class="phase-title">
+      <h2>Voter Registration Protocol</h2>
+      <p>Biometric key derivation, public key commitment to blockchain, and QR credential issuance</p>
+    </div>
+  </div>
+
+  <div class="diagram-box">
+    <pre><span style="color:#94a3b8">Voter                     API Server                Python Service             Blockchain</span>
+  │                           │                            │                        │
+  │── NID, Password, Face ──►│                            │                        │
+  │                           │──── FaceImg ─────────────►│                        │
+  │                           │                            │  detect_face()         │
+  │                           │                            │  FaceNet.represent()   │
+  │                           │                            │  PCA.transform()       │
+  │                           │◄── embedding_64d ─────────│                        │
+  │                           │                            │                        │
+  │                           │  <span style="color:#fbbf24">h_face  = H(embedding)</span>      │                        │
+  │                           │  <span style="color:#fbbf24">salt    = rand(16 bytes)</span>     │                        │
+  │                           │  <span style="color:#fbbf24">k       = H(h_face ‖ salt) mod n</span>                   │
+  │                           │  <span style="color:#fbbf24">S       = k · G</span>              │                        │
+  │                           │                            │                        │
+  │                           │── register(nidHash, Sx, Sy, salt) ───────────────►│
+  │                           │                            │      addToRing(S)      │
+  │                           │                            │      emit Registered   │
+  │                           │◄──────────────────────────────── confirmation ──────│
+  │                           │                            │                        │
+  │                           │  <span style="color:#86efac">QR = AES-CBC-Enc(embedding ‖ h_face ‖ salt ‖ nidHash;</span>
+  │                           │  <span style="color:#86efac">             key = H(password))</span>                       │
+  │◄── QR Code (PNG) ────────│                            │                        │</pre>
+  </div>
+
+  <div class="algorithm">
+    <div class="algorithm-header">
+      <span class="alg-id">ALG 5.1</span>
+      <span class="alg-name">Voter Registration — Key Derivation &amp; Credential Issuance</span>
+    </div>
+    <div class="algorithm-io">
+      <span class="io-label">Input</span>&nbsp; NID number, password, face image<br/>
+      <span class="io-label">Output</span>&nbsp; QR credential (PNG), public key \(S\) committed to blockchain
+    </div>
+    <div class="algorithm-body">
+
+      <div class="phase-section">
+        <div class="phase-section-title">Step 1 — Biometric Feature Extraction</div>
+        <ol class="steps">
+          <li>Detect face bounding box using MediaPipe BlazeFace; crop and resize to \(160 \times 160 \times 3\).</li>
+          <li>
+            Extract FaceNet embedding:
+            <div class="math-box">
+              \[\mathbf{e} = \text{FaceNet}(\text{face\_crop}) \in \mathbb{R}^{128}, \quad \|\mathbf{e}\|_2 = 1\]
+            </div>
+          </li>
+          <li>
+            Apply PCA projection to 64 dimensions and re-normalise:
+            <div class="math-box">
+              \[\mathbf{e}' = \frac{(\mathbf{e} - \boldsymbol{\mu}) \cdot W}{\|(\mathbf{e} - \boldsymbol{\mu}) \cdot W\|_2} \in \mathbb{R}^{64}\]
+            </div>
+            where \(\boldsymbol{\mu} \in \mathbb{R}^{128}\) is the training-set mean and \(W \in \mathbb{R}^{128 \times 64}\) is the top-64 PCA eigenvector matrix.
+          </li>
+        </ol>
+      </div>
+
+      <div class="phase-section">
+        <div class="phase-section-title">Step 2 — Deterministic Private Key Derivation</div>
+        <ol class="steps">
+          <li>
+            Hash the normalised embedding:
+            <div class="math-box gold">
+              \[h_{\text{face}} = \text{SHA-256}(\mathbf{e}')\]
+            </div>
+          </li>
+          <li>
+            Sample a cryptographic salt:
+            <div class="math-box gold">
+              \[\text{salt} \xleftarrow{\$} \{0,1\}^{128}\]
+            </div>
+          </li>
+          <li>
+            Derive the private key by hashing the concatenation and reducing modulo the curve order \(n\):
+            <div class="math-box gold">
+              \[k = \text{SHA-256}(h_{\text{face}} \,\|\, \text{salt}) \bmod n \in [1,\, n-1]\]
+            </div>
+          </li>
+          <li>
+            Compute the corresponding secp256k1 public key:
+            <div class="math-box gold">
+              \[S = k \cdot G\]
+            </div>
+            where \(G\) is the secp256k1 generator point.
+          </li>
+        </ol>
+      </div>
+
+      <div class="phase-section">
+        <div class="phase-section-title">Step 3 — Blockchain Commitment</div>
+        <ol class="steps">
+          <li>Compute \(\text{nidHash} = \text{SHA-256}(\text{NID})\) to avoid storing raw ID on-chain.</li>
+          <li>Submit transaction <code>register(nidHash, S_x, S_y, salt)</code> to Hyperledger Fabric chaincode.</li>
+          <li>Chaincode appends \(S\) to the <code>GLOBAL_RING</code> key in the world state.</li>
+        </ol>
+      </div>
+
+      <div class="phase-section">
+        <div class="phase-section-title">Step 4 — QR Credential Generation</div>
+        <ol class="steps">
+          <li>
+            Derive AES key from the voter's password:
+            <div class="math-box green">
+              \[K_{\text{aes}} = \text{SHA-256}(\text{password})\]
+            </div>
+          </li>
+          <li>
+            Construct plaintext payload:
+            <div class="math-box green">
+              \[P = \mathbf{e}' \,\|\, h_{\text{face}} \,\|\, \text{salt} \,\|\, \text{nidHash}\]
+            </div>
+          </li>
+          <li>
+            Encrypt with AES-256-CBC and a random IV:
+            <div class="math-box green">
+              \[\text{QR\_payload} = \text{IV} \,\|\, \text{AES-CBC}_{K_{\text{aes}}}(P)\]
+            </div>
+          </li>
+          <li>Encode payload as a QR code PNG and return to voter. <em>The raw embedding and private key are never persisted anywhere.</em></li>
+        </ol>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="security-note">
+    <strong>⚠ Security Properties of Registration</strong><br/>
+    The private key \(k\) exists only in transient server memory during one request and is never stored. The blockchain holds only \((S_x, S_y)\), which by the ECDLP reveals nothing about the face embedding. Without the correct password, the QR payload cannot be decrypted to recover \(\mathbf{e}'\) or reconstruct \(k\).
+  </div>
+</div>
+
+<hr class="sep"/>
+
+<!-- ========================================================= -->
+<!-- PHASE 2 -->
+<!-- ========================================================= -->
+<div class="phase" id="p2">
+  <div class="phase-header">
+    <div class="phase-badge p2"><span class="num">2</span><span class="lbl">Phase</span></div>
+    <div class="phase-title">
+      <h2>Ballot Creation Protocol</h2>
+      <p>Ballot initialisation and homomorphic encryption keypair generation</p>
+    </div>
+  </div>
+
+  <div class="algorithm">
+    <div class="algorithm-header">
+      <span class="alg-id">ALG 5.2</span>
+      <span class="alg-name">Ballot Creation</span>
+    </div>
+    <div class="algorithm-io">
+      <span class="io-label">Input</span>&nbsp; Title \(T\), description \(D\), candidate options \(\{O_1,\ldots,O_m\}\), start time \(t_s\), end time \(t_e\)<br/>
+      <span class="io-label">Output</span>&nbsp; Active ballot record \(B\)
+    </div>
+    <div class="algorithm-body">
+      <ol class="steps">
+        <li>Validate: \(m \geq 2\), all options distinct, \(t_s < t_e\).</li>
+        <li>Construct ballot object \(B\) with \(B.\text{id} = \texttt{"ballot\_"} \|\, \text{timestamp}\), \(B.\text{status} = \texttt{"active"}\), and \(B.\text{options} = \{(O_i,\, \text{votes}{:}\, 0)\}_{i=1}^{m}\).</li>
+        <li>If a previous ballot exists, close it and archive it to history.</li>
+        <li>Set \(B\) as the active ballot.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="algorithm">
+    <div class="algorithm-header">
+      <span class="alg-id">ALG 5.3</span>
+      <span class="alg-name">Homomorphic Encryption Setup — Exponential ElGamal KeyGen</span>
+    </div>
+    <div class="algorithm-io">
+      <span class="io-label">Input</span>&nbsp; Ballot ID<br/>
+      <span class="io-label">Output</span>&nbsp; Public key \(Q\) published; private key \(d\) held server-side
+    </div>
+    <div class="algorithm-body">
+      <ol class="steps">
+        <li>
+          Sample a random private key:
+          <div class="math-box">
+            \[d \xleftarrow{\$} [1,\, n-1]\]
+          </div>
+        </li>
+        <li>
+          Compute the corresponding public key:
+          <div class="math-box">
+            \[Q = d \cdot G\]
+          </div>
+        </li>
+        <li>Store the keypair \((d,\, Q)\) keyed by \(B.\text{id}\).</li>
+        <li>Publish \(Q\) via <code>GET /api/v1/tally/publickey/:ballotId</code>.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="security-note">
+    <strong>⚠ Production Note</strong><br/>
+    In a production deployment, the private key \(d\) should be generated through a <em>Distributed Key Generation (DKG)</em> ceremony among multiple trustees so that no single party can unilaterally decrypt individual votes before the election concludes.
+  </div>
+</div>
+
+<hr class="sep"/>
+
+<!-- ========================================================= -->
+<!-- PHASE 3 -->
+<!-- ========================================================= -->
+<div class="phase" id="p3">
+  <div class="phase-header">
+    <div class="phase-badge p3"><span class="num">3</span><span class="lbl">Phase</span></div>
+    <div class="phase-title">
+      <h2>Vote Casting Protocol</h2>
+      <p>Anonymous vote submission via biometric authentication, key recovery, ring signature, and homomorphic encryption</p>
+    </div>
+  </div>
+
+  <div class="algorithm">
+    <div class="algorithm-header">
+      <span class="alg-id">ALG 5.4</span>
+      <span class="alg-name">Anonymous Vote Casting</span>
+    </div>
+    <div class="algorithm-io">
+      <span class="io-label">Input</span>&nbsp; QR code image, live face image, password, vote choice \(v_c \in \{O_1,\ldots,O_m\}\)<br/>
+      <span class="io-label">Output</span>&nbsp; Confirmed vote record on blockchain
+    </div>
+    <div class="algorithm-body">
+
+      <div class="phase-section">
+        <div class="phase-section-title">Phase 3a — Biometric Authentication</div>
+        <ol class="steps">
+          <li>Decode the QR image using jsQR to retrieve the encrypted payload.</li>
+          <li>
+            Recover the AES key and decrypt the payload:
+            <div class="math-box">
+              \[K_{\text{aes}} = \text{SHA-256}(\text{password})\]
+              \[P = \text{AES-CBC-Dec}_{K_{\text{aes}}}(\text{QR\_payload})\]
+            </div>
+            Extract \((\mathbf{e}'_{\text{reg}},\, h_{\text{face}},\, \text{salt},\, \text{nidHash})\) from \(P\).
+          </li>
+          <li>Capture a live face image and extract its FaceNet + PCA embedding \(\mathbf{e}'_{\text{live}}\) using the same pipeline as registration.</li>
+          <li>
+            Compute the cosine similarity between the registered and live embeddings:
+            <div class="math-box green">
+              \[\cos\theta = \frac{\mathbf{e}'_{\text{reg}} \cdot \mathbf{e}'_{\text{live}}}{\|\mathbf{e}'_{\text{reg}}\|_2 \; \|\mathbf{e}'_{\text{live}}\|_2}\]
+            </div>
+          </li>
+          <li>
+            Apply the acceptance decision rule with threshold \(\tau = 0.50\):
+            <div class="math-box green">
+              \[\text{Authenticate} = \begin{cases} \text{ACCEPT} & \text{if } \cos\theta > \tau \\ \text{REJECT} & \text{otherwise} \end{cases}\]
+            </div>
+          </li>
+        </ol>
+      </div>
+
+      <div class="phase-section">
+        <div class="phase-section-title">Phase 3b — Deterministic Private Key Recovery</div>
+        <ol class="steps">
+          <li>
+            Recompute the private key identically to registration:
+            <div class="math-box gold">
+              \[k = \text{SHA-256}(h_{\text{face}} \,\|\, \text{salt}) \bmod n\]
+            </div>
+          </li>
+          <li>
+            Verify the recovered key against the registered public key:
+            <div class="math-box gold">
+              \[S = k \cdot G \quad \text{must match} \quad S_{\text{registered}}\]
+            </div>
+          </li>
+        </ol>
+      </div>
+
+      <div class="phase-section">
+        <div class="phase-section-title">Phase 3c — Linkable Ring Signature Generation</div>
+        <ol class="steps">
+          <li>Retrieve the global ring from the blockchain: \(\mathcal{R} = \{PK_1, PK_2, \ldots, PK_n\}\).</li>
+          <li>Locate the signer index \(\pi\) such that \(PK_\pi = S\).</li>
+          <li>
+            Execute the Liu–Wei–Wong LRS signing algorithm (detailed in Algorithm 5.5 below):
+            <div class="math-box purple">
+              \[\sigma = \text{LRS.Sign}(k,\; \mathcal{R},\; \pi,\; v_c) = (c_0,\; \{s_i\}_{i=0}^{n-1},\; I,\; \text{startIndex})\]
+            </div>
+            where:
+            <ul style="margin-top:8px; margin-left:24px; font-size:14px; line-height:1.8;">
+              <li>\(c_0\) is the initial challenge scalar</li>
+              <li>\(\{s_i\}\) are the \(n\) response scalars</li>
+              <li>\(I = k \cdot H_p(PK_\pi)\) is the link tag (a curve point)</li>
+            </ul>
+          </li>
+        </ol>
+      </div>
+
+      <div class="phase-section">
+        <div class="phase-section-title">Phase 3d — Vote Encryption (Exponential ElGamal)</div>
+        <ol class="steps">
+          <li>Retrieve the ballot public key \(Q = d \cdot G\) from the API.</li>
+          <li>
+            Sample a fresh random encryption nonce:
+            <div class="math-box">
+              \[r \xleftarrow{\$} [1,\, n-1]\]
+            </div>
+          </li>
+          <li>
+            Encrypt the vote value \(v = 1\) (one for the chosen candidate):
+            <div class="math-box">
+              \[C_1 = r \cdot G\]
+              \[C_2 = 1 \cdot G + r \cdot Q = G + r \cdot Q\]
+            </div>
+            The resulting ciphertext is \(\text{Enc}(1) = (C_1,\, C_2)\).
+          </li>
+          <li>Serialise: \(\text{encVote} = \{C_1\!: (x, y),\; C_2\!: (x, y)\}\).</li>
+        </ol>
+      </div>
+
+      <div class="phase-section">
+        <div class="phase-section-title">Phase 3e — Blockchain Submission &amp; On-Chain Verification</div>
+        <ol class="steps">
+          <li>Verify the signature locally: \(\text{LRS.Verify}(\sigma,\, \mathcal{R},\, v_c) = 1\).</li>
+          <li>Submit to the Hyperledger Fabric chaincode: <code>castVote(v_c, σ, R, encVote)</code>.</li>
+          <li>The chaincode extracts the link tag \(I = (I_x, I_y)\) from \(\sigma\).</li>
+          <li>Check: if key <code>LINK_TAG_<em>Ix</em>_<em>Iy</em></code> already exists in the world state → <strong>REJECT</strong> with "Double voting detected".</li>
+          <li>Atomically: increment <code>VOTE_COUNTER</code>, store vote record under <code>VOTE_<em>count</em></code>, write <code>LINK_TAG_<em>Ix</em>_<em>Iy</em></code>, and emit a <code>VoteCast</code> event.</li>
+        </ol>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- LRS Sub-algorithm -->
+  <div class="algorithm">
+    <div class="algorithm-header">
+      <span class="alg-id">ALG 5.5</span>
+      <span class="alg-name">Liu–Wei–Wong Linkable Ring Signature — Sign</span>
+    </div>
+    <div class="algorithm-io">
+      <span class="io-label">Input</span>&nbsp; Signer secret key \(k\), ring \(\mathcal{R} = \{PK_0, \ldots, PK_{n-1}\}\), signer index \(\pi\), message \(m\)<br/>
+      <span class="io-label">Output</span>&nbsp; Signature \(\sigma = (c_0, \{s_i\}, I, \pi)\)
+    </div>
+    <div class="algorithm-body">
+      <ol class="steps">
+        <li>
+          Compute the link tag using the hash-to-point function \(H_p\):
+          <div class="math-box purple">
+            \[I = k \cdot H_p(PK_\pi)\]
+            where \(H_p(P) = \text{SHA-256}(P_x \,\|\, P_y) \cdot G\)
+          </div>
+        </li>
+        <li>
+          Sample a random scalar and compute the signer's commitments:
+          <div class="math-box purple">
+            \[u \xleftarrow{\$} [1,\, n-1]\]
+            \[L_\pi = u \cdot G, \qquad R_\pi = u \cdot H_p(PK_\pi)\]
+          </div>
+        </li>
+        <li>
+          Compute the initial challenge for the next index \((\pi+1) \bmod n\):
+          <div class="math-box purple">
+            \[c_{\pi+1} = \text{SHA-256}(m \,\|\, L_\pi \,\|\, R_\pi)\]
+          </div>
+        </li>
+        <li>
+          For \(i = \pi+1, \, \pi+2, \ldots, \pi + n - 1\) (indices taken mod \(n\)):
+          <ol class="sub-steps">
+            <li>Sample \(s_i \xleftarrow{\$} [1,\, n-1]\).</li>
+            <li>Compute ring members' commitments: \(L_i = s_i \cdot G + c_i \cdot PK_i\) and \(R_i = s_i \cdot H_p(PK_i) + c_i \cdot I\).</li>
+            <li>Compute the next challenge: \(c_{i+1\bmod n} = \text{SHA-256}(m \,\|\, L_i \,\|\, R_i)\).</li>
+          </ol>
+        </li>
+        <li>
+          Close the ring: compute the signer's response scalar:
+          <div class="math-box purple">
+            \[s_\pi = u - c_\pi \cdot k \pmod{n}\]
+          </div>
+        </li>
+        <li>Output \(\sigma = (c_0,\; \{s_i\}_{i=0}^{n-1},\; I,\; \pi)\).</li>
+      </ol>
+    </div>
+  </div>
+
+</div>
+
+<hr class="sep"/>
+
+<!-- ========================================================= -->
+<!-- PHASE 4 -->
+<!-- ========================================================= -->
+<div class="phase" id="p4">
+  <div class="phase-header">
+    <div class="phase-badge p4"><span class="num">4</span><span class="lbl">Phase</span></div>
+    <div class="phase-title">
+      <h2>Revote Prevention — Double-Vote Detection</h2>
+      <p>Cryptographic uniqueness guarantee via link tag determinism</p>
+    </div>
+  </div>
+
+  <div class="theorem-block">
+    <div class="thm-label">Theorem 5.1 — Revote Prevention Correctness</div>
+    <div class="thm-body">
+      If a voter with private key \(k\) produces two valid ring signatures \(\sigma_1\) and \(\sigma_2\) (over any rings containing \(PK = k \cdot G\)), their link tags satisfy:
+      <div class="math-box">
+        \[I_1 = I_2\]
+      </div>
+      with probability 1. Consequently, the chaincode will reject the second vote upon detecting the duplicate link-tag key.
+    </div>
+  </div>
+
+  <div class="proof-block">
+    <div class="proof-label">Proof</div>
+    The link tag is defined as:
+    <div class="math-box">
+      \[I = k \cdot H_p(PK)\]
+    </div>
+    where \(H_p\) is deterministic and \(PK = k \cdot G\) is uniquely determined by \(k\). Since \(k\), \(PK\), and \(H_p\) are all deterministic, the value \(I\) is uniquely a function of \(k\) alone:
+    <div class="math-box">
+      \[I = f(k) = k \cdot H_p(k \cdot G)\]
+    </div>
+    Therefore \(I_1 = k \cdot H_p(PK) = I_2\) for any two signatures by the same signer. &nbsp; \(\square\)
+  </div>
+
+  <div class="theorem-block" style="margin-top:20px;">
+    <div class="thm-label">Theorem 5.2 — Privacy of Link Tags</div>
+    <div class="thm-body">
+      Given a link tag \(I\) and the ring \(\mathcal{R} = \{PK_1, \ldots, PK_n\}\), no probabilistic polynomial-time (PPT) adversary can determine which ring member produced \(I\) with advantage non-negligibly greater than \(\frac{1}{n}\), under the ECDLP hardness assumption.
+    </div>
+  </div>
+
+  <div class="proof-block">
+    <div class="proof-label">Proof Sketch</div>
+    Identifying the signer from \(I\) and \(\mathcal{R}\) requires finding \(\pi\) such that \(I = k_\pi \cdot H_p(PK_\pi)\). Since \(H_p(PK_\pi)\) is a known public point \(\mathcal{P}_\pi\), this reduces to finding \(k_\pi\) satisfying:
+    <div class="math-box">
+      \[I = k_\pi \cdot \mathcal{P}_\pi\]
+    </div>
+    which is exactly the Elliptic Curve Discrete Logarithm Problem (ECDLP) on the secp256k1 curve — assumed computationally intractable. &nbsp; \(\square\)
+  </div>
+</div>
+
+<hr class="sep"/>
+
+<!-- ========================================================= -->
+<!-- PHASE 5 -->
+<!-- ========================================================= -->
+<div class="phase" id="p5">
+  <div class="phase-header">
+    <div class="phase-badge p5"><span class="num">5</span><span class="lbl">Phase</span></div>
+    <div class="phase-title">
+      <h2>Vote Tallying Protocol</h2>
+      <p>Privacy-preserving tally via homomorphic aggregation and Baby-Step Giant-Step decryption</p>
+    </div>
+  </div>
+
+  <div class="algorithm">
+    <div class="algorithm-header">
+      <span class="alg-id">ALG 5.6</span>
+      <span class="alg-name">Homomorphic Tally Computation</span>
+    </div>
+    <div class="algorithm-io">
+      <span class="io-label">Input</span>&nbsp; All encrypted votes \(\{(v_{c_j}, \text{encVote}_j)\}_{j=1}^{N}\) from blockchain, keypair \((d, Q)\), candidates \(\{O_1,\ldots,O_m\}\)<br/>
+      <span class="io-label">Output</span>&nbsp; Vote counts \(\{\text{count}_i\}_{i=1}^{m}\)
+    </div>
+    <div class="algorithm-body">
+
+      <div class="phase-section">
+        <div class="phase-section-title">Step 1 — Homomorphic Aggregation</div>
+        <ol class="steps">
+          <li>Retrieve all \(N\) encrypted vote records from the Hyperledger Fabric ledger.</li>
+          <li>For each candidate \(O_i\), initialise the aggregate ciphertext \(\mathcal{C}_i = \bot\).</li>
+          <li>
+            For each vote \(j\) with \(v_{c_j} = O_i\), deserialise \(\text{ct}_j = \text{Enc}(1) = (C_{1,j},\, C_{2,j})\) and accumulate using the homomorphic addition operation \(\oplus\):
+            <div class="math-box">
+              \[\mathcal{C}_i = \bigoplus_{j:\, v_{c_j} = O_i} \text{ct}_j\]
+            </div>
+            Concretely, for two ciphertexts \((C_1,\, C_2)\) and \((C_1',\, C_2')\):
+            <div class="math-box">
+              \[(C_1,\, C_2) \oplus (C_1',\, C_2') = (C_1 + C_1',\;\; C_2 + C_2')\]
+            </div>
+            After aggregating \(\text{count}_i\) individual encryptions of 1, the result equals:
+            <div class="math-box">
+              \[\mathcal{C}_i = \text{Enc}(\text{count}_i) = \!\!\!\!\!\! \underbrace{\left(\sum_{j:\, v_{c_j}=O_i} r_j\right)}_{\tilde{r}} \!\!\!\! \cdot G,\;\; \text{count}_i \cdot G + \tilde{r} \cdot Q\bigg)\]
+            </div>
+          </li>
+        </ol>
+      </div>
+
+      <div class="phase-section">
+        <div class="phase-section-title">Step 2 — Exponential ElGamal Decryption</div>
+        <ol class="steps">
+          <li>
+            For each candidate \(O_i\) with aggregate ciphertext \(\mathcal{C}_i = (\tilde{C}_1,\, \tilde{C}_2)\), decrypt to obtain the encoded vote total:
+            <div class="math-box gold">
+              \[M_i = \tilde{C}_2 - d \cdot \tilde{C}_1 = \text{count}_i \cdot G\]
+            </div>
+            Correctness follows from:
+            <div class="math-box gold">
+              \[M_i = (\text{count}_i \cdot G + \tilde{r} \cdot Q) - d \cdot (\tilde{r} \cdot G) = \text{count}_i \cdot G + \tilde{r}(dG) - d(\tilde{r} G) = \text{count}_i \cdot G\]
+            </div>
+          </li>
+        </ol>
+      </div>
+
+      <div class="phase-section">
+        <div class="phase-section-title">Step 3 — Baby-Step Giant-Step Discrete Log Recovery</div>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:10px;">
+          We hold \(M_i = \text{count}_i \cdot G\) and need to recover the integer \(\text{count}_i \in [0, N]\).
+        </p>
+        <ol class="steps">
+          <li>
+            Set the stride \(m = \lceil\sqrt{N}\rceil\).
+          </li>
+          <li>
+            <strong>Baby Steps</strong> — build a lookup table:
+            <div class="math-box">
+              \[T = \{(j \cdot G,\; j) \mid j = 0, 1, \ldots, m-1\}\]
+            </div>
+          </li>
+          <li>
+            Compute the giant-step increment \(\Delta = m \cdot G\).
+          </li>
+          <li>
+            <strong>Giant Steps</strong> — set \(\gamma = M_i\) and iterate for \(i = 0, 1, \ldots, m\):
+            <ol class="sub-steps">
+              <li>If \(\gamma \in T\): return \(\text{count}_i = i \cdot m + T[\gamma]\). &nbsp; <span class="check">✓</span></li>
+              <li>Update \(\gamma \leftarrow \gamma - \Delta\).</li>
+            </ol>
+          </li>
+        </ol>
+        <div class="info-note">
+          <strong>Complexity:</strong> Time \(\mathcal{O}(\sqrt{N})\), Space \(\mathcal{O}(\sqrt{N})\). For \(N \leq 10{,}000\) voters this requires at most \(\sqrt{10{,}000} = 100\) curve-point operations — effectively instantaneous.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="algorithm">
+    <div class="algorithm-header">
+      <span class="alg-id">ALG 5.7</span>
+      <span class="alg-name">Public Tally Verification</span>
+    </div>
+    <div class="algorithm-io">
+      <span class="io-label">Input</span>&nbsp; All encrypted votes (public on blockchain), claimed aggregate ciphertexts \(\{\mathcal{C}_i\}\), claimed counts \(\{\text{count}_i\}\)<br/>
+      <span class="io-label">Output</span>&nbsp; Verification result \(\in \{\text{VALID}, \text{INVALID}\}\)
+    </div>
+    <div class="algorithm-body">
+      <ol class="steps">
+        <li>Retrieve all encrypted votes from the public ledger independently.</li>
+        <li>Recompute the homomorphic sums \(\mathcal{C}_i'\) for each candidate using the same aggregation procedure.</li>
+        <li>
+          Check equality of aggregate ciphertexts:
+          <div class="math-box green">
+            \[\mathcal{C}_i' \stackrel{?}{=} \mathcal{C}_i \quad \forall\, i = 1, \ldots, m\]
+          </div>
+          If all match, the aggregation step was performed faithfully.
+        </li>
+      </ol>
+      <div class="info-note">
+        <strong>Note:</strong> Verifying the <em>decryption</em> step — i.e. that \(\text{count}_i \cdot G = M_i\) was computed from the correct secret \(d\) — requires either access to \(d\) or a zero-knowledge proof of correct decryption such as the Chaum–Pedersen protocol.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<hr class="sep"/>
+
+<!-- ========================================================= -->
+<!-- PHASE 6 -->
+<!-- ========================================================= -->
+<div class="phase" id="p6">
+  <div class="phase-header">
+    <div class="phase-badge p6"><span class="num">6</span><span class="lbl">Phase</span></div>
+    <div class="phase-title">
+      <h2>Vote Validity Proof — ZK Range Proof</h2>
+      <p>Disjunctive Chaum–Pedersen protocol to prevent ballot stuffing</p>
+    </div>
+  </div>
+
+  <div class="info-note">
+    <strong>Goal:</strong> Prove that a ciphertext \((C_1, C_2)\) encrypts a value in \(\{0, 1\}\) without revealing which, so that a malicious voter cannot encrypt an arbitrary large integer to inflate a candidate's count.
+  </div>
+
+  <div class="algorithm">
+    <div class="algorithm-header">
+      <span class="alg-id">ALG 5.8</span>
+      <span class="alg-name">1-of-2 Disjunctive Chaum–Pedersen ZKP — Prove Valid Vote</span>
+    </div>
+    <div class="algorithm-io">
+      <span class="io-label">Input</span>&nbsp; Ciphertext \((C_1, C_2) = (rG,\; v \cdot G + rQ)\) with \(v \in \{0,1\}\), randomness \(r\), ballot public key \(Q\)<br/>
+      <span class="io-label">Output</span>&nbsp; Proof \(\pi = (a_1, b_1, a_2, b_2, d_1, d_2, r_1, r_2)\)
+    </div>
+    <div class="algorithm-body">
+
+      <div class="phase-section">
+        <div class="phase-section-title">Case: Actual Vote is 0 &nbsp;(real proof for statement 0, simulated for statement 1)</div>
+        <ol class="steps">
+          <li>
+            Sample random scalars:
+            <div class="math-box purple">
+              \[w,\, d_2,\, r_2 \xleftarrow{\$} [1,\, n-1]\]
+            </div>
+          </li>
+          <li>
+            Compute the <em>real</em> commitment for statement 0 (\(v = 0\)):
+            <div class="math-box purple">
+              \[a_1 = w \cdot G, \qquad b_1 = w \cdot Q\]
+            </div>
+          </li>
+          <li>
+            Compute the <em>simulated</em> commitment for statement 1 (\(v = 1\)):
+            <div class="math-box purple">
+              \[a_2 = r_2 \cdot G + d_2 \cdot C_1\]
+              \[b_2 = r_2 \cdot Q + d_2 \cdot (C_2 - G)\]
+            </div>
+          </li>
+          <li>
+            Compute the Fiat–Shamir challenge:
+            <div class="math-box purple">
+              \[c = \text{SHA-256}(C_1,\, C_2,\, a_1,\, b_1,\, a_2,\, b_2)\]
+            </div>
+          </li>
+          <li>
+            Split the challenge to satisfy \(d_1 + d_2 \equiv c \pmod{n}\):
+            <div class="math-box purple">
+              \[d_1 = c - d_2 \pmod{n}\]
+            </div>
+          </li>
+          <li>
+            Compute the real response:
+            <div class="math-box purple">
+              \[r_1 = w - d_1 \cdot r \pmod{n}\]
+            </div>
+          </li>
+          <li>Output proof \(\pi = (a_1,\, b_1,\, a_2,\, b_2,\, d_1,\, d_2,\, r_1,\, r_2)\).</li>
+        </ol>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="algorithm">
+    <div class="algorithm-header">
+      <span class="alg-id">ALG 5.9</span>
+      <span class="alg-name">1-of-2 Disjunctive Chaum–Pedersen ZKP — Verify</span>
+    </div>
+    <div class="algorithm-io">
+      <span class="io-label">Input</span>&nbsp; Ciphertext \((C_1, C_2)\), proof \(\pi = (a_1, b_1, a_2, b_2, d_1, d_2, r_1, r_2)\), ballot public key \(Q\)<br/>
+      <span class="io-label">Output</span>&nbsp; \(\{0,1\}\)
+    </div>
+    <div class="algorithm-body">
+      <table class="verify-table">
+        <thead>
+          <tr><th>#</th><th>Check</th><th>Equation</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>Challenge consistency</td>
+            <td>
+              \[d_1 + d_2 \equiv \text{SHA-256}(C_1, C_2, a_1, b_1, a_2, b_2) \pmod{n}\]
+            </td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Statement 0 commitment — \(G\)-component</td>
+            <td>
+              \[r_1 \cdot G + d_1 \cdot C_1 \stackrel{?}{=} a_1\]
+            </td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>Statement 0 commitment — \(Q\)-component</td>
+            <td>
+              \[r_1 \cdot Q + d_1 \cdot C_2 \stackrel{?}{=} b_1\]
+            </td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>Statement 1 commitment — \(G\)-component</td>
+            <td>
+              \[r_2 \cdot G + d_2 \cdot C_1 \stackrel{?}{=} a_2\]
+            </td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td>Statement 1 commitment — \(Q\)-component</td>
+            <td>
+              \[r_2 \cdot Q + d_2 \cdot (C_2 - G) \stackrel{?}{=} b_2\]
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:13px; color:var(--muted); margin-top:12px;">Accept if and only if <em>all five checks</em> pass.</p>
+    </div>
+  </div>
+
+  <div class="theorem-block">
+    <div class="thm-label">Security Properties of the 1-of-2 ZKP</div>
+    <div class="thm-body">
+      <p><strong>Completeness:</strong> An honest prover with \(v \in \{0,1\}\) always satisfies all five verification checks.</p>
+      <p style="margin-top:8px;"><strong>Soundness:</strong> A cheating prover encrypting \(v \notin \{0,1\}\) cannot produce a valid proof. The probability of forging a valid proof is at most \(\frac{1}{|\mathbb{F}_n|} = \frac{1}{n}\), negligible in the security parameter.</p>
+      <p style="margin-top:8px;"><strong>Zero-Knowledge:</strong> The proof transcript \((a_1, b_1, a_2, b_2, d_1, d_2, r_1, r_2)\) is computationally indistinguishable from a simulated transcript that requires no knowledge of the vote \(v\) or the randomness \(r\). The verifier learns nothing about which of \(\{0, 1\}\) was encrypted.</p>
+    </div>
+  </div>
+
+</div>
+
+</div><!-- /container -->
+
+<script>
+  renderMathInElement(document.body, {
+    delimiters: [
+      { left: "$$", right: "$$", display: true },
+      { left: "\\[", right: "\\]", display: true },
+      { left: "\\(", right: "\\)", display: false },
+      { left: "$",   right: "$",   display: false }
+    ],
+    throwOnError: false,
+    trust: true
+  });
+</script>
+</body>
+</html>
