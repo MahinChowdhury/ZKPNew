@@ -60,15 +60,12 @@ npm start
 python3.10 -m venv venv
 source venv/bin/activate
 
-pip install fastapi
-pip install uvicorn
-pip install python-multipart
-pip install opencv-python
-pip install mediapipe
+pip install fastapi uvicorn python-multipart scikit-learn
+pip install "tensorflow==2.15.0" "protobuf==3.20.3" "numpy<2.0.0" "ml-dtypes==0.2.0"
+pip install mediapipe==0.10.9
 pip install deepface
-pip install numpy
-pip install scikit-learn
-pip install tf-keras
+pip uninstall opencv-python opencv-contrib-python -y
+pip install "opencv-python-headless<4.10.0"
 ```
 
 

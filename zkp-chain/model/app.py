@@ -1,13 +1,23 @@
 import os
+
+# ============================
+# 🚨 CRITICAL SEGFAULT FIXES
+# Must be at the VERY TOP before other imports
+# ============================
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force CPU only
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+
 import cv2
 import time
 import pickle
 import numpy as np
-from fastapi import FastAPI, File, UploadFile, HTTPException, Body
-from fastapi.responses import JSONResponse
-import uvicorn
-from deepface import DeepFace
+import mediapipe as mp
 
+# Import DeepFace/TensorFlow LAST
+from deepface import DeepFace 
+from fastapi import FastAPI, File, UploadFile, HTTPException, Body
+import uvicorn
+from contextlib import asynccontextmanager
 
 # ============================
 # CONFIG
@@ -16,6 +26,9 @@ COSINE_THRESHOLD = 0.50
 EUCLIDEAN_THRESHOLD = 1.0
 PCA_MODEL_PATH = "pca_model_64d.pkl"
 
+# Global variables for our models
+pca_model = None
+mp_detector = None
 
 # ============================
 # LOAD PCA MODEL
@@ -24,52 +37,71 @@ def load_pca_model():
     """Load the pre-trained PCA model."""
     try:
         with open(PCA_MODEL_PATH, 'rb') as f:
-            pca_model = pickle.load(f)
+            model = pickle.load(f)
         print(f"✓ PCA model loaded successfully from {PCA_MODEL_PATH}")
-        return pca_model
+        return model
     except FileNotFoundError:
         raise FileNotFoundError(f"PCA model not found at {PCA_MODEL_PATH}")
     except Exception as e:
         raise Exception(f"Error loading PCA model: {str(e)}")
 
-
-pca_model = load_pca_model()
-
+# ============================
+# FASTAPI LIFESPAN (LAZY LOADING)
+# ============================
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # This runs when the server boots up, safely initializing models one by one
+    global pca_model, mp_detector
+    
+    print("⏳ Initializing models...")
+    pca_model = load_pca_model()
+    
+    mp_detector = mp.solutions.face_detection.FaceDetection(
+        model_selection=0,
+        min_detection_confidence=0.5
+    )
+    print("✓ MediaPipe loaded")
+    
+    DeepFace.build_model("Facenet") 
+    print("✓ DeepFace Facenet loaded")
+    print("🚀 Server is ready to accept requests!")
+    
+    yield # App runs here
+    
+    # Cleanup on shutdown
+    if mp_detector:
+        mp_detector.close()
 
 # ============================
-# INITIALIZE MODELS
+# FASTAPI APP INITIALIZATION
 # ============================
-DeepFace.build_model("Facenet")  # load Facenet once
-
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-print("✓ OpenCV Haar face detector loaded")
+app = FastAPI(lifespan=lifespan)
 
 
 # ============================
 # FACE DETECTION
 # ============================
 def detect_face_from_bytes(img_bytes: bytes, margin=20):
-    """Detect and crop a face from raw bytes using OpenCV Haar Cascade."""
+    """Detect and crop a face from raw bytes using MediaPipe."""
     np_img = np.frombuffer(img_bytes, np.uint8)
     img = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
     if img is None:
         raise ValueError("Invalid image")
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     h, w = img.shape[:2]
 
-    faces = face_cascade.detectMultiScale(
-        gray,
-        scaleFactor=1.1,
-        minNeighbors=5,
-        minSize=(30, 30)
-    )
-
-    if len(faces) == 0:
+    result = mp_detector.process(img_rgb)
+    if not result.detections:
         raise ValueError("No face detected")
 
-    # Use the first detected face
-    x, y, bw, bh = faces[0]
+    det = result.detections[0]
+    bbox = det.location_data.relative_bounding_box
+
+    x = int(bbox.xmin * w)
+    y = int(bbox.ymin * h)
+    bw = int(bbox.width * w)
+    bh = int(bbox.height * h)
 
     x1 = max(0, x - margin)
     y1 = max(0, y - margin)
@@ -77,7 +109,7 @@ def detect_face_from_bytes(img_bytes: bytes, margin=20):
     y2 = min(h, y + bh + margin)
 
     face_img = img[y1:y2, x1:x2]
-    confidence = 1.0  # Haar doesn't return confidence scores
+    confidence = det.score[0]
 
     return face_img, confidence
 
@@ -104,13 +136,13 @@ def get_embedding_from_bytes(img_bytes: bytes):
 
     # Get 128D embedding
     embedding_128d = np.array(emb_obj[0]["embedding"])
-
+    
     # Normalize 128D embedding
     embedding_128d = embedding_128d / np.linalg.norm(embedding_128d)
-
+    
     # Reduce to 64D using PCA
     embedding_64d = pca_model.transform(embedding_128d.reshape(1, -1))[0]
-
+    
     # Normalize 64D embedding
     embedding_64d = embedding_64d / np.linalg.norm(embedding_64d)
 
@@ -135,13 +167,9 @@ def compare_embeddings(e1, e2):
         "embedding_dimension": len(e1)
     }
 
-
 # ============================
-# FASTAPI APP
+# ENDPOINTS
 # ============================
-app = FastAPI()
-
-
 @app.post("/get-embedding")
 async def api_get_embedding(file: UploadFile = File(...)):
     try:
@@ -156,7 +184,6 @@ async def api_get_embedding(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 @app.post("/compare-embeddings")
 async def api_compare_embeddings(data: dict = Body(...)):
     try:
@@ -164,7 +191,6 @@ async def api_compare_embeddings(data: dict = Body(...)):
         emb2 = np.array(data["face_reg"])
 
         result = compare_embeddings(emb1, emb2)
-
         return result
 
     except KeyError as e:
@@ -177,4 +203,4 @@ async def api_compare_embeddings(data: dict = Body(...)):
 # RUN LOCAL SERVER
 # ============================
 if __name__ == "__main__":
-    uvicorn.run(app, host="localhost", port=8000)
+    uvicorn.run("app:app", host="localhost", port=8000, reload=False)
