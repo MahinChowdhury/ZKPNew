@@ -13,14 +13,13 @@ class FabricClient {
     try {
       // Path to test-network
       const ccpPath = path.resolve(
-        __dirname, 
-        '..', 
-        '..', 
-        'fabric-samples', 
-        'test-network', 
-        'organizations', 
-        'peerOrganizations', 
-        'org1.example.com', 
+        __dirname,
+        '..',
+        '..',
+        'test-network',
+        'organizations',
+        'peerOrganizations',
+        'org1.example.com',
         'connection-org1.json'
       );
       

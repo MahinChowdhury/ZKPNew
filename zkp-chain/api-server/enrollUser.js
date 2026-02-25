@@ -10,7 +10,6 @@ async function main() {
       __dirname,
       '..',
       '..',
-      'fabric-samples',
       'test-network',
       'organizations',
       'peerOrganizations',

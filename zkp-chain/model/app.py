@@ -7,7 +7,6 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Body
 from fastapi.responses import JSONResponse
 import uvicorn
 from deepface import DeepFace
-import mediapipe as mp
 
 
 # ============================
@@ -40,38 +39,37 @@ pca_model = load_pca_model()
 # ============================
 # INITIALIZE MODELS
 # ============================
-mp_detector = mp.solutions.face_detection.FaceDetection(
-    model_selection=0,
-    min_detection_confidence=0.5
-)
+DeepFace.build_model("Facenet")  # load Facenet once
 
-DeepFace.build_model("Facenet")   # load Facenet once
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+print("✓ OpenCV Haar face detector loaded")
 
 
 # ============================
 # FACE DETECTION
 # ============================
 def detect_face_from_bytes(img_bytes: bytes, margin=20):
-    """Detect and crop a face from raw bytes using MediaPipe."""
+    """Detect and crop a face from raw bytes using OpenCV Haar Cascade."""
     np_img = np.frombuffer(img_bytes, np.uint8)
     img = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
     if img is None:
         raise ValueError("Invalid image")
 
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     h, w = img.shape[:2]
 
-    result = mp_detector.process(img_rgb)
-    if not result.detections:
+    faces = face_cascade.detectMultiScale(
+        gray,
+        scaleFactor=1.1,
+        minNeighbors=5,
+        minSize=(30, 30)
+    )
+
+    if len(faces) == 0:
         raise ValueError("No face detected")
 
-    det = result.detections[0]
-    bbox = det.location_data.relative_bounding_box
-
-    x = int(bbox.xmin * w)
-    y = int(bbox.ymin * h)
-    bw = int(bbox.width * w)
-    bh = int(bbox.height * h)
+    # Use the first detected face
+    x, y, bw, bh = faces[0]
 
     x1 = max(0, x - margin)
     y1 = max(0, y - margin)
@@ -79,7 +77,7 @@ def detect_face_from_bytes(img_bytes: bytes, margin=20):
     y2 = min(h, y + bh + margin)
 
     face_img = img[y1:y2, x1:x2]
-    confidence = det.score[0]
+    confidence = 1.0  # Haar doesn't return confidence scores
 
     return face_img, confidence
 
@@ -106,13 +104,13 @@ def get_embedding_from_bytes(img_bytes: bytes):
 
     # Get 128D embedding
     embedding_128d = np.array(emb_obj[0]["embedding"])
-    
+
     # Normalize 128D embedding
     embedding_128d = embedding_128d / np.linalg.norm(embedding_128d)
-    
+
     # Reduce to 64D using PCA
     embedding_64d = pca_model.transform(embedding_128d.reshape(1, -1))[0]
-    
+
     # Normalize 64D embedding
     embedding_64d = embedding_64d / np.linalg.norm(embedding_64d)
 
