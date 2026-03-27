@@ -55,6 +55,14 @@ echo -e "${YELLOW}Waiting for network to stabilize...${NC}"
 sleep 5
 
 # ============================================
+# PULL REQUIRED DOCKER IMAGES
+# ============================================
+
+echo -e "${YELLOW}Pulling required Docker images for Node.js chaincode...${NC}"
+docker pull hyperledger/fabric-nodeenv:2.5 || true
+echo -e "${GREEN}✅ Docker images pulled${NC}\n"
+
+# ============================================
 # STEP 3: PREPARE CHAINCODE
 # ============================================
 
