@@ -40,7 +40,7 @@ GREEN  = "#16A34A"
 PURPLE = "#7C3AED"
 GRAY   = "#6B7280"
 
-fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
+fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
 fig.suptitle("Figure 8: Exponential ElGamal Homomorphic Tallying Performance", fontsize=11, fontweight="bold")
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -102,10 +102,43 @@ c = np.polyfit(sqrt_ns, bsgs_means, 1)
 fit_y = np.polyval(c, np.sqrt(fit_x))
 ax.plot(fit_x, fit_y, "--", color=GRAY, linewidth=1.2, label=f"Fit: {c[0]:.4f}√n + {c[1]:.2f}")
 
+ax.set_xscale("log")
 ax.set_xlabel("Maximum expected votes (N)")
 ax.set_ylabel("Solve time (ms)")
 ax.set_title("(b) Baby-step Giant-step discrete log recovery")
 ax.legend()
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Panel (c) — Vector Latency vs Candidate Count
+# ═══════════════════════════════════════════════════════════════════════════════
+
+ax1 = axes[2]
+vec_data = data.get("vector_latency", [])
+if vec_data:
+    candidates = np.array([d["candidates"] for d in vec_data])
+    client_means = np.array([d["encrypt_and_prove"]["mean"] for d in vec_data])
+    client_sds = np.array([d["encrypt_and_prove"]["sd"] for d in vec_data])
+    server_means = np.array([d["homomorphic_add"]["mean"] for d in vec_data])
+    server_sds = np.array([d["homomorphic_add"]["sd"] for d in vec_data])
+    
+    color1 = BLUE
+    ax1.set_xlabel("Number of Candidates on Ballot (C)")
+    ax1.set_ylabel("Client latency (ms) [Encrypt + ZKP]", color=color1)
+    line1 = ax1.errorbar(candidates, client_means, yerr=client_sds, fmt="o-", color=color1, linewidth=1.8, markersize=5, capsize=3, label="Client Cost O(C)")
+    ax1.tick_params(axis='y', labelcolor=color1)
+    ax1.set_xticks(candidates)
+    
+    ax2 = ax1.twinx()
+    color2 = GREEN
+    ax2.set_ylabel("Server latency (ms) [Homomorphic Add]", color=color2)
+    line2 = ax2.errorbar(candidates, server_means, yerr=server_sds, fmt="s--", color=color2, linewidth=1.8, markersize=5, capsize=3, label="Server Cost O(C)")
+    ax2.tick_params(axis='y', labelcolor=color2)
+    
+    ax1.set_title("(c) Vector voting scalability O(C)")
+    
+    lines = [line1, line2]
+    labels = [l.get_label() for l in lines]
+    ax1.legend(lines, labels, loc="upper left")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 
