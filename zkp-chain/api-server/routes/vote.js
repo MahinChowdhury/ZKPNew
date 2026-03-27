@@ -134,17 +134,7 @@ router.post(
       console.log("✅ QR decoded");
       
       // Parse and decrypt
-      const encrypted = JSON.parse(encryptedStr);
-      const key = crypto.createHash("sha256").update(password).digest();
-      const decipher = crypto.createDecipheriv(
-        "aes-256-cbc",
-        key,
-        Buffer.from(encrypted.iv, "base64")
-      );
-      
-      let decrypted = decipher.update(encrypted.data, "base64", "utf8");
-      decrypted += decipher.final("utf8");
-      const qrData = JSON.parse(decrypted);
+      const qrData = decryptPayload(encryptedStr, password);
       console.log("✅ QR decrypted");
 
       // 7. Live face verification
