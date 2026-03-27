@@ -1,0 +1,302 @@
+{
+  "meta": {
+    "date": "2026-03-27T11:09:22.934Z",
+    "node": "v24.13.1",
+    "curve": "secp256k1",
+    "iterations": 30
+  },
+  "latency": [
+    {
+      "n": 2,
+      "sign": {
+        "mean": 16.2579,
+        "sd": 9.2622,
+        "min": 12.9632,
+        "max": 58.5255,
+        "p95": 41.0836,
+        "p99": 58.5255
+      },
+      "verify": {
+        "mean": 12.2994,
+        "sd": 7.9597,
+        "min": 9.5879,
+        "max": 53.8931,
+        "p95": 17.1837,
+        "p99": 53.8931
+      }
+    },
+    {
+      "n": 4,
+      "sign": {
+        "mean": 23.1869,
+        "sd": 0.4445,
+        "min": 22.7351,
+        "max": 25.2754,
+        "p95": 23.57,
+        "p99": 25.2754
+      },
+      "verify": {
+        "mean": 19.5329,
+        "sd": 0.2488,
+        "min": 19.1382,
+        "max": 20.1621,
+        "p95": 20.1205,
+        "p99": 20.1621
+      }
+    },
+    {
+      "n": 8,
+      "sign": {
+        "mean": 42.2672,
+        "sd": 0.6851,
+        "min": 41.5318,
+        "max": 45.0973,
+        "p95": 43.6007,
+        "p99": 45.0973
+      },
+      "verify": {
+        "mean": 38.492,
+        "sd": 0.4677,
+        "min": 37.9755,
+        "max": 40.2059,
+        "p95": 39.3187,
+        "p99": 40.2059
+      }
+    },
+    {
+      "n": 16,
+      "sign": {
+        "mean": 80.1549,
+        "sd": 0.6093,
+        "min": 79.1855,
+        "max": 81.7979,
+        "p95": 81.3239,
+        "p99": 81.7979
+      },
+      "verify": {
+        "mean": 76.27,
+        "sd": 0.5336,
+        "min": 75.3347,
+        "max": 77.5054,
+        "p95": 77.4432,
+        "p99": 77.5054
+      }
+    },
+    {
+      "n": 32,
+      "sign": {
+        "mean": 158.7416,
+        "sd": 2.2763,
+        "min": 155.4228,
+        "max": 164.5936,
+        "p95": 163.1693,
+        "p99": 164.5936
+      },
+      "verify": {
+        "mean": 154.0011,
+        "sd": 1.8186,
+        "min": 150.9812,
+        "max": 158.2734,
+        "p95": 157.1994,
+        "p99": 158.2734
+      }
+    },
+    {
+      "n": 64,
+      "sign": {
+        "mean": 312.8851,
+        "sd": 5.9663,
+        "min": 306.3813,
+        "max": 324.9121,
+        "p95": 323.5864,
+        "p99": 324.9121
+      },
+      "verify": {
+        "mean": 307.843,
+        "sd": 6.0543,
+        "min": 301.1738,
+        "max": 323.0628,
+        "p95": 317.7417,
+        "p99": 323.0628
+      }
+    }
+  ],
+  "sig_size": [
+    {
+      "n": 2,
+      "json_bytes": 395,
+      "compact_bytes": 160
+    },
+    {
+      "n": 4,
+      "json_bytes": 527,
+      "compact_bytes": 224
+    },
+    {
+      "n": 8,
+      "json_bytes": 796,
+      "compact_bytes": 352
+    },
+    {
+      "n": 16,
+      "json_bytes": 1332,
+      "compact_bytes": 608
+    },
+    {
+      "n": 32,
+      "json_bytes": 2405,
+      "compact_bytes": 1120
+    },
+    {
+      "n": 64,
+      "json_bytes": 4548,
+      "compact_bytes": 2144
+    }
+  ],
+  "throughput": [
+    {
+      "n": 2,
+      "sign_ops": 75.5,
+      "verify_ops": 101.75
+    },
+    {
+      "n": 4,
+      "sign_ops": 43.75,
+      "verify_ops": 51.25
+    },
+    {
+      "n": 8,
+      "sign_ops": 23.5,
+      "verify_ops": 25.5
+    },
+    {
+      "n": 16,
+      "sign_ops": 12.5,
+      "verify_ops": 13.25
+    },
+    {
+      "n": 32,
+      "sign_ops": 6.25,
+      "verify_ops": 6.5
+    },
+    {
+      "n": 64,
+      "sign_ops": 3.25,
+      "verify_ops": 3.25
+    }
+  ],
+  "memory": [
+    {
+      "n": 2,
+      "before_mb": 15.249,
+      "after_mb": 21.301,
+      "delta_mb": 6.052
+    },
+    {
+      "n": 4,
+      "before_mb": 22.32,
+      "after_mb": 32.812,
+      "delta_mb": 10.492
+    },
+    {
+      "n": 8,
+      "before_mb": 34.865,
+      "after_mb": 22.116,
+      "delta_mb": -12.75
+    },
+    {
+      "n": 16,
+      "before_mb": 26.13,
+      "after_mb": 30.834,
+      "delta_mb": 4.705
+    },
+    {
+      "n": 32,
+      "before_mb": 38.983,
+      "after_mb": 14.969,
+      "delta_mb": -24.014
+    },
+    {
+      "n": 64,
+      "before_mb": 31.236,
+      "after_mb": 13.339,
+      "delta_mb": -17.897
+    }
+  ],
+  "linkability": {
+    "iterations": 500,
+    "true_positives": 500,
+    "true_negatives": 500,
+    "accuracy_pct": 100,
+    "check_time": {
+      "mean": 0.0006,
+      "sd": 0.0044,
+      "min": 0.0002,
+      "max": 0.0919,
+      "p95": 0.0003,
+      "p99": 0.0005
+    }
+  },
+  "simulation": [
+    {
+      "voters": 10,
+      "ring_size": 10,
+      "valid_votes": 10,
+      "rejected": 0,
+      "total_ms": 1011.7,
+      "votes_per_sec": 9.88,
+      "avg_sign_ms": 52.4536,
+      "avg_verify_ms": 48.6865
+    },
+    {
+      "voters": 25,
+      "ring_size": 10,
+      "valid_votes": 10,
+      "rejected": 15,
+      "total_ms": 2533.9,
+      "votes_per_sec": 9.87,
+      "avg_sign_ms": 52.6118,
+      "avg_verify_ms": 48.7273
+    },
+    {
+      "voters": 50,
+      "ring_size": 10,
+      "valid_votes": 10,
+      "rejected": 40,
+      "total_ms": 5206.06,
+      "votes_per_sec": 9.6,
+      "avg_sign_ms": 54.0546,
+      "avg_verify_ms": 50.0497
+    },
+    {
+      "voters": 100,
+      "ring_size": 10,
+      "valid_votes": 10,
+      "rejected": 90,
+      "total_ms": 10251.86,
+      "votes_per_sec": 9.75,
+      "avg_sign_ms": 53.2268,
+      "avg_verify_ms": 49.2772
+    },
+    {
+      "voters": 200,
+      "ring_size": 10,
+      "valid_votes": 10,
+      "rejected": 190,
+      "total_ms": 20336.84,
+      "votes_per_sec": 9.83,
+      "avg_sign_ms": 52.8306,
+      "avg_verify_ms": 48.84
+    },
+    {
+      "voters": 500,
+      "ring_size": 10,
+      "valid_votes": 10,
+      "rejected": 490,
+      "total_ms": 51725.36,
+      "votes_per_sec": 9.67,
+      "avg_sign_ms": 53.6059,
+      "avg_verify_ms": 49.8308
+    }
+  ]
+}
