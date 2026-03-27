@@ -54,11 +54,11 @@ function silent(fn) {
 
 // ── config ────────────────────────────────────────────────────────────────────
 
-const RING_SIZES = [2, 4, 8, 16, 32, 64];
-const ITERS      = 30;
+const RING_SIZES = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1000];
+const ITERS      = 10;   // reduced from 30 — large rings are slow
 const TP_MS      = 4000;
-const SIM_VOTERS = [10, 25, 50, 100, 200, 500];
-const SIM_RING   = 10;
+const SIM_VOTERS = [5, 10, 20, 50, 100];
+// Simulation uses ring_size = voters (realistic scaling)
 
 const results = {
   meta: { date: new Date().toISOString(), node: process.version, curve: "secp256k1", iterations: ITERS },
@@ -176,16 +176,16 @@ console.log("\n[4/5] Linkability detection...");
 
 // ── 5. End-to-end voting simulation ──────────────────────────────────────────
 
-console.log("\n[5/5] Voting simulation...");
+console.log("\n[5/5] Voting simulation (ring_size = voters)...");
 for (const numVoters of SIM_VOTERS) {
-  const { ring, privs } = genRing(SIM_RING);
+  const { ring, privs } = genRing(numVoters);
   const candidates = ["CandidateA", "CandidateB", "CandidateC"];
   const usedTags = [];
   let signTotal = 0, verifyTotal = 0, valid = 0, rejected = 0;
 
   const wallStart = nowMs();
   for (let v = 0; v < numVoters; v++) {
-    const idx = v % SIM_RING;
+    const idx = v;
     const msg = `VOTE:${candidates[v % 3]}:election2025`;
 
     const t0 = nowMs();
@@ -205,7 +205,7 @@ for (const numVoters of SIM_VOTERS) {
 
   results.simulation.push({
     voters:         numVoters,
-    ring_size:      SIM_RING,
+    ring_size:      numVoters,
     valid_votes:    valid,
     rejected:       rejected,
     total_ms:       +wallMs.toFixed(2),
@@ -213,7 +213,7 @@ for (const numVoters of SIM_VOTERS) {
     avg_sign_ms:    +(signTotal / numVoters).toFixed(4),
     avg_verify_ms:  +(verifyTotal / numVoters).toFixed(4),
   });
-  console.log(`  voters=${numVoters}  valid=${valid}  total=${wallMs.toFixed(0)}ms  ${+(numVoters/wallMs*1000).toFixed(1)} votes/s`);
+  console.log(`  voters=${numVoters}  ring=${numVoters}  valid=${valid}  total=${wallMs.toFixed(0)}ms  ${+(numVoters/wallMs*1000).toFixed(1)} votes/s`);
 }
 
 // ── write JSON ────────────────────────────────────────────────────────────────

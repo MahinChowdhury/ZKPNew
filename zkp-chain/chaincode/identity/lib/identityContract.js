@@ -322,11 +322,11 @@ class IdentityContract extends Contract {
   }
 
   // Cast a vote with linkable ring signature
-  async castVote(ctx, voteChoice, signatureJSON, ringJSON, encryptedVoteJSON) {
+  async castVote(ctx, voteChoiceHash, signatureJSON, ringJSON, encryptedVoteJSON) {
     console.log('============= START : Cast Vote ===========');
     
-    if (!voteChoice || !signatureJSON || !ringJSON) {
-      throw new Error('Required parameters: voteChoice, signature, ring');
+    if (!voteChoiceHash || !signatureJSON || !ringJSON) {
+      throw new Error('Required parameters: voteChoiceHash, signature, ring');
     }
 
     const signature = JSON.parse(signatureJSON);
@@ -374,10 +374,10 @@ class IdentityContract extends Contract {
     const txTimestamp = ctx.stub.getTxTimestamp();
     const timestampStr = new Date(txTimestamp.seconds.low * 1000).toISOString();
 
-    // Create vote record
+    // Create vote record — NO plaintext voteChoice stored on-chain
     const vote = {
       voteId,
-      voteChoice,
+      voteChoiceHash,  // Only the SHA-256 hash of the choice, not the plaintext
       signature,
       ring,
       encryptedVote,  // CRITICAL: This must be included
@@ -400,10 +400,10 @@ class IdentityContract extends Contract {
     // Update counter
     await ctx.stub.putState('VOTE_COUNTER', Buffer.from(JSON.stringify(counter)));
 
-    // Emit vote event (without revealing identity)
+    // Emit vote event (without revealing identity or choice)
     const eventPayload = {
       voteId,
-      voteChoice,
+      voteChoiceHash,
       ringSize: ring.length,
       hasEncryption: encryptedVote !== null,
       timestamp: timestampStr
@@ -412,13 +412,13 @@ class IdentityContract extends Contract {
     await ctx.stub.setEvent('VoteCast', Buffer.from(JSON.stringify(eventPayload)));
 
     console.log(`Vote cast: ${voteId}`);
-    console.log(`Choice: ${voteChoice}`);
+    console.log(`Choice hash: ${voteChoiceHash}`);
     console.log(`Encrypted: ${encryptedVote !== null}`);
     console.log('============= END : Cast Vote ===========');
 
     return JSON.stringify({
       voteId,
-      voteChoice,
+      voteChoiceHash,
       timestamp: timestampStr
     });
   }
@@ -443,11 +443,11 @@ class IdentityContract extends Contract {
         if (record.docType === 'vote') {
           totalVotes++;
           
-          const choice = record.voteChoice;
-          if (tallies[choice]) {
-            tallies[choice]++;
+          const choiceHash = record.voteChoiceHash || record.voteChoice || 'unknown';
+          if (tallies[choiceHash]) {
+            tallies[choiceHash]++;
           } else {
-            tallies[choice] = 1;
+            tallies[choiceHash] = 1;
           }
         }
       } catch (err) {
@@ -548,13 +548,13 @@ class IdentityContract extends Contract {
         const record = JSON.parse(strValue);
         
         if (record.docType === 'vote') {
-          // CRITICAL FIX: Return FULL vote data including encryptedVote
+          // Return vote data with hash (no plaintext choice on-chain)
           allVotes.push({
             voteId: record.voteId,
-            voteChoice: record.voteChoice,
+            voteChoiceHash: record.voteChoiceHash || record.voteChoice,  // backward compat
             timestamp: record.timestamp,
             ringSize: record.ring ? record.ring.length : 0,
-            encryptedVote: record.encryptedVote,  // MUST INCLUDE THIS
+            encryptedVote: record.encryptedVote,
             signature: record.signature,
             ring: record.ring
           });

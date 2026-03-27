@@ -40,31 +40,42 @@ const upload = multer({ storage: multer.memoryStorage() });
 // Utility Functions
 // ============================
 
-function keccak256(data) {
+function sha256Hash(data) {
   if (data === undefined || data === null) {
-    throw new Error("keccak256() received undefined data");
+    throw new Error("sha256Hash() received undefined data");
   }
   return crypto.createHash("sha256").update(String(data)).digest("hex");
 }
 
 function hashNidNumber(nidNumber) {
-  return keccak256(nidNumber.trim());
+  return sha256Hash(nidNumber.trim());
+}
+
+function deriveKeyFromPassword(password, salt) {
+  return crypto.pbkdf2Sync(password, salt, 100000, 32, "sha256");
 }
 
 function encryptPayload(payload, password) {
-  const key = crypto.createHash("sha256").update(password).digest();
   const iv = crypto.randomBytes(16);
+  const pbkdfSalt = crypto.randomBytes(16);
+  const key = deriveKeyFromPassword(password, pbkdfSalt);
 
   const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
   let encrypted = cipher.update(JSON.stringify(payload), "utf8", "base64");
   encrypted += cipher.final("base64");
 
-  return { iv: iv.toString("base64"), data: encrypted };
+  return { iv: iv.toString("base64"), salt: pbkdfSalt.toString("base64"), data: encrypted };
 }
 
 function decryptPayload(encryptedPayload, password) {
-  const { iv, data } = JSON.parse(encryptedPayload);
-  const key = crypto.createHash("sha256").update(password).digest();
+  const parsed = JSON.parse(encryptedPayload);
+  const { iv, data } = parsed;
+  const pbkdfSalt = parsed.salt
+    ? Buffer.from(parsed.salt, "base64")
+    : null;
+  const key = pbkdfSalt
+    ? deriveKeyFromPassword(password, pbkdfSalt)
+    : crypto.createHash("sha256").update(password).digest(); // legacy fallback
   const decipher = crypto.createDecipheriv(
     "aes-256-cbc",
     key,
@@ -85,7 +96,7 @@ async function decodeQRCode(file) {
 }
 
 function deriveK(faceHash, salt) {
-  const hash = keccak256(faceHash + salt);
+  const hash = sha256Hash(faceHash + salt);
   let k = new BN(hash, 16).umod(ec.curve.n);
   if (k.isZero()) k = k.iaddn(1);
   return k;
@@ -110,7 +121,7 @@ function schnorrVerifierChallenge(R, S, nidHash) {
   const Sy = S.getY().toString(16, 64);
   
   const challengeInput = Rx + Ry + Sx + Sy + nidHash;
-  const challengeHash = keccak256(challengeInput);
+  const challengeHash = sha256Hash(challengeInput);
   
   const c = new BN(challengeHash, 16).umod(ec.curve.n);
   return c;
@@ -214,7 +225,7 @@ app.post("/api/v1/register", upload.single("faceImg"), async (req, res) => {
     console.log("Embedding dimension:", embedding.length);
 
     // 3. Face hash
-    const faceHash = keccak256(JSON.stringify(embedding));
+    const faceHash = sha256Hash(JSON.stringify(embedding));
     console.log("Face Hash:", faceHash);
 
     // 4. Derive k (this becomes the secret)
@@ -343,48 +354,6 @@ app.post(
     }
   }
 );
-
-// --------------------------------------
-// LOGIN - Step 2: Verify Proof
-// (Kept for backward compatibility)
-// --------------------------------------
-app.post("/api/v1/login/verify", async (req, res) => {
-  try {
-    const { nidHash, proof } = req.body;
-
-    if (!nidHash || !proof) {
-      return res.status(400).json({ ok: false, error: "Missing fields" });
-    }
-
-    console.log("\n=== SCHNORR VERIFICATION START ===");
-
-    // Note: In the new ring signature system, we don't store per-user data
-    // This endpoint is kept for backward compatibility only
-    console.log("Warning: Using legacy verification method");
-
-    const R = ec.curve.point(new BN(proof.Rx, 16), new BN(proof.Ry, 16));
-    const c = new BN(proof.c, 16);
-    const s = new BN(proof.s, 16);
-
-    // We can't verify against blockchain in new system
-    // Just verify the proof structure is valid
-    const sG = ec.g.mul(s);
-    const zkpVerified = sG.validate();
-
-    console.log("=== SCHNORR VERIFICATION COMPLETE ===\n");
-
-    res.json({
-      ok: zkpVerified,
-      isVerified: zkpVerified,
-      nidHash,
-      note: "This endpoint is deprecated - use /api/v1/vote for voting"
-    });
-
-  } catch (err) {
-    console.error("VERIFICATION ERROR:", err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
 
 // ============================
 // Health & Query Endpoints

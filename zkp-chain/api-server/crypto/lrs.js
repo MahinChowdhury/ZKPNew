@@ -9,9 +9,9 @@ const BN = require("bn.js");
 
 const ec = new EC("secp256k1");
 
-function keccak256(data) {
+function sha256Hash(data) {
   if (data === undefined || data === null) {
-    throw new Error("keccak256() received undefined data");
+    throw new Error("sha256Hash() received undefined data");
   }
   return crypto.createHash("sha256").update(String(data)).digest("hex");
 }
@@ -253,12 +253,13 @@ function verify(signature, ring, message) {
 
 /**
  * Hash public key to curve point (deterministic)
- * H(P) for computing R values
+ * H(P) = SHA256(Px || Py) · G
+ * Maps a public key to a deterministic curve point for LRS link tag computation.
  */
 function hashToPoint(P) {
   const px = P.getX().toString(16, 64);
   const py = P.getY().toString(16, 64);
-  const hash = keccak256(px + py);
+  const hash = sha256Hash(px + py);
   
   // Use hash as scalar and multiply by generator
   let scalar = new BN(hash, 16).umod(ec.curve.n);
@@ -280,7 +281,7 @@ function hashChallenge(message, L, R, I) {
   const iy = I.getY().toString(16, 64);
   
   const combined = message + lx + ly + rx + ry + ix + iy;
-  const hash = keccak256(combined);
+  const hash = sha256Hash(combined);
   
   return new BN(hash, 16).umod(ec.curve.n);
 }

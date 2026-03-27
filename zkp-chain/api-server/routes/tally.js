@@ -129,8 +129,17 @@ router.post("/compute/:ballotId", async (req, res) => {
 
     // If no encrypted votes, fall back to plaintext counting
     if (encryptedVoteCount === 0) {
-      console.warn("⚠️  No encrypted votes found, using plaintext tallying");
+      console.warn("Warning: No encrypted votes found, using plaintext tallying");
       
+      // Build hash -> name map from ballot options
+      const choiceHashMap = {};
+      if (ballot) {
+        ballot.options.forEach(option => {
+          const hash = require('crypto').createHash('sha256').update(String(option.name)).digest('hex');
+          choiceHashMap[hash] = option.name;
+        });
+      }
+
       const plaintextTallies = {};
       
       // Initialize all options to 0
@@ -140,13 +149,14 @@ router.post("/compute/:ballotId", async (req, res) => {
         });
       }
       
-      // Count plaintext votes
+      // Count votes using hash-to-name mapping
       allVotes.forEach(vote => {
-        const choice = vote.voteChoice;
-        if (plaintextTallies[choice] !== undefined) {
-          plaintextTallies[choice]++;
+        const choiceHash = vote.voteChoiceHash || vote.voteChoice;
+        const choiceName = choiceHashMap[choiceHash] || choiceHash; // fallback to raw value for legacy
+        if (plaintextTallies[choiceName] !== undefined) {
+          plaintextTallies[choiceName]++;
         } else {
-          plaintextTallies[choice] = 1;
+          plaintextTallies[choiceName] = 1;
         }
       });
 
@@ -171,6 +181,15 @@ router.post("/compute/:ballotId", async (req, res) => {
       });
     }
 
+    // Build hash -> name map from ballot options for grouping
+    const choiceHashMap = {};
+    if (ballot) {
+      ballot.options.forEach(option => {
+        const hash = require('crypto').createHash('sha256').update(String(option.name)).digest('hex');
+        choiceHashMap[hash] = option.name;
+      });
+    }
+
     let processedCount = 0;
     allVotes.forEach(vote => {
       if (!vote.encryptedVote) {
@@ -180,7 +199,9 @@ router.post("/compute/:ballotId", async (req, res) => {
 
       try {
         const ciphertext = homomorphic.deserializeCiphertext(vote.encryptedVote);
-        const choice = vote.voteChoice;
+        // Map hash to choice name using ballot options
+        const choiceHash = vote.voteChoiceHash || vote.voteChoice;
+        const choice = choiceHashMap[choiceHash] || choiceHash;
 
         // CRITICAL FIX: Only add ciphertexts for the SAME choice
         if (encryptedTallies[choice] === null) {
@@ -306,11 +327,22 @@ router.post("/verify/:ballotId", async (req, res) => {
     // Recompute encrypted sums
     const recomputedSums = {};
 
+    // Build hash -> name map from ballot
+    const ballot = require('./ballot').getActiveBallot && require('./ballot').getActiveBallot();
+    const choiceHashMap = {};
+    if (ballot && ballot.options) {
+      ballot.options.forEach(option => {
+        const hash = require('crypto').createHash('sha256').update(String(option.name)).digest('hex');
+        choiceHashMap[hash] = option.name;
+      });
+    }
+
     allVotes.forEach(vote => {
       if (!vote.encryptedVote) return;
 
       const ciphertext = homomorphic.deserializeCiphertext(vote.encryptedVote);
-      const choice = vote.voteChoice;
+      const choiceHash = vote.voteChoiceHash || vote.voteChoice;
+      const choice = choiceHashMap[choiceHash] || choiceHash;
 
       if (!recomputedSums[choice]) {
         recomputedSums[choice] = ciphertext;

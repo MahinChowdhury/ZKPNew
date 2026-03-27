@@ -118,16 +118,16 @@ class FabricClient {
 
   /**
    * Cast a vote with linkable ring signature
-   * @param {string} voteChoice - The vote choice (e.g., "Candidate A")
+   * @param {string} voteChoiceHash - SHA-256 hash of the vote choice (privacy-preserving)
    * @param {Object} signature - LRS signature { c0, s[], linkTag }
    * @param {Array} ring - Ring of public keys at time of signing
    * @param {Object} encryptedVote - Homomorphically encrypted vote (optional)
    */
-  async castVote(voteChoice, signature, ring, encryptedVote = null) {
+  async castVote(voteChoiceHash, signature, ring, encryptedVote = null) {
     try {
       const result = await this.contract.submitTransaction(
         'castVote',
-        voteChoice,
+        voteChoiceHash,
         JSON.stringify(signature),
         JSON.stringify(ring),
         encryptedVote ? JSON.stringify(encryptedVote) : ''

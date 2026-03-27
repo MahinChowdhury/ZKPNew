@@ -1,0 +1,144 @@
+{
+  "meta": {
+    "date": "2026-03-27T13:03:31.606Z",
+    "node": "v24.13.1",
+    "curve": "secp256k1",
+    "iterations": 100
+  },
+  "base_latency": {
+    "encrypt": {
+      "mean": 2.0112,
+      "sd": 1.1841,
+      "min": 1.59,
+      "max": 10.8958,
+      "p95": 2.1933,
+      "p99": 6.8994
+    },
+    "homomorphic_add": {
+      "mean": 0.1327,
+      "sd": 0.0366,
+      "min": 0.1169,
+      "max": 0.4554,
+      "p95": 0.161,
+      "p99": 0.2443
+    },
+    "decrypt_to_point": {
+      "mean": 1.2965,
+      "sd": 0.5615,
+      "min": 1.0881,
+      "max": 4.7163,
+      "p95": 1.7413,
+      "p99": 4.3651
+    }
+  },
+  "bsgs_latency": [
+    {
+      "max_voters": 10,
+      "actual_votes": 5,
+      "stats": {
+        "mean": 0.4933,
+        "sd": 0.2163,
+        "min": 0.4173,
+        "max": 1.6181,
+        "p95": 0.7008,
+        "p99": 1.6181
+      }
+    },
+    {
+      "max_voters": 50,
+      "actual_votes": 25,
+      "stats": {
+        "mean": 0.9051,
+        "sd": 0.1314,
+        "min": 0.8387,
+        "max": 1.5423,
+        "p95": 1.1349,
+        "p99": 1.5423
+      }
+    },
+    {
+      "max_voters": 100,
+      "actual_votes": 50,
+      "stats": {
+        "mean": 1.1129,
+        "sd": 0.2075,
+        "min": 1.0126,
+        "max": 2.0844,
+        "p95": 1.4892,
+        "p99": 2.0844
+      }
+    },
+    {
+      "max_voters": 500,
+      "actual_votes": 250,
+      "stats": {
+        "mean": 2.3371,
+        "sd": 0.2436,
+        "min": 2.1628,
+        "max": 3.3444,
+        "p95": 2.8733,
+        "p99": 3.3444
+      }
+    },
+    {
+      "max_voters": 1000,
+      "actual_votes": 500,
+      "stats": {
+        "mean": 3.0506,
+        "sd": 0.0925,
+        "min": 2.9594,
+        "max": 3.3358,
+        "p95": 3.2566,
+        "p99": 3.3358
+      }
+    },
+    {
+      "max_voters": 5000,
+      "actual_votes": 2500,
+      "stats": {
+        "mean": 6.8418,
+        "sd": 0.5819,
+        "min": 6.5265,
+        "max": 8.4158,
+        "p95": 8.4158,
+        "p99": 8.4158
+      }
+    },
+    {
+      "max_voters": 10000,
+      "actual_votes": 5000,
+      "stats": {
+        "mean": 9.394,
+        "sd": 0.2836,
+        "min": 9.1746,
+        "max": 10.1141,
+        "p95": 10.1141,
+        "p99": 10.1141
+      }
+    }
+  ],
+  "zkp_latency": {
+    "prove": {
+      "mean": 5.9163,
+      "sd": 0.3543,
+      "min": 5.4949,
+      "max": 8.2293,
+      "p95": 6.1781,
+      "p99": 7.8244
+    },
+    "verify": {
+      "mean": 8.1122,
+      "sd": 0.2519,
+      "min": 7.7095,
+      "max": 9.3276,
+      "p95": 8.4877,
+      "p99": 9.2774
+    }
+  },
+  "sizes": {
+    "ciphertext_json_bytes": 298,
+    "ciphertext_compact_bytes": 66,
+    "zkp_proof_json_bytes": 885,
+    "zkp_proof_compact_bytes": 260
+  }
+}

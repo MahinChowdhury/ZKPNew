@@ -14,24 +14,34 @@ const ec = new EC("secp256k1");
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-function keccak256(data) {
+function sha256Hash(data) {
   if (data === undefined || data === null) {
-    throw new Error("keccak256() received undefined data");
+    throw new Error("sha256Hash() received undefined data");
   }
   return crypto.createHash("sha256").update(String(data)).digest("hex");
 }
 
 function deriveK(faceHash, salt) {
-  const hash = keccak256(faceHash + salt);
+  const hash = sha256Hash(faceHash + salt);
   let k = new BN(hash, 16).umod(ec.curve.n);
   if (k.isZero()) k = k.iaddn(1);
   return k;
 }
 
+function deriveKeyFromPassword(password, salt) {
+  return crypto.pbkdf2Sync(password, salt, 100000, 32, "sha256");
+}
+
 function decryptPayload(encryptedPayload, password) {
-  const { iv, data } = JSON.parse(encryptedPayload);
-  const key = crypto.createHash("sha256").update(password).digest();
-  const decipher = crypto.createCipheriv(
+  const parsed = JSON.parse(encryptedPayload);
+  const { iv, data } = parsed;
+  const pbkdfSalt = parsed.salt
+    ? Buffer.from(parsed.salt, "base64")
+    : null;
+  const key = pbkdfSalt
+    ? deriveKeyFromPassword(password, pbkdfSalt)
+    : crypto.createHash("sha256").update(password).digest(); // legacy fallback
+  const decipher = crypto.createDecipheriv(
     "aes-256-cbc",
     key,
     Buffer.from(iv, "base64")
@@ -208,7 +218,7 @@ router.post(
       }
       console.log("✅ Local signature verification passed");
 
-      // 13. Homomorphic encryption of vote
+      // 13. Homomorphic encryption of vote + vote validity ZKP
       // Get ballot's public key
       let encryptedVote = null;
       try {
@@ -226,23 +236,38 @@ router.post(
           // Encrypt vote value (1 for this choice, 0 for others)
           const voteValue = 1;
           const cipher = homomorphic.encrypt(publicKey, voteValue);
-          encryptedVote = homomorphic.serializeCiphertext(cipher);
           
-          console.log("✅ Vote encrypted homomorphically");
+          // Generate Disjunctive Chaum-Pedersen ZKP proving vote is 0 or 1
+          const validityProof = homomorphic.proveValidVote(publicKey, cipher, voteValue, cipher.r);
+          
+          // Verify proof locally before submission
+          const proofValid = homomorphic.verifyValidVote(publicKey, cipher, validityProof);
+          if (!proofValid) {
+            throw new Error("Vote validity ZKP failed local verification");
+          }
+          console.log("Vote validity ZKP generated and verified locally");
+
+          encryptedVote = homomorphic.serializeCiphertext(cipher);
+          // Attach the validity proof to the encrypted vote
+          encryptedVote.validityProof = validityProof;
+          
+          console.log("Vote encrypted homomorphically");
           console.log(`   c1: ${encryptedVote.c1.x.slice(0, 16)}...`);
           console.log(`   c2: ${encryptedVote.c2.x.slice(0, 16)}...`);
         } else {
-          console.warn("⚠️  No encryption key found for ballot - vote will not be encrypted");
+          console.warn("No encryption key found for ballot - vote will not be encrypted");
           console.warn("   Run: POST /api/v1/tally/setup/" + activeBallot.id);
         }
       } catch (err) {
-        console.warn("⚠️  Could not encrypt vote:", err.message);
+        console.warn("Could not encrypt vote:", err.message);
         console.warn("   Make sure encryption is setup: POST /api/v1/tally/setup/" + activeBallot.id);
       }
+      // 14. Compute choice hash for on-chain storage (privacy preserving)
+      const voteChoiceHash = sha256Hash(voteChoice);
 
-      // 14. Submit vote to blockchain
+      // 15. Submit vote to blockchain (only hash goes on-chain, not plaintext)
       const voteResult = await fabricClient.castVote(
-        voteChoice,
+        voteChoiceHash,
         signature,
         ringData,
         encryptedVote
@@ -256,7 +281,7 @@ router.post(
         ok: true,
         isMatch: true,
         voteId: voteResult.voteId,
-        voteChoice: voteResult.voteChoice,
+        voteChoice,  // API response shows the original choice (client-side only)
         ballotTitle: activeBallot.title,
         timestamp: voteResult.timestamp,
         message: "Vote successfully cast anonymously"
@@ -317,14 +342,34 @@ router.get("/verify/:voteId", async (req, res) => {
       ec.curve.point(new BN(pk.x, 16), new BN(pk.y, 16))
     );
     
-    // Verify signature
-    const isValid = lrs.verify(vote.signature, ring, vote.voteChoice);
+    // Verify signature — LRS was signed with plaintext voteChoice,
+    // but on-chain only the hash is stored. We need to find the matching
+    // plaintext from ballot options to verify the signature.
+    const ballot = require('./ballot').getActiveBallot && require('./ballot').getActiveBallot();
+    let matchedChoice = null;
+    
+    // Try to match the hash to a known ballot option
+    if (ballot && ballot.options) {
+      for (const option of ballot.options) {
+        if (sha256Hash(option.name) === (vote.voteChoiceHash || vote.voteChoice)) {
+          matchedChoice = option.name;
+          break;
+        }
+      }
+    }
+    
+    // Fallback: if vote still has legacy plaintext voteChoice
+    if (!matchedChoice && vote.voteChoice) {
+      matchedChoice = vote.voteChoice;
+    }
+    
+    const isValid = matchedChoice ? lrs.verify(vote.signature, ring, matchedChoice) : false;
     
     res.json({
       ok: true,
       voteId,
       isValid,
-      voteChoice: vote.voteChoice,
+      voteChoiceHash: vote.voteChoiceHash || sha256Hash(vote.voteChoice),
       timestamp: vote.timestamp,
       ringSize: vote.ring.length
     });

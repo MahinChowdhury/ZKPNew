@@ -1,0 +1,238 @@
+# Benchmarking & Evaluation Plan for Q1 Journal Publication
+
+## Goal
+
+Build a comprehensive **Performance Evaluation** section with measurable, reproducible results across all system layers — biometrics, cryptography, blockchain, and end-to-end. This is the #1 factor that separates Q1-accepted papers from Q2/Q3 rejections in applied security venues.
+
+---
+
+## What You Already Have ✅
+
+| Benchmark | Script | Figures | Status |
+|---|---|---|---|
+| LRS sign/verify latency vs ring size (n=2..64) | [lrs_benchmark.js](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/lrs_benchmark.js) | [fig1_latency.png](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/fig1_latency.png) | ✅ Done |
+| O(n) linear complexity confirmation | [lrs_plot.py](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/lrs_plot.py) | [fig2_complexity.png](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/fig2_complexity.png) | ✅ Done |
+| LRS throughput (ops/sec) | [lrs_benchmark.js](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/lrs_benchmark.js) | [fig3_throughput.png](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/fig3_throughput.png) | ✅ Done |
+| Signature size (JSON + compact) | [lrs_benchmark.js](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/lrs_benchmark.js) | [fig4_size_memory.png](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/fig4_size_memory.png) | ✅ Done |
+| Linkability detection accuracy (500 trials) | [lrs_benchmark.js](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/lrs_benchmark.js) | [fig5_linkability.png](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/fig5_linkability.png) | ✅ Done |
+| Voting simulation (fixed ring=10) | [lrs_benchmark.js](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/lrs_benchmark.js) | [fig6_simulation.png](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/fig6_simulation.png) | ✅ Done |
+| Combined overview figure | [lrs_plot.py](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/lrs_plot.py) | [fig7_overview.png](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/fig7_overview.png) | ✅ Done |
+
+---
+
+## What You Still Need ❌
+
+### Category A — Crypto Micro-Benchmarks (Expand Existing)
+
+#### A1. LRS with Larger Ring Sizes *(Critical)*
+- **Why**: Reviewers will ask "what about n=128, 256, 512, 1000?"
+- **What**: Extend `RING_SIZES` in [lrs_benchmark.js](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/lrs_benchmark.js) to `[2, 4, 8, 16, 32, 64, 128, 256, 512, 1000]`
+- **Plot**: Extend existing Fig 1 + show where latency becomes impractical (>1 second)
+- **Table**: Show the scalability wall — e.g., n=1000 → ~5 seconds per signature
+
+#### A2. Hash-to-Curve Latency *(New)*
+- **Why**: Your new try-and-increment [hashToPoint](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/lrs.js#254-313) is slower than the old scalar·G. Quantify the tradeoff
+- **What**: Benchmark [hashToPoint()](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/lrs.js#254-313) over 1000 iterations, report mean/SD
+- **Plot**: Bar chart comparing old (insecure) vs new (secure) hashToPoint latency
+- **Script**: Add to [lrs_benchmark.js](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/lrs_benchmark.js) or create standalone `hashtopoint_benchmark.js`
+
+#### A3. ElGamal Homomorphic Encryption Benchmarks *(New — Critical)*
+- **Why**: No benchmarks exist for your ElGamal implementation
+- **What**: Measure:
+  - [encrypt()](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/homomorphic.js#41-63) latency (per vote)
+  - [addCiphertexts()](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/homomorphic.js#64-78) latency (homomorphic sum)
+  - [decrypt()](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/homomorphic.js#79-93) + [solveDiscreteLog()](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/homomorphic.js#94-182) combined latency
+  - BSGS latency vs vote count (10, 50, 100, 500, 1000)
+  - Ciphertext size (bytes)
+- **Plot**: Two-panel figure — (a) encrypt/decrypt latency, (b) BSGS solve time vs N
+- **Script**: New `homomorphic_benchmark.js` 
+
+#### A4. Schnorr Proof Benchmarks *(Optional but easy)*
+- **Why**: Shows completeness of evaluation
+- **What**: prove/verify latency (1000 iterations)
+- **Script**: Can add to existing benchmark
+
+#### A5. PBKDF2 Key Derivation Latency *(New)*
+- **Why**: 100k iterations PBKDF2 adds overhead to registration/voting, reviewers will question it
+- **What**: Measure single PBKDF2 call latency (expected ~100-200ms)
+- **Script**: Quick standalone or add to existing benchmark
+
+---
+
+### Category B — Biometric Accuracy *(Critical for Q1)*
+
+#### B1. FAR/FRR/EER on Standard Dataset
+- **Why**: **No biometric paper gets Q1 without accuracy metrics.** This is non-negotiable.
+- **What**:
+  1. Download the **LFW** (Labeled Faces in the Wild) dataset — 13,233 face images, 5,749 identities
+  2. Use official LFW pairs (3,000 positive + 3,000 negative) 
+  3. Run each pair through your pipeline: MediaPipe detect → FaceNet → PCA → cosine similarity
+  4. Sweep threshold τ from 0.0 to 1.0 in steps of 0.01
+  5. At each τ, compute:
+     - **FAR** (False Acceptance Rate): fraction of imposter pairs accepted
+     - **FRR** (False Rejection Rate): fraction of genuine pairs rejected
+  6. Find **EER** (Equal Error Rate): threshold where FAR = FRR
+  7. Report accuracy at your operational threshold τ=0.50
+- **Plots**:
+  - **DET Curve** (Detection Error Tradeoff): FRR vs FAR on log-log axes
+  - **ROC Curve**: True Positive Rate vs False Positive Rate
+  - **Threshold sweep**: FAR and FRR vs threshold, with EER marked
+- **Table**: Accuracy, FAR, FRR at τ = 0.40, 0.45, 0.50, 0.55, 0.60
+- **Script**: New `biometric_benchmark.py` using your existing [model/app.py](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/model/app.py) pipeline
+
+#### B2. Biometric Key Stability Test *(Important)*
+- **Why**: Proves the same person generates the same ECC key across sessions
+- **What**:
+  1. Take 10 subjects, 5 photos each under different conditions (lighting, angle)
+  2. For each pair of same-person photos: compute embedding → hash → derive k → compute S = k·G
+  3. Report how often same-person photo pairs produce the **identical** derived key
+- **Expected**: Keys will NOT match because biometric noise → this is a known limitation you must discuss
+- **Discussion point**: This is why you have the QR code with stored embedding — live face is only used for similarity check, not key re-derivation
+
+---
+
+### Category C — End-to-End System Latency *(Critical)*
+
+#### C1. Full Vote Casting Pipeline Latency
+- **Why**: Shows real-world performance, not just isolated crypto operations
+- **What**: Time each phase of the vote flow:
+
+| Phase | What It Covers |
+|---|---|
+| Phase 1: QR Decode + Decrypt | jsQR decode + PBKDF2 + AES-CBC |
+| Phase 2: Face Embedding | MediaPipe detect + FaceNet + PCA |
+| Phase 3: Face Comparison | Cosine similarity call to Python API |
+| Phase 4: Key Derivation | SHA-256 hash + BN derivation |
+| Phase 5: Ring Signature | LRS.sign() |
+| Phase 6: Local Verification | LRS.verify() |
+| Phase 7: ElGamal Encryption | encrypt() |
+| Phase 8: Blockchain Submit | Fabric submitTransaction() |
+| **Total** | **Sum of all phases** |
+
+- **Plot**: Stacked bar chart showing time breakdown per phase
+- **Table**: Mean ± SD for each phase, plus total
+- **Script**: New `e2e_benchmark.js` — requires Fabric network running + Python model running
+
+#### C2. Registration Pipeline Latency
+- **What**: Same as above but for the registration flow
+- **Phases**: Face embedding → hash → key derivation → Fabric register → QR generation
+
+---
+
+### Category D — Blockchain Performance *(Important)*
+
+#### D1. Fabric TPS (Transactions Per Second)
+- **Why**: Shows the system can handle real election loads
+- **What**: Submit N concurrent vote transactions, measure:
+  - TPS (measured, not theoretical)
+  - Transaction confirmation latency
+  - Latency under increasing load (1, 5, 10, 20, 50 concurrent clients)
+- **Plot**: TPS vs concurrent clients + confirmation latency vs load
+- **Script**: New `fabric_tps_benchmark.js` — requires Fabric network
+
+#### D2. Blockchain Storage Growth
+- **What**: Measure ledger size (CouchDB) growth per vote
+- **Plot**: Storage (MB) vs number of votes (linear expected)
+- **Table**: Bytes per vote record (with and without encrypted vote data)
+
+---
+
+### Category E — Comparative Analysis Tables *(Critical for Q1)*
+
+These are **tables**, not benchmarkable scripts — they go in the paper.
+
+#### E1. Feature Comparison Matrix (Already Have — in thesis_documentation.md)
+- **Action**: You already have Table 11.1. clean it up and add our new fixes (proper hash-to-curve, PBKDF2)
+
+#### E2. Quantitative Performance Comparison *(New — Critical)*
+- **Why**: Reviewers want **numbers**, not just checkmarks
+- **What**: Compare with at least 3 competing systems:
+
+| Metric | Our System | Open Vote Network | MACI (zk-SNARK) | LRS-Fabric (Panja) |
+|---|---|---|---|---|
+| Signature size (n=32) | 2,405 B (JSON) | N/A (on-chain ZKP) | ~288 B (SNARK proof) | ~same as ours |
+| Sign latency (n=32) | ~159 ms | O(n²) total | ~30 sec (SNARK gen) | Not reported |
+| Verify latency (n=32) | ~154 ms | On-chain (~$0.70 gas) | ~10 ms (SNARK verify) | Not reported |
+| Blockchain cost/vote | $0 (Fabric) | ~$0.70 (Ethereum gas) | ~$2-5 (gas + SNARK) | $0 (Fabric) |
+| Trusted setup required | No | No | Yes | No |
+| Auth method | Face biometric | ETH key | ETH key | PKI cert |
+
+- **Source**: Pull numbers from the respective papers + our benchmarks
+
+#### E3. Security Properties Comparison *(Already Have — extend)*
+
+#### E4. Computational Complexity Comparison Table *(New)*
+
+| Operation | Our System | zk-SNARK (MACI) | Open Vote Network |
+|---|---|---|---|
+| Key Generation | O(1) | O(1) | O(1) |
+| Vote Casting | O(n) ECC muls | O(C) circuit evaluation | O(n) pairings |
+| Tally | O(N + m√N) | O(N) | O(n) |
+| Verification | O(n) ECC muls | O(1) pairing | O(n) |
+
+---
+
+### Category F — Security Proof Validation *(Nice to Have)*
+
+#### F1. Ring Signature Unforgeability Test
+- **What**: Attempt to forge a signature without knowing any private key → must fail
+- **Script**: Add to [lrs_benchmark.js](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/lrs_benchmark.js) — generate random s values and verify they don't pass
+
+#### F2. Vote Validity ZKP Test (Once wired up)
+- **What**: Prove that [proveValidVote(publicKey, ciphertext, 0, r)](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/homomorphic.js#183-257) verifies but [encrypt(publicKey, 2)](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/homomorphic.js#41-63) with manipulated proof fails
+
+---
+
+## Complete Figure/Table List for the Paper
+
+| # | Type | Title | Status |
+|---|---|---|---|
+| Fig. 1 | Plot | LRS Sign & Verify Latency vs Ring Size | ✅ Exists → extend to n=1000 |
+| Fig. 2 | Plot | O(n) Linear Complexity Confirmation | ✅ Exists |
+| Fig. 3 | Plot | LRS Throughput (ops/sec) vs Ring Size | ✅ Exists → extend |
+| Fig. 4 | Plot | Signature Size & Memory vs Ring Size | ✅ Exists → extend |
+| Fig. 5 | Plot | Linkability Detection Accuracy | ✅ Exists |
+| Fig. 6 | Plot | ElGamal Encrypt/Decrypt/BSGS Benchmarks | ❌ **NEW** |
+| Fig. 7 | Plot | Biometric FAR/FRR DET Curve + EER | ❌ **NEW** |
+| Fig. 8 | Plot | End-to-End Vote Latency Breakdown (Stacked Bar) | ❌ **NEW** |
+| Fig. 9 | Plot | Fabric TPS vs Concurrent Clients | ❌ **NEW** |
+| Fig. 10 | Plot | Combined System Overview | ✅ Exists → update |
+| Table 1 | Table | Feature Comparison Matrix (7 systems) | ✅ Exists |
+| Table 2 | Table | Quantitative Performance Comparison | ❌ **NEW** |
+| Table 3 | Table | Biometric Accuracy at Multiple Thresholds | ❌ **NEW** |
+| Table 4 | Table | End-to-End Latency Breakdown | ❌ **NEW** |
+| Table 5 | Table | Computational Complexity Comparison | ❌ **NEW** |
+
+---
+
+## Priority Order (What to Do First)
+
+| Priority | Benchmark | Why |
+|---|---|---|
+| 🔴 **P0** | B1: Biometric FAR/FRR/EER on LFW | Non-negotiable for Q1 with biometrics |
+| 🔴 **P0** | A3: ElGamal homomorphic benchmarks | Core contribution has zero perf data |
+| 🟠 **P1** | A1: LRS with larger rings (n≤1000) | Easy win — just extend existing script |
+| 🟠 **P1** | C1: End-to-end latency breakdown | Shows real-world viability |
+| 🟡 **P2** | E2: Quantitative comparison table | Paper writing task, not coding |
+| 🟡 **P2** | D1: Fabric TPS | Requires live network |
+| 🟢 **P3** | A2: Hash-to-curve latency | Nice footnote, not critical |
+| 🟢 **P3** | A5: PBKDF2 latency | Quick measurement |
+| 🟢 **P3** | F1-F2: Security validation tests | Strengthens claims |
+
+---
+
+## Verification Plan
+
+### Automated Tests (Scripts I Can Build)
+1. `node lrs_benchmark.js` → regenerates [lrs_results.json](file:///c:/Mahin/TSE%20Learning/Thesis/ZKPNew/zkp-chain/api-server/crypto/lrs_results.json) (extended to n=1000)
+2. `node homomorphic_benchmark.js` → new `homomorphic_results.json`
+3. `python biometric_benchmark.py` → new `biometric_results.json` + DET/ROC plots
+4. `python lrs_plot.py` → regenerates all LRS figures from updated results
+
+### Manual Verification (Requires your environment)
+1. **Fabric TPS**: Requires Hyperledger Fabric network running — you'd need to deploy & run the TPS script against a live network
+2. **End-to-end latency**: Requires both `npm start` (API server) and `python app.py` (model) running simultaneously with Fabric
+3. **LFW dataset**: You'll need to download the LFW dataset (~173MB) — I can write the download script
+
+> [!IMPORTANT]
+> The biometric benchmark (B1) requires downloading the LFW dataset and running against your Python model. This can take 1-2 hours depending on your hardware. I recommend starting this first while we build the other benchmarks.
