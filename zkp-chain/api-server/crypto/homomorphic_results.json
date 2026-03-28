@@ -138,7 +138,85 @@
   "sizes": {
     "ciphertext_json_bytes": 299,
     "ciphertext_compact_bytes": 66,
-    "zkp_proof_json_bytes": 885,
+    "zkp_proof_json_bytes": 884,
     "zkp_proof_compact_bytes": 260
-  }
+  },
+  "vector_latency": [
+    {
+      "candidates": 2,
+      "encrypt_and_prove": {
+        "mean": 15.4148,
+        "sd": 0.8912,
+        "min": 14.5512,
+        "max": 22.2052,
+        "p95": 16.6809,
+        "p99": 17.8126
+      },
+      "homomorphic_add": {
+        "mean": 0.2703,
+        "sd": 0.026,
+        "min": 0.2477,
+        "max": 0.4162,
+        "p95": 0.3045,
+        "p99": 0.3949
+      }
+    },
+    {
+      "candidates": 5,
+      "encrypt_and_prove": {
+        "mean": 38.749,
+        "sd": 1.8579,
+        "min": 36.1148,
+        "max": 48.3738,
+        "p95": 42.7724,
+        "p99": 45.8291
+      },
+      "homomorphic_add": {
+        "mean": 0.6461,
+        "sd": 0.0383,
+        "min": 0.6097,
+        "max": 0.8957,
+        "p95": 0.7128,
+        "p99": 0.7821
+      }
+    },
+    {
+      "candidates": 10,
+      "encrypt_and_prove": {
+        "mean": 77.8282,
+        "sd": 3.913,
+        "min": 73.5374,
+        "max": 92.8367,
+        "p95": 85.0323,
+        "p99": 92.044
+      },
+      "homomorphic_add": {
+        "mean": 1.2922,
+        "sd": 0.1128,
+        "min": 1.2198,
+        "max": 2.0233,
+        "p95": 1.4094,
+        "p99": 1.9589
+      }
+    },
+    {
+      "candidates": 20,
+      "encrypt_and_prove": {
+        "mean": 162.8642,
+        "sd": 5.8129,
+        "min": 151.6067,
+        "max": 175.7453,
+        "p95": 173.2776,
+        "p99": 174.9604
+      },
+      "homomorphic_add": {
+        "mean": 2.7985,
+        "sd": 0.1772,
+        "min": 2.5263,
+        "max": 4.0053,
+        "p95": 3.0018,
+        "p99": 3.1135
+      }
+    }
+  ]
 }

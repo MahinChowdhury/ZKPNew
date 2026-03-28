@@ -197,20 +197,10 @@ router.post(
 
       console.log(`Signer index in ring: ${signerIndex}`);
 
-      // 11. Generate linkable ring signature
-      const signature = lrs.sign(k, ring, signerIndex, voteChoice);
-      console.log("✅ Ring signature generated");
-
-      // 12. Verify signature locally before submitting
-      const isValid = lrs.verify(signature, ring, voteChoice);
-      if (!isValid) {
-        throw new Error("Generated signature failed local verification");
-      }
-      console.log("✅ Local signature verification passed");
-
-      // 13. Homomorphic encryption of vote + vote validity ZKP
-      // Get ballot's public key
-      let encryptedVote = null;
+      // 11. Homomorphic encryption of vote vector + ZKP
+      let encryptedVoteVector = null;
+      let signatureMessage = voteChoice; // Fallback for legacy signing if encryption fails
+      
       try {
         const axios = require('axios');
         const pkResponse = await axios.get(
@@ -223,44 +213,50 @@ router.post(
             new BN(pkResponse.data.publicKey.y, 16)
           );
           
-          // Encrypt vote value (1 for this choice, 0 for others)
-          const voteValue = 1;
-          const cipher = homomorphic.encrypt(publicKey, voteValue);
+          encryptedVoteVector = activeBallot.options.map(option => {
+            const voteValue = (option.name === voteChoice) ? 1 : 0;
+            const cipher = homomorphic.encrypt(publicKey, voteValue);
+            const validityProof = homomorphic.proveValidVote(publicKey, cipher, voteValue, cipher.r);
+            
+            const proofValid = homomorphic.verifyValidVote(publicKey, cipher, validityProof);
+            if (!proofValid) {
+              throw new Error(`Vote validity ZKP failed local verification for option ${option.name}`);
+            }
+            
+            const serialized = homomorphic.serializeCiphertext(cipher);
+            serialized.validityProof = validityProof;
+            return serialized;
+          });
           
-          // Generate Disjunctive Chaum-Pedersen ZKP proving vote is 0 or 1
-          const validityProof = homomorphic.proveValidVote(publicKey, cipher, voteValue, cipher.r);
+          console.log(`✅ Vote encrypted as vector of size ${encryptedVoteVector.length}`);
           
-          // Verify proof locally before submission
-          const proofValid = homomorphic.verifyValidVote(publicKey, cipher, validityProof);
-          if (!proofValid) {
-            throw new Error("Vote validity ZKP failed local verification");
-          }
-          console.log("Vote validity ZKP generated and verified locally");
-
-          encryptedVote = homomorphic.serializeCiphertext(cipher);
-          // Attach the validity proof to the encrypted vote
-          encryptedVote.validityProof = validityProof;
-          
-          console.log("Vote encrypted homomorphically");
-          console.log(`   c1: ${encryptedVote.c1.x.slice(0, 16)}...`);
-          console.log(`   c2: ${encryptedVote.c2.x.slice(0, 16)}...`);
+          // The message to sign is the hash of the encrypted vector
+          // This cryptographically binds the encrypted vote to the LRS without revealing the choice
+          signatureMessage = sha256Hash(JSON.stringify(encryptedVoteVector));
         } else {
           console.warn("No encryption key found for ballot - vote will not be encrypted");
           console.warn("   Run: POST /api/v1/tally/setup/" + activeBallot.id);
         }
       } catch (err) {
         console.warn("Could not encrypt vote:", err.message);
-        console.warn("   Make sure encryption is setup: POST /api/v1/tally/setup/" + activeBallot.id);
       }
-      // 14. Compute choice hash for on-chain storage (privacy preserving)
-      const voteChoiceHash = sha256Hash(voteChoice);
 
-      // 15. Submit vote to blockchain (only hash goes on-chain, not plaintext)
+      // 12. Generate linkable ring signature over the encrypted vector
+      const signature = lrs.sign(k, ring, signerIndex, signatureMessage);
+      console.log("✅ Ring signature generated");
+
+      // 13. Verify signature locally before submitting
+      const isValid = lrs.verify(signature, ring, signatureMessage);
+      if (!isValid) {
+        throw new Error("Generated signature failed local verification");
+      }
+      console.log("✅ Local signature verification passed");
+
+      // 14. Submit vote to blockchain (completely oblivious to actual choice)
       const voteResult = await fabricClient.castVote(
-        voteChoiceHash,
         signature,
         ringData,
-        encryptedVote
+        encryptedVoteVector
       );
 
       console.log("✅ Vote cast on blockchain");
@@ -332,34 +328,22 @@ router.get("/verify/:voteId", async (req, res) => {
       ec.curve.point(new BN(pk.x, 16), new BN(pk.y, 16))
     );
     
-    // Verify signature — LRS was signed with plaintext voteChoice,
-    // but on-chain only the hash is stored. We need to find the matching
-    // plaintext from ballot options to verify the signature.
-    const ballot = require('./ballot').getActiveBallot && require('./ballot').getActiveBallot();
-    let matchedChoice = null;
-    
-    // Try to match the hash to a known ballot option
-    if (ballot && ballot.options) {
-      for (const option of ballot.options) {
-        if (sha256Hash(option.name) === (vote.voteChoiceHash || vote.voteChoice)) {
-          matchedChoice = option.name;
-          break;
-        }
-      }
+    // Determine the signed message for verification
+    if (!vote.encryptedVote || !Array.isArray(vote.encryptedVote)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Invalid vote format. Expected encrypted vector."
+      });
     }
-    
-    // Fallback: if vote still has legacy plaintext voteChoice
-    if (!matchedChoice && vote.voteChoice) {
-      matchedChoice = vote.voteChoice;
-    }
-    
-    const isValid = matchedChoice ? lrs.verify(vote.signature, ring, matchedChoice) : false;
+
+    // The signed message is the hash of the encrypted vector
+    const signatureMessage = sha256Hash(JSON.stringify(vote.encryptedVote));
+    const isValid = lrs.verify(vote.signature, ring, signatureMessage);
     
     res.json({
       ok: true,
       voteId,
       isValid,
-      voteChoiceHash: vote.voteChoiceHash || sha256Hash(vote.voteChoice),
       timestamp: vote.timestamp,
       ringSize: vote.ring.length
     });

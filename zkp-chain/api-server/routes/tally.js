@@ -171,7 +171,8 @@ router.post("/compute/:ballotId", async (req, res) => {
       });
     }
 
-    // FIXED: Group votes by choice and sum homomorphically
+    // FIXED: True homomorphic tallying using encrypted vectors
+    // The tally is completely oblivious to individual voter choices.
     const encryptedTallies = {};
 
     // Initialize with null for all options
@@ -181,42 +182,36 @@ router.post("/compute/:ballotId", async (req, res) => {
       });
     }
 
-    // Build hash -> name map from ballot options for grouping
-    const choiceHashMap = {};
-    if (ballot) {
-      ballot.options.forEach(option => {
-        const hash = require('crypto').createHash('sha256').update(String(option.name)).digest('hex');
-        choiceHashMap[hash] = option.name;
-      });
-    }
-
     let processedCount = 0;
     allVotes.forEach(vote => {
-      if (!vote.encryptedVote) {
-        console.warn(`Vote ${vote.voteId} has no encrypted vote - skipping`);
+      if (!vote.encryptedVote || !Array.isArray(vote.encryptedVote)) {
+        console.warn(`Vote ${vote.voteId} has invalid or legacy encrypted vote format - skipping`);
         return;
       }
 
       try {
-        const ciphertext = homomorphic.deserializeCiphertext(vote.encryptedVote);
-        // Map hash to choice name using ballot options
-        const choiceHash = vote.voteChoiceHash || vote.voteChoice;
-        const choice = choiceHashMap[choiceHash] || choiceHash;
-
-        // CRITICAL FIX: Only add ciphertexts for the SAME choice
-        if (encryptedTallies[choice] === null) {
-          // First vote for this choice
-          encryptedTallies[choice] = ciphertext;
+        // VECTOR FORMAT (True Privacy)
+        // The vote is an array of ciphertexts, one for each option
+        // We sum them element-wise
+        if (ballot && ballot.options && vote.encryptedVote.length === ballot.options.length) {
+          for (let i = 0; i < ballot.options.length; i++) {
+            const optionName = ballot.options[i].name;
+            const ciphertext = homomorphic.deserializeCiphertext(vote.encryptedVote[i]);
+            
+            if (encryptedTallies[optionName] === null) {
+              encryptedTallies[optionName] = ciphertext;
+            } else {
+              encryptedTallies[optionName] = homomorphic.addCiphertexts(
+                encryptedTallies[optionName],
+                ciphertext
+              );
+            }
+          }
+          console.log(`  Processed vector vote ${vote.voteId}`);
+          processedCount++;
         } else {
-          // Add to existing sum for this choice
-          encryptedTallies[choice] = homomorphic.addCiphertexts(
-            encryptedTallies[choice],
-            ciphertext
-          );
+          console.warn(`  Vector vote ${vote.voteId} length doesn't match ballot options - skipping`);
         }
-        processedCount++;
-        
-        console.log(`  Processed vote for "${choice}"`);
       } catch (err) {
         console.error(`Error processing vote ${vote.voteId}:`, err.message);
       }
@@ -327,30 +322,32 @@ router.post("/verify/:ballotId", async (req, res) => {
     // Recompute encrypted sums
     const recomputedSums = {};
 
-    // Build hash -> name map from ballot
+    // Build hash -> name map for backward compatibility in plaintext fallback route
+    // (We keep this for the plaintext tallying only, not used for homomorphic vector verification)
     const ballot = require('./ballot').getActiveBallot && require('./ballot').getActiveBallot();
-    const choiceHashMap = {};
-    if (ballot && ballot.options) {
-      ballot.options.forEach(option => {
-        const hash = require('crypto').createHash('sha256').update(String(option.name)).digest('hex');
-        choiceHashMap[hash] = option.name;
-      });
-    }
 
     allVotes.forEach(vote => {
-      if (!vote.encryptedVote) return;
+      if (!vote.encryptedVote || !Array.isArray(vote.encryptedVote)) return;
 
-      const ciphertext = homomorphic.deserializeCiphertext(vote.encryptedVote);
-      const choiceHash = vote.voteChoiceHash || vote.voteChoice;
-      const choice = choiceHashMap[choiceHash] || choiceHash;
-
-      if (!recomputedSums[choice]) {
-        recomputedSums[choice] = ciphertext;
-      } else {
-        recomputedSums[choice] = homomorphic.addCiphertexts(
-          recomputedSums[choice],
-          ciphertext
-        );
+      try {
+        // Vector format
+        if (ballot && ballot.options && vote.encryptedVote.length === ballot.options.length) {
+          for (let i = 0; i < ballot.options.length; i++) {
+            const optionName = ballot.options[i].name;
+            const ciphertext = homomorphic.deserializeCiphertext(vote.encryptedVote[i]);
+            
+            if (!recomputedSums[optionName]) {
+              recomputedSums[optionName] = ciphertext;
+            } else {
+              recomputedSums[optionName] = homomorphic.addCiphertexts(
+                recomputedSums[optionName],
+                ciphertext
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`Error in verify sum for ${vote.voteId}:`, err.message);
       }
     });
 

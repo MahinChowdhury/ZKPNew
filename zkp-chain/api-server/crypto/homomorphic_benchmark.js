@@ -159,6 +159,52 @@ results.sizes = {
 console.log(`  Ciphertext: ${results.sizes.ciphertext_json_bytes} bytes (JSON) / ${results.sizes.ciphertext_compact_bytes} bytes (Compact)`);
 console.log(`  ZKP Proof:  ${results.sizes.zkp_proof_json_bytes} bytes (JSON) / ${results.sizes.zkp_proof_compact_bytes} bytes (Compact)`);
 
+// 5. Vector Vote Latency vs Candidate Count
+console.log("\n[5/5] Vector Vote Latency vs Candidate Count (N)...");
+const CANDIDATE_COUNTS = [2, 5, 10, 20];
+results.vector_latency = [];
+
+for (const nCand of CANDIDATE_COUNTS) {
+  const enc_vec_times = [];
+  const add_vec_times = [];
+  
+  for (let i = 0; i < ITERS; i++) {
+    // Client side: Encrypt vector of size nCand (one 1, rest 0)
+    let ctVec1;
+    const t0 = nowMs();
+    silent(() => {
+      ctVec1 = [];
+      for (let j = 0; j < nCand; j++) {
+        const voteVal = j === 0 ? 1 : 0;
+        const ct = homomorphic.encrypt(keypair.publicKey, voteVal);
+        const proof = homomorphic.proveValidVote(keypair.publicKey, ct, voteVal, ct.r);
+        ctVec1.push({ ct, proof });
+      }
+    });
+    enc_vec_times.push(nowMs() - t0);
+    
+    // Server side: Add vector to tally vector
+    // Generate a dummy tally vector
+    const tallyVec = Array(nCand).fill(null).map(() => homomorphic.encrypt(keypair.publicKey, 0));
+    
+    const t1 = nowMs();
+    silent(() => {
+      for (let j = 0; j < nCand; j++) {
+        homomorphic.addCiphertexts(tallyVec[j], ctVec1[j].ct);
+      }
+    });
+    add_vec_times.push(nowMs() - t1);
+  }
+  
+  results.vector_latency.push({
+    candidates: nCand,
+    encrypt_and_prove: calcStats(enc_vec_times),
+    homomorphic_add: calcStats(add_vec_times)
+  });
+  
+  console.log(`  N=${String(nCand).padEnd(2)} candidates -> Encrypt+ZKP: ${calcStats(enc_vec_times).mean.toFixed(3)} ms | Server Add: ${calcStats(add_vec_times).mean.toFixed(3)} ms`);
+}
+
 // Write results
 fs.writeFileSync("homomorphic_results.json", JSON.stringify(results, null, 2));
 console.log("\n✓ Saved homomorphic_results.json — next run: python homomorphic_plot.py\n");

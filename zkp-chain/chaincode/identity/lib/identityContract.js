@@ -317,11 +317,13 @@ class IdentityContract extends Contract {
   }
 
   // Cast a vote with linkable ring signature
-  async castVote(ctx, voteChoiceHash, signatureJSON, ringJSON, encryptedVoteJSON) {
+  // For privacy, the chaincode is completely oblivious to the voter's choice.
+  // The choice is contained within encryptedVoteJSON as an encrypted vector.
+  async castVote(ctx, signatureJSON, ringJSON, encryptedVoteJSON) {
     console.log('============= START : Cast Vote ===========');
     
-    if (!voteChoiceHash || !signatureJSON || !ringJSON) {
-      throw new Error('Required parameters: voteChoiceHash, signature, ring');
+    if (!signatureJSON || !ringJSON) {
+      throw new Error('Required parameters: signature, ring');
     }
 
     const signature = JSON.parse(signatureJSON);
@@ -359,10 +361,9 @@ class IdentityContract extends Contract {
     const txTimestamp = ctx.stub.getTxTimestamp();
     const timestampStr = new Date(txTimestamp.seconds.low * 1000).toISOString();
 
-    // Create vote record — NO plaintext voteChoice stored on-chain
+    // Create vote record — NO plaintext or hashed candidate names stored!
     const vote = {
       voteId,
-      voteChoiceHash,  // Only the SHA-256 hash of the choice, not the plaintext
       signature,
       ring,
       encryptedVote,  // CRITICAL: This must be included
@@ -385,7 +386,6 @@ class IdentityContract extends Contract {
     // Emit vote event (without revealing identity or choice)
     const eventPayload = {
       voteId,
-      voteChoiceHash,
       ringSize: ring.length,
       hasEncryption: encryptedVote !== null,
       timestamp: timestampStr
@@ -394,13 +394,11 @@ class IdentityContract extends Contract {
     await ctx.stub.setEvent('VoteCast', Buffer.from(JSON.stringify(eventPayload)));
 
     console.log(`Vote cast: ${voteId}`);
-    console.log(`Choice hash: ${voteChoiceHash}`);
     console.log(`Encrypted: ${encryptedVote !== null}`);
     console.log('============= END : Cast Vote ===========');
 
     return JSON.stringify({
       voteId,
-      voteChoiceHash,
       timestamp: timestampStr
     });
   }
