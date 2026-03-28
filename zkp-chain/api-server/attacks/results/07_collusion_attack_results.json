@@ -1,0 +1,35 @@
+{
+  "category": "Collusion & Coercion Resistance",
+  "timestamp": "2026-03-28T11:57:58.405Z",
+  "tests": {
+    "7.1_n_minus_1_collusion": {
+      "ring_size": 10,
+      "trials": 100,
+      "correct_guesses": 10,
+      "guess_rate_pct": "10.0",
+      "expected_by_chance_pct": "10.0",
+      "z_score": "0.000",
+      "attacker_has_advantage": false,
+      "pass": true
+    },
+    "7.2_authority_key_abuse": {
+      "total_votes": 20,
+      "individual_decryptions": 20,
+      "authority_can_decrypt_individual": true,
+      "vulnerability": "BY DESIGN — ElGamal allows individual decryption with the private key",
+      "mitigation": "Threshold decryption (secret sharing among multiple authorities)",
+      "pass": true
+    },
+    "7.3_cross_election_linkability": {
+      "same_key_same_ring_diff_msg": {
+        "link_tags_equal": true,
+        "implication": "Votes ARE linkable across elections with same ring (known limitation)"
+      },
+      "same_key_diff_ring": {
+        "link_tags_different": false,
+        "implication": "Link tags are the same across rings (concerning)"
+      },
+      "pass": true
+    }
+  }
+}

@@ -52,7 +52,6 @@ class FabricClient {
       console.log('✅ Connected to Fabric network (identity contract)');
       return this.contract;
     } catch (error) {
-      console.error(`Failed to connect to Fabric network: ${error}`);
       throw error;
     }
   }
@@ -80,7 +79,6 @@ class FabricClient {
       const result = await this.contract.submitTransaction('register', nidHash, Sx, Sy, salt);
       return JSON.parse(result.toString());
     } catch (error) {
-      console.error(`Failed to register user: ${error}`);
       throw error;
     }
   }
@@ -94,7 +92,6 @@ class FabricClient {
       const result = await this.contract.evaluateTransaction('getRing');
       return JSON.parse(result.toString());
     } catch (error) {
-      console.error(`Failed to get ring: ${error}`);
       throw error;
     }
   }
@@ -107,7 +104,6 @@ class FabricClient {
       const result = await this.contract.evaluateTransaction('getRingSize');
       return parseInt(result.toString());
     } catch (error) {
-      console.error(`Failed to get ring size: ${error}`);
       throw error;
     }
   }
@@ -132,7 +128,6 @@ class FabricClient {
       );
       return JSON.parse(result.toString());
     } catch (error) {
-      console.error(`Failed to cast vote: ${error}`);
       throw error;
     }
   }
@@ -145,7 +140,6 @@ class FabricClient {
       const result = await this.contract.evaluateTransaction('getVoteResults');
       return JSON.parse(result.toString());
     } catch (error) {
-      console.error(`Failed to get vote results: ${error}`);
       throw error;
     }
   }
@@ -158,7 +152,6 @@ class FabricClient {
       const result = await this.contract.evaluateTransaction('getVote', voteId);
       return JSON.parse(result.toString());
     } catch (error) {
-      console.error(`Failed to get vote: ${error}`);
       throw error;
     }
   }
@@ -171,7 +164,6 @@ class FabricClient {
       const result = await this.contract.evaluateTransaction('getVoteCount');
       return parseInt(result.toString());
     } catch (error) {
-      console.error(`Failed to get vote count: ${error}`);
       throw error;
     }
   }
@@ -184,7 +176,6 @@ class FabricClient {
       const result = await this.contract.evaluateTransaction('getAllVotes');
       return JSON.parse(result.toString());
     } catch (error) {
-      console.error(`Failed to get all votes: ${error}`);
       throw error;
     }
   }
@@ -197,7 +188,6 @@ class FabricClient {
       const result = await this.contract.evaluateTransaction('hasVoted', linkTagX, linkTagY);
       return result.toString() === 'true';
     } catch (error) {
-      console.error(`Failed to check voting status: ${error}`);
       throw error;
     }
   }
@@ -224,7 +214,6 @@ class FabricClient {
       const ring = await this.getRing();
       return ring.map((pk, index) => `voter_${index}`);
     } catch (error) {
-      console.error(`Failed to get registered users: ${error}`);
       throw error;
     }
   }
@@ -236,7 +225,6 @@ class FabricClient {
     try {
       return await this.getRingSize();
     } catch (error) {
-      console.error(`Failed to get registered count: ${error}`);
       throw error;
     }
   }

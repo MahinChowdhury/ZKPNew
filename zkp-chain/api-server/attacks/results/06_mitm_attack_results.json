@@ -1,0 +1,29 @@
+{
+  "category": "Man-in-the-Middle Attacks",
+  "timestamp": "2026-03-28T11:57:58.034Z",
+  "tests": {
+    "6.1_vote_modification_detection": {
+      "original_valid": true,
+      "modified_detected": true,
+      "binding_mechanism": "LRS signs sha256(JSON(encryptedVoteVector))",
+      "pass": true
+    },
+    "6.2_encrypted_vector_swap": {
+      "sig_A_with_vote_B_rejected": true,
+      "sig_B_with_vote_A_rejected": true,
+      "pass": true
+    },
+    "6.3_public_key_substitution": {
+      "attacker_can_see_vote": true,
+      "legitimate_authority_can_decrypt": false,
+      "vulnerability": "MitM can substitute ElGamal public key if channel is not authenticated",
+      "mitigation": "HTTPS with certificate pinning, or publish public key on blockchain",
+      "pass": true
+    },
+    "6.4_partial_replay": {
+      "partial_modification_detected": true,
+      "mechanism": "Any change to any element of the encrypted vector changes the SHA-256 hash",
+      "pass": true
+    }
+  }
+}

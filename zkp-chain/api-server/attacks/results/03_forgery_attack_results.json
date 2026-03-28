@@ -1,0 +1,101 @@
+{
+  "category": "Ring Signature Forgery",
+  "timestamp": "2026-03-28T11:57:11.270Z",
+  "tests": {
+    "3.1_random_forgery": {
+      "trials": 1000,
+      "accepted": 0,
+      "rejected": 1000,
+      "forgery_success_rate": "0.000000%",
+      "total_time_ms": "41049",
+      "avg_verify_time_ms": "41.049",
+      "pass": true
+    },
+    "3.2_ring_manipulation": {
+      "variants_tested": 5,
+      "all_rejected": true,
+      "details": [
+        {
+          "attack": "Remove signer from ring",
+          "rejected": true
+        },
+        {
+          "attack": "Add extra member to ring",
+          "rejected": true
+        },
+        {
+          "attack": "Shuffle ring order",
+          "rejected": true
+        },
+        {
+          "attack": "Replace member with random",
+          "rejected": true
+        },
+        {
+          "attack": "Entirely different ring",
+          "rejected": true
+        }
+      ],
+      "pass": true
+    },
+    "3.3_link_tag_manipulation": {
+      "variants_tested": 4,
+      "all_rejected": true,
+      "details": [
+        {
+          "variant": "Random point",
+          "rejected": true
+        },
+        {
+          "variant": "Generator G",
+          "rejected": true
+        },
+        {
+          "variant": "Doubled tag (2·I)",
+          "rejected": true
+        },
+        {
+          "variant": "Negated tag (-I)",
+          "rejected": true
+        }
+      ],
+      "pass": true
+    },
+    "3.4_scalar_tampering": {
+      "ring_size": 8,
+      "positions_tampered": 8,
+      "rejected": 8,
+      "rejection_rate": "100.0%",
+      "pass": true
+    },
+    "3.4_bit_flip_fuzzing": {
+      "trials": 100,
+      "rejected": 100,
+      "rejection_rate": "100.0%",
+      "pass": true
+    },
+    "3.5_challenge_manipulation": {
+      "variants_tested": 4,
+      "all_rejected": true,
+      "details": [
+        {
+          "variant": "c0 + 1",
+          "rejected": true
+        },
+        {
+          "variant": "c0 = 0",
+          "rejected": true
+        },
+        {
+          "variant": "c0 = random",
+          "rejected": true
+        },
+        {
+          "variant": "Different message",
+          "rejected": true
+        }
+      ],
+      "pass": true
+    }
+  }
+}

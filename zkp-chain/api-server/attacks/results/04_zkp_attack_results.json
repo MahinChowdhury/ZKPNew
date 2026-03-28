@@ -1,0 +1,108 @@
+{
+  "category": "Vote Manipulation & ZKP Bypass",
+  "timestamp": "2026-03-28T11:57:55.332Z",
+  "tests": {
+    "4.1_invalid_vote_values": {
+      "values_tested": [
+        2,
+        3,
+        5,
+        10,
+        100,
+        -1,
+        1000
+      ],
+      "all_blocked": true,
+      "details": [
+        {
+          "value": 2,
+          "blocked": true
+        },
+        {
+          "value": 3,
+          "blocked": true
+        },
+        {
+          "value": 5,
+          "blocked": true
+        },
+        {
+          "value": 10,
+          "blocked": true
+        },
+        {
+          "value": 100,
+          "blocked": true
+        },
+        {
+          "value": -1,
+          "blocked": true
+        },
+        {
+          "value": 1000,
+          "blocked": true
+        }
+      ],
+      "pass": true
+    },
+    "4.2_proof_component_tampering": {
+      "fields_tested": 8,
+      "all_rejected": true,
+      "details": [
+        {
+          "field": "a1",
+          "rejected": true
+        },
+        {
+          "field": "b1",
+          "rejected": true
+        },
+        {
+          "field": "a2",
+          "rejected": true
+        },
+        {
+          "field": "b2",
+          "rejected": true
+        },
+        {
+          "field": "d1",
+          "rejected": true
+        },
+        {
+          "field": "d2",
+          "rejected": true
+        },
+        {
+          "field": "r1",
+          "rejected": true
+        },
+        {
+          "field": "r2",
+          "rejected": true
+        }
+      ],
+      "pass": true
+    },
+    "4.3_ciphertext_malleability": {
+      "original_decrypts_to_zero": true,
+      "malleable_decrypts_to_one": true,
+      "malleability_successful": true,
+      "original_proof_rejected_for_malleable": true,
+      "zkp_prevents_exploitation": true,
+      "pass": true
+    },
+    "4.4_cross_vote_proof_reuse": {
+      "proof1_on_cipher0_rejected": true,
+      "proof0_on_cipher1_rejected": true,
+      "proof_cross_key_rejected": true,
+      "pass": true
+    },
+    "4.5_random_zkp_forgery": {
+      "trials": 1000,
+      "accepted": 0,
+      "rejected": 1000,
+      "pass": true
+    }
+  }
+}

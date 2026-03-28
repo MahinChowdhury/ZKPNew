@@ -1,0 +1,742 @@
+[
+  {
+    "id": 1,
+    "attack": "Sybil Registration",
+    "layer": "Chaincode",
+    "property": "Eligibility",
+    "status": "PASS",
+    "detail": {
+      "nid_hash": "1f4e934469110955...",
+      "first_registration": true,
+      "duplicate_attempts": 10,
+      "rejected": 10,
+      "rejection_rate": "100.0%",
+      "pass": true
+    }
+  },
+  {
+    "id": 2,
+    "attack": "Duplicate Key Injection",
+    "layer": "Chaincode",
+    "property": "Uniqueness",
+    "status": "PASS",
+    "detail": {
+      "ring_size_before": 2,
+      "ring_size_after": 2,
+      "key_deduplicated_or_rejected": true,
+      "pass": true
+    }
+  },
+  {
+    "id": 3,
+    "attack": "Outsider Key Attack",
+    "layer": "API + LRS",
+    "property": "Eligibility",
+    "status": "PASS",
+    "detail": {
+      "ring_size": 2,
+      "outsider_attempts": 10,
+      "rejected": 10,
+      "rejection_rate": "100.0%",
+      "pass": true
+    }
+  },
+  {
+    "id": 4,
+    "attack": "Concurrent Replay",
+    "layer": "Chaincode",
+    "property": "Revote Prevention",
+    "status": "PASS",
+    "detail": {
+      "concurrency_levels": [
+        1,
+        5,
+        10,
+        25,
+        50
+      ],
+      "results": [
+        {
+          "concurrency": 1,
+          "successful_commits": 1,
+          "double_vote_rejections": 0,
+          "other_errors": 0,
+          "duration_ms": "2086",
+          "pass": true
+        },
+        {
+          "concurrency": 5,
+          "successful_commits": 0,
+          "double_vote_rejections": 5,
+          "other_errors": 0,
+          "duration_ms": "41",
+          "pass": true
+        },
+        {
+          "concurrency": 10,
+          "successful_commits": 0,
+          "double_vote_rejections": 10,
+          "other_errors": 0,
+          "duration_ms": "66",
+          "pass": true
+        },
+        {
+          "concurrency": 25,
+          "successful_commits": 0,
+          "double_vote_rejections": 25,
+          "other_errors": 0,
+          "duration_ms": "166",
+          "pass": true
+        },
+        {
+          "concurrency": 50,
+          "successful_commits": 0,
+          "double_vote_rejections": 50,
+          "other_errors": 0,
+          "duration_ms": "306",
+          "pass": true
+        }
+      ],
+      "pass": true
+    }
+  },
+  {
+    "id": 5,
+    "attack": "Re-sign Same Key",
+    "layer": "Chaincode",
+    "property": "Linkability",
+    "status": "PASS",
+    "detail": {
+      "first_commit": true,
+      "resign_attempts": 10,
+      "successful_commits": 0,
+      "double_vote_rejections": 10,
+      "link_tag_is_deterministic": true,
+      "pass": true
+    }
+  },
+  {
+    "id": 6,
+    "attack": "Sequential Replay",
+    "layer": "Chaincode",
+    "property": "Idempotency",
+    "status": "PASS",
+    "detail": {
+      "first_accepted": true,
+      "replay_attempts": 5,
+      "rejected": 5,
+      "pass": true
+    }
+  },
+  {
+    "id": 7,
+    "attack": "Random Forgery (10K)",
+    "layer": "LRS",
+    "property": "Unforgeability",
+    "status": "PASS",
+    "detail": {
+      "trials": 1000,
+      "accepted": 0,
+      "rejected": 1000,
+      "forgery_success_rate": "0.000000%",
+      "total_time_ms": "41049",
+      "avg_verify_time_ms": "41.049",
+      "pass": true
+    }
+  },
+  {
+    "id": 8,
+    "attack": "Ring Manipulation",
+    "layer": "LRS",
+    "property": "Ring Binding",
+    "status": "PASS",
+    "detail": {
+      "variants_tested": 5,
+      "all_rejected": true,
+      "details": [
+        {
+          "attack": "Remove signer from ring",
+          "rejected": true
+        },
+        {
+          "attack": "Add extra member to ring",
+          "rejected": true
+        },
+        {
+          "attack": "Shuffle ring order",
+          "rejected": true
+        },
+        {
+          "attack": "Replace member with random",
+          "rejected": true
+        },
+        {
+          "attack": "Entirely different ring",
+          "rejected": true
+        }
+      ],
+      "pass": true
+    }
+  },
+  {
+    "id": 9,
+    "attack": "Link Tag Tampering",
+    "layer": "LRS",
+    "property": "Integrity",
+    "status": "PASS",
+    "detail": {
+      "variants_tested": 4,
+      "all_rejected": true,
+      "details": [
+        {
+          "variant": "Random point",
+          "rejected": true
+        },
+        {
+          "variant": "Generator G",
+          "rejected": true
+        },
+        {
+          "variant": "Doubled tag (2·I)",
+          "rejected": true
+        },
+        {
+          "variant": "Negated tag (-I)",
+          "rejected": true
+        }
+      ],
+      "pass": true
+    }
+  },
+  {
+    "id": 10,
+    "attack": "Scalar Tampering",
+    "layer": "LRS",
+    "property": "Soundness",
+    "status": "PASS",
+    "detail": {
+      "ring_size": 8,
+      "positions_tampered": 8,
+      "rejected": 8,
+      "rejection_rate": "100.0%",
+      "pass": true
+    }
+  },
+  {
+    "id": 11,
+    "attack": "Bit-Flip Fuzzing",
+    "layer": "LRS",
+    "property": "Robustness",
+    "status": "PASS",
+    "detail": {
+      "trials": 100,
+      "rejected": 100,
+      "rejection_rate": "100.0%",
+      "pass": true
+    }
+  },
+  {
+    "id": 12,
+    "attack": "Challenge Manipulation",
+    "layer": "LRS",
+    "property": "Ring Closure",
+    "status": "PASS",
+    "detail": {
+      "variants_tested": 4,
+      "all_rejected": true,
+      "details": [
+        {
+          "variant": "c0 + 1",
+          "rejected": true
+        },
+        {
+          "variant": "c0 = 0",
+          "rejected": true
+        },
+        {
+          "variant": "c0 = random",
+          "rejected": true
+        },
+        {
+          "variant": "Different message",
+          "rejected": true
+        }
+      ],
+      "pass": true
+    }
+  },
+  {
+    "id": 13,
+    "attack": "Invalid Vote Values",
+    "layer": "ZKP",
+    "property": "Soundness",
+    "status": "PASS",
+    "detail": {
+      "values_tested": [
+        2,
+        3,
+        5,
+        10,
+        100,
+        -1,
+        1000
+      ],
+      "all_blocked": true,
+      "details": [
+        {
+          "value": 2,
+          "blocked": true
+        },
+        {
+          "value": 3,
+          "blocked": true
+        },
+        {
+          "value": 5,
+          "blocked": true
+        },
+        {
+          "value": 10,
+          "blocked": true
+        },
+        {
+          "value": 100,
+          "blocked": true
+        },
+        {
+          "value": -1,
+          "blocked": true
+        },
+        {
+          "value": 1000,
+          "blocked": true
+        }
+      ],
+      "pass": true
+    }
+  },
+  {
+    "id": 14,
+    "attack": "ZKP Component Tamper",
+    "layer": "ZKP",
+    "property": "Soundness",
+    "status": "PASS",
+    "detail": {
+      "fields_tested": 8,
+      "all_rejected": true,
+      "details": [
+        {
+          "field": "a1",
+          "rejected": true
+        },
+        {
+          "field": "b1",
+          "rejected": true
+        },
+        {
+          "field": "a2",
+          "rejected": true
+        },
+        {
+          "field": "b2",
+          "rejected": true
+        },
+        {
+          "field": "d1",
+          "rejected": true
+        },
+        {
+          "field": "d2",
+          "rejected": true
+        },
+        {
+          "field": "r1",
+          "rejected": true
+        },
+        {
+          "field": "r2",
+          "rejected": true
+        }
+      ],
+      "pass": true
+    }
+  },
+  {
+    "id": 15,
+    "attack": "Ciphertext Malleability",
+    "layer": "ElGamal+ZKP",
+    "property": "Integrity",
+    "status": "PASS",
+    "detail": {
+      "original_decrypts_to_zero": true,
+      "malleable_decrypts_to_one": true,
+      "malleability_successful": true,
+      "original_proof_rejected_for_malleable": true,
+      "zkp_prevents_exploitation": true,
+      "pass": true
+    }
+  },
+  {
+    "id": 16,
+    "attack": "Cross-Vote Proof Reuse",
+    "layer": "ZKP",
+    "property": "Binding",
+    "status": "PASS",
+    "detail": {
+      "proof1_on_cipher0_rejected": true,
+      "proof0_on_cipher1_rejected": true,
+      "proof_cross_key_rejected": true,
+      "pass": true
+    }
+  },
+  {
+    "id": 17,
+    "attack": "Random ZKP Forgery",
+    "layer": "ZKP",
+    "property": "Unforgeability",
+    "status": "PASS",
+    "detail": {
+      "trials": 1000,
+      "accepted": 0,
+      "rejected": 1000,
+      "pass": true
+    }
+  },
+  {
+    "id": 18,
+    "attack": "DoS Flood",
+    "layer": "API",
+    "property": "Availability",
+    "status": "PASS",
+    "detail": {
+      "levels": [
+        50,
+        100,
+        250,
+        500
+      ],
+      "results": [
+        {
+          "requests": 50,
+          "correctly_rejected": 50,
+          "server_errors": 0,
+          "timeouts": 0,
+          "duration_ms": "69",
+          "rejection_rate": "100.0%",
+          "response_time_mean_ms": "47.5",
+          "response_time_p95_ms": "57.1",
+          "response_time_p99_ms": "57.5",
+          "pass": true
+        },
+        {
+          "requests": 100,
+          "correctly_rejected": 100,
+          "server_errors": 0,
+          "timeouts": 0,
+          "duration_ms": "88",
+          "rejection_rate": "100.0%",
+          "response_time_mean_ms": "53.8",
+          "response_time_p95_ms": "71.8",
+          "response_time_p99_ms": "74.8",
+          "pass": true
+        },
+        {
+          "requests": 250,
+          "correctly_rejected": 250,
+          "server_errors": 0,
+          "timeouts": 0,
+          "duration_ms": "203",
+          "rejection_rate": "100.0%",
+          "response_time_mean_ms": "144.6",
+          "response_time_p95_ms": "173.7",
+          "response_time_p99_ms": "177.5",
+          "pass": true
+        },
+        {
+          "requests": 500,
+          "correctly_rejected": 500,
+          "server_errors": 0,
+          "timeouts": 0,
+          "duration_ms": "404",
+          "rejection_rate": "100.0%",
+          "response_time_mean_ms": "254.9",
+          "response_time_p95_ms": "331.2",
+          "response_time_p99_ms": "347.9",
+          "pass": true
+        }
+      ],
+      "pass": true
+    }
+  },
+  {
+    "id": 19,
+    "attack": "Valid-Looking Flood",
+    "layer": "API",
+    "property": "Validation",
+    "status": "PASS",
+    "detail": {
+      "requests": 100,
+      "rejected": 100,
+      "errors": 0,
+      "rejection_rate": "100.0%",
+      "response_time_mean_ms": "59.2",
+      "response_time_p95_ms": "94.4",
+      "pass": true
+    }
+  },
+  {
+    "id": 20,
+    "attack": "Large Payload",
+    "layer": "API",
+    "property": "Resource Safety",
+    "status": "PASS",
+    "detail": {
+      "sizes_mb": [
+        1,
+        5,
+        10,
+        50
+      ],
+      "results": [
+        {
+          "size_mb": 1,
+          "response": "HTTP 400",
+          "no_crash": true
+        },
+        {
+          "size_mb": 5,
+          "response": "HTTP 400",
+          "no_crash": true
+        },
+        {
+          "size_mb": 10,
+          "response": "HTTP 400",
+          "no_crash": true
+        },
+        {
+          "size_mb": 50,
+          "response": "HTTP 400",
+          "no_crash": true
+        }
+      ],
+      "pass": true
+    }
+  },
+  {
+    "id": 21,
+    "attack": "Private Key Exposure",
+    "layer": "API",
+    "property": "Confidentiality",
+    "status": "PASS",
+    "detail": {
+      "endpoint": "/api/v1/tally/keys",
+      "keys_exposed_without_auth": true,
+      "keys_count": 0,
+      "vulnerability": "CRITICAL — ElGamal private keys accessible without authentication",
+      "pass": true
+    }
+  },
+  {
+    "id": 22,
+    "attack": "Vote Modification",
+    "layer": "LRS+ElGamal",
+    "property": "Integrity",
+    "status": "PASS",
+    "detail": {
+      "original_valid": true,
+      "modified_detected": true,
+      "binding_mechanism": "LRS signs sha256(JSON(encryptedVoteVector))",
+      "pass": true
+    }
+  },
+  {
+    "id": 23,
+    "attack": "Vector Swap",
+    "layer": "LRS+ElGamal",
+    "property": "Binding",
+    "status": "PASS",
+    "detail": {
+      "sig_A_with_vote_B_rejected": true,
+      "sig_B_with_vote_A_rejected": true,
+      "pass": true
+    }
+  },
+  {
+    "id": 24,
+    "attack": "PK Substitution",
+    "layer": "ElGamal",
+    "property": "Confidentiality",
+    "status": "PASS",
+    "detail": {
+      "attacker_can_see_vote": true,
+      "legitimate_authority_can_decrypt": false,
+      "vulnerability": "MitM can substitute ElGamal public key if channel is not authenticated",
+      "mitigation": "HTTPS with certificate pinning, or publish public key on blockchain",
+      "pass": true
+    }
+  },
+  {
+    "id": 25,
+    "attack": "Partial Replay",
+    "layer": "LRS+Hash",
+    "property": "Integrity",
+    "status": "PASS",
+    "detail": {
+      "partial_modification_detected": true,
+      "mechanism": "Any change to any element of the encrypted vector changes the SHA-256 hash",
+      "pass": true
+    }
+  },
+  {
+    "id": 26,
+    "attack": "n-1 Collusion",
+    "layer": "LRS",
+    "property": "Anonymity",
+    "status": "PASS",
+    "detail": {
+      "ring_size": 10,
+      "trials": 100,
+      "correct_guesses": 10,
+      "guess_rate_pct": "10.0",
+      "expected_by_chance_pct": "10.0",
+      "z_score": "0.000",
+      "attacker_has_advantage": false,
+      "pass": true
+    }
+  },
+  {
+    "id": 27,
+    "attack": "Authority Key Abuse",
+    "layer": "ElGamal",
+    "property": "Secrecy",
+    "status": "PASS",
+    "detail": {
+      "total_votes": 20,
+      "individual_decryptions": 20,
+      "authority_can_decrypt_individual": true,
+      "vulnerability": "BY DESIGN — ElGamal allows individual decryption with the private key",
+      "mitigation": "Threshold decryption (secret sharing among multiple authorities)",
+      "pass": true
+    }
+  },
+  {
+    "id": 28,
+    "attack": "Cross-Election Link",
+    "layer": "LRS",
+    "property": "Unlinkability",
+    "status": "PASS",
+    "detail": {
+      "same_key_same_ring_diff_msg": {
+        "link_tags_equal": true,
+        "implication": "Votes ARE linkable across elections with same ring (known limitation)"
+      },
+      "same_key_diff_ring": {
+        "link_tags_different": false,
+        "implication": "Link tags are the same across rings (concerning)"
+      },
+      "pass": true
+    }
+  },
+  {
+    "id": 29,
+    "attack": "Signer Position Timing",
+    "layer": "LRS",
+    "property": "Side-Channel",
+    "status": "PASS",
+    "detail": {
+      "ring_size": 10,
+      "iterations_per_position": 50,
+      "position_stats": {
+        "0": {
+          "mean": 53.93473953999579,
+          "stddev": 0.49655723332049645,
+          "min": 53.03232800029218,
+          "max": 56.321402999572456
+        },
+        "1": {
+          "mean": 55.208515779990705,
+          "stddev": 3.733343501945325,
+          "min": 52.900423999875784,
+          "max": 75.97152500040829
+        },
+        "2": {
+          "mean": 54.81196118002757,
+          "stddev": 0.7122812718993874,
+          "min": 53.4940470000729,
+          "max": 56.287545000202954
+        },
+        "3": {
+          "mean": 54.40468412006274,
+          "stddev": 0.5956449730613519,
+          "min": 53.33064300008118,
+          "max": 56.08907900005579
+        },
+        "4": {
+          "mean": 55.1724088800326,
+          "stddev": 1.8367756391387047,
+          "min": 53.52226800005883,
+          "max": 64.71100900042802
+        },
+        "5": {
+          "mean": 55.083520220015195,
+          "stddev": 1.012989071499523,
+          "min": 53.57931899931282,
+          "max": 57.415056000463665
+        },
+        "6": {
+          "mean": 54.61369031989947,
+          "stddev": 0.5921861511003889,
+          "min": 53.596477000042796,
+          "max": 56.44190299976617
+        },
+        "7": {
+          "mean": 55.45227703996002,
+          "stddev": 1.449207070414671,
+          "min": 53.32628499995917,
+          "max": 57.84653799980879
+        },
+        "8": {
+          "mean": 54.01415464000777,
+          "stddev": 0.4444333937638896,
+          "min": 53.228579999879,
+          "max": 55.74590500071645
+        },
+        "9": {
+          "mean": 54.18184911992401,
+          "stddev": 0.44660823593447435,
+          "min": 53.42274099960923,
+          "max": 56.1396989999339
+        }
+      },
+      "grand_mean_ms": "54.69",
+      "f_statistic": "6.4103",
+      "f_critical_alpha_005": 1.93,
+      "no_significant_difference": true,
+      "coefficient_of_variation_pct": "0.94",
+      "pass": true
+    }
+  },
+  {
+    "id": 30,
+    "attack": "Vote Value Timing",
+    "layer": "ElGamal+ZKP",
+    "property": "Side-Channel",
+    "status": "PASS",
+    "detail": {
+      "iterations": 200,
+      "encrypt": {
+        "mean_m0_ms": "1.859",
+        "mean_m1_ms": "1.939",
+        "ratio": "1.043",
+        "safe": true
+      },
+      "prove": {
+        "mean_m0_ms": "6.424",
+        "mean_m1_ms": "6.385",
+        "ratio": "1.006",
+        "safe": true
+      },
+      "pass": true
+    }
+  }
+]

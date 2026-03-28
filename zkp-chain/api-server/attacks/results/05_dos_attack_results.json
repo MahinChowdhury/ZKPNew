@@ -1,0 +1,118 @@
+{
+  "category": "Network-Level DoS",
+  "timestamp": "2026-03-28T11:58:55.018Z",
+  "requires_live_system": true,
+  "tests": {
+    "5.1_malformed_flood": {
+      "levels": [
+        50,
+        100,
+        250,
+        500
+      ],
+      "results": [
+        {
+          "requests": 50,
+          "correctly_rejected": 50,
+          "server_errors": 0,
+          "timeouts": 0,
+          "duration_ms": "69",
+          "rejection_rate": "100.0%",
+          "response_time_mean_ms": "47.5",
+          "response_time_p95_ms": "57.1",
+          "response_time_p99_ms": "57.5",
+          "pass": true
+        },
+        {
+          "requests": 100,
+          "correctly_rejected": 100,
+          "server_errors": 0,
+          "timeouts": 0,
+          "duration_ms": "88",
+          "rejection_rate": "100.0%",
+          "response_time_mean_ms": "53.8",
+          "response_time_p95_ms": "71.8",
+          "response_time_p99_ms": "74.8",
+          "pass": true
+        },
+        {
+          "requests": 250,
+          "correctly_rejected": 250,
+          "server_errors": 0,
+          "timeouts": 0,
+          "duration_ms": "203",
+          "rejection_rate": "100.0%",
+          "response_time_mean_ms": "144.6",
+          "response_time_p95_ms": "173.7",
+          "response_time_p99_ms": "177.5",
+          "pass": true
+        },
+        {
+          "requests": 500,
+          "correctly_rejected": 500,
+          "server_errors": 0,
+          "timeouts": 0,
+          "duration_ms": "404",
+          "rejection_rate": "100.0%",
+          "response_time_mean_ms": "254.9",
+          "response_time_p95_ms": "331.2",
+          "response_time_p99_ms": "347.9",
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    "5.2_valid_looking_flood": {
+      "requests": 100,
+      "rejected": 100,
+      "errors": 0,
+      "rejection_rate": "100.0%",
+      "response_time_mean_ms": "59.2",
+      "response_time_p95_ms": "94.4",
+      "pass": true
+    },
+    "5.3_large_payload": {
+      "sizes_mb": [
+        1,
+        5,
+        10,
+        50
+      ],
+      "results": [
+        {
+          "size_mb": 1,
+          "response": "HTTP 400",
+          "no_crash": true
+        },
+        {
+          "size_mb": 5,
+          "response": "HTTP 400",
+          "no_crash": true
+        },
+        {
+          "size_mb": 10,
+          "response": "HTTP 400",
+          "no_crash": true
+        },
+        {
+          "size_mb": 50,
+          "response": "HTTP 400",
+          "no_crash": true
+        }
+      ],
+      "pass": true
+    },
+    "5.4_unauthorized_access": {
+      "endpoint": "/api/v1/tally/keys",
+      "keys_exposed_without_auth": true,
+      "keys_count": 0,
+      "vulnerability": "CRITICAL — ElGamal private keys accessible without authentication",
+      "pass": true
+    },
+    "5.5_server_recovery": {
+      "server_responsive_after_flood": true,
+      "health_check_time_ms": "31",
+      "pass": true
+    }
+  }
+}

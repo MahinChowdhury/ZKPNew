@@ -1,0 +1,32 @@
+{
+  "category": "Sybil & Identity Attacks",
+  "timestamp": "2026-03-28T11:58:41.531Z",
+  "requires_live_system": true,
+  "tests": {
+    "1.1_sybil_registration": {
+      "nid_hash": "1f4e934469110955...",
+      "first_registration": true,
+      "duplicate_attempts": 10,
+      "rejected": 10,
+      "rejection_rate": "100.0%",
+      "pass": true
+    },
+    "1.2_duplicate_key_injection": {
+      "ring_size_before": 2,
+      "ring_size_after": 2,
+      "key_deduplicated_or_rejected": true,
+      "pass": true
+    },
+    "1.3_outsider_voting": {
+      "ring_size": 2,
+      "outsider_attempts": 10,
+      "rejected": 10,
+      "rejection_rate": "100.0%",
+      "pass": true
+    },
+    "1.4_unregistered_direct_submit": {
+      "rejected": false,
+      "pass": true
+    }
+  }
+}
