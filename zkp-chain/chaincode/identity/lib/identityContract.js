@@ -15,12 +15,7 @@ class IdentityContract extends Contract {
     };
     await ctx.stub.putState('GLOBAL_RING', Buffer.from(JSON.stringify(ring)));
     
-    // Initialize vote counter
-    const voteCounter = {
-      count: 0,
-      docType: 'counter'
-    };
-    await ctx.stub.putState('VOTE_COUNTER', Buffer.from(JSON.stringify(voteCounter)));
+    // No shared VOTE_COUNTER needed — votes use txId as unique key
     
     console.log('Identity verification and voting ledger initialized');
     console.log('============= END : Initialize Ledger ===========');
@@ -356,19 +351,9 @@ class IdentityContract extends Contract {
       throw new Error('Double voting detected - this identity has already voted');
     }
 
-    // Get vote counter
-    const counterBytes = await ctx.stub.getState('VOTE_COUNTER');
-    let counter;
-    
-    if (!counterBytes || counterBytes.length === 0) {
-      counter = { count: 0, docType: 'counter' };
-    } else {
-      counter = JSON.parse(counterBytes.toString());
-    }
-
-    // Increment counter
-    counter.count += 1;
-    const voteId = `VOTE_${counter.count}`;
+    // Use txId as the unique, conflict-free vote identifier — no shared counter needed
+    const txId = ctx.stub.getTxID();
+    const voteId = `VOTE_${txId}`;
 
     // Get timestamp
     const txTimestamp = ctx.stub.getTxTimestamp();
@@ -382,11 +367,11 @@ class IdentityContract extends Contract {
       ring,
       encryptedVote,  // CRITICAL: This must be included
       timestamp: timestampStr,
-      txId: ctx.stub.getTxID(),
+      txId,
       docType: 'vote'
     };
 
-    // Store vote
+    // Store vote — key is unique per transaction, zero read-write conflict
     await ctx.stub.putState(voteId, Buffer.from(JSON.stringify(vote)));
 
     // Store link tag to prevent double voting
@@ -396,9 +381,6 @@ class IdentityContract extends Contract {
       docType: 'linkTag'
     };
     await ctx.stub.putState(linkTagKey, Buffer.from(JSON.stringify(linkTagRecord)));
-
-    // Update counter
-    await ctx.stub.putState('VOTE_COUNTER', Buffer.from(JSON.stringify(counter)));
 
     // Emit vote event (without revealing identity or choice)
     const eventPayload = {
@@ -500,22 +482,27 @@ class IdentityContract extends Contract {
     return JSON.stringify(vote);
   }
 
-  // Get vote count
+  // Get vote count — derived from the vote index (no shared counter)
   async getVoteCount(ctx) {
     console.log('============= START : Get Vote Count ===========');
-    
-    const counterBytes = await ctx.stub.getState('VOTE_COUNTER');
-    
-    if (!counterBytes || counterBytes.length === 0) {
-      return 0;
-    }
 
-    const counter = JSON.parse(counterBytes.toString());
-    
-    console.log(`Total votes: ${counter.count}`);
+    let count = 0;
+    const iterator = await ctx.stub.getStateByRange('VOTE_', 'VOTE_~');
+    let result = await iterator.next();
+    while (!result.done) {
+      const strValue = Buffer.from(result.value.value.toString()).toString('utf8');
+      try {
+        const record = JSON.parse(strValue);
+        if (record.docType === 'vote') count++;
+      } catch (_) {}
+      result = await iterator.next();
+    }
+    await iterator.close();
+
+    console.log(`Total votes: ${count}`);
     console.log('============= END : Get Vote Count ===========');
-    
-    return counter.count;
+
+    return count;
   }
 
   // Check if link tag has been used (double-vote check)
