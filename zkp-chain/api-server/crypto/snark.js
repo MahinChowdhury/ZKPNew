@@ -1,6 +1,6 @@
 // ============================================================
 // crypto/snark.js — ZK-SNARK proof generation & verification
-// Uses: snarkjs (PLONK), circomlibjs (Poseidon), ffjavascript
+// Uses: snarkjs (Groth16), circomlibjs (Poseidon), ffjavascript
 // ============================================================
 
 const snarkjs = require("snarkjs");
@@ -16,9 +16,11 @@ const ZKEY_PATH = path.join(CIRCUITS_DIR, "face_auth.zkey");
 const VKEY_PATH = path.join(CIRCUITS_DIR, "verification_key.json");
 
 // ============================================================
-// Cache verification key
+// Cache verification key and circuit artifacts
 // ============================================================
 let _vkey = null;
+let _wasmBuffer = null;
+let _zkeyBuffer = null;
 
 function getVerificationKey() {
   if (!_vkey) {
@@ -225,11 +227,19 @@ async function generateProof(
 
   const startTime = Date.now();
 
-  // Generate proof using PLONK
-  const { proof, publicSignals } = await snarkjs.plonk.fullProve(
+  // Cache artifacts in memory to prevent heavy I/O on every proof
+  if (!_wasmBuffer) {
+    _wasmBuffer = new Uint8Array(fs.readFileSync(WASM_PATH));
+  }
+  if (!_zkeyBuffer) {
+    _zkeyBuffer = new Uint8Array(fs.readFileSync(ZKEY_PATH));
+  }
+
+  // Generate proof using Groth16
+  const { proof, publicSignals } = await snarkjs.groth16.fullProve(
     input,
-    WASM_PATH,
-    ZKEY_PATH
+    _wasmBuffer,
+    _zkeyBuffer
   );
 
   const elapsed = Date.now() - startTime;
@@ -246,7 +256,7 @@ async function generateProof(
 
 /**
  * Verify a ZK-SNARK proof
- * @param {Object} proof - PLONK proof object
+ * @param {Object} proof - Groth16 proof object
  * @param {string[]} publicSignals - array of public signal strings
  * @returns {Promise<boolean>} true if proof is valid
  */
@@ -256,7 +266,7 @@ async function verifyProof(proof, publicSignals) {
   console.log("\n=== SNARK PROOF VERIFICATION ===");
   const startTime = Date.now();
 
-  const isValid = await snarkjs.plonk.verify(vkey, publicSignals, proof);
+  const isValid = await snarkjs.groth16.verify(vkey, publicSignals, proof);
 
   const elapsed = Date.now() - startTime;
   console.log(`Verification result: ${isValid} (${elapsed}ms)`);

@@ -1,0 +1,100 @@
+{
+  "meta": {
+    "date": "2026-03-29T12:04:08.295Z",
+    "iterations": 30,
+    "ring_size": 32,
+    "candidates": 3,
+    "live_fabric": false
+  },
+  "phases": {
+    "p1_qr_decrypt": {
+      "label": "P1  QR Decode + PBKDF2 + AES",
+      "stats": {
+        "mean": 62.632,
+        "sd": 4.416,
+        "min": 54.712,
+        "max": 76.589,
+        "p95": 68.986,
+        "p99": 76.589
+      }
+    },
+    "p2_face_embed": {
+      "label": "P2  Face Embedding (Python API)",
+      "stats": {
+        "mean": 98.62,
+        "sd": 11.587,
+        "min": 81.637,
+        "max": 119.382,
+        "p95": 118.492,
+        "p99": 119.382
+      }
+    },
+    "p3_face_compare": {
+      "label": "P3  Cosine Similarity Compare",
+      "stats": {
+        "mean": 0.102,
+        "sd": 0.142,
+        "min": 0.029,
+        "max": 0.687,
+        "p95": 0.488,
+        "p99": 0.687
+      }
+    },
+    "p4_key_derive": {
+      "label": "P4  Key Derivation (SHA-256→k→k·G)",
+      "stats": {
+        "mean": 1.769,
+        "sd": 0.69,
+        "min": 1.032,
+        "max": 4.066,
+        "p95": 3.248,
+        "p99": 4.066
+      }
+    },
+    "p5_lrs_sign": {
+      "label": "P5  Ring Signature Sign",
+      "stats": {
+        "mean": 306.578,
+        "sd": 25.579,
+        "min": 269.601,
+        "max": 401.653,
+        "p95": 363.366,
+        "p99": 401.653
+      }
+    },
+    "p6_lrs_verify": {
+      "label": "P6  Ring Signature Verify (local)",
+      "stats": {
+        "mean": 303.975,
+        "sd": 49.313,
+        "min": 278.231,
+        "max": 558.647,
+        "p95": 343.333,
+        "p99": 558.647
+      }
+    },
+    "p7_elgamal_vector": {
+      "label": "P7  ElGamal Vector + ZKP",
+      "stats": {
+        "mean": 44.421,
+        "sd": 2.296,
+        "min": 41.226,
+        "max": 50.233,
+        "p95": 48.594,
+        "p99": 50.233
+      }
+    },
+    "p8_fabric_submit": {
+      "label": "P8  Blockchain Submit (Fabric)",
+      "stats": {
+        "mean": 228.128,
+        "sd": 13.618,
+        "min": 204.205,
+        "max": 250.084,
+        "p95": 249.014,
+        "p99": 250.084
+      }
+    }
+  },
+  "total_mean_ms": 1046.225
+}

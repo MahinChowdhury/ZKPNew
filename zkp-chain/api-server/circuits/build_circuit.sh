@@ -13,7 +13,7 @@ PTAU_FILE="powersOfTau28_hez_final_${PTAU_SIZE}.ptau"
 PTAU_URL="https://storage.googleapis.com/zkevm/ptau/${PTAU_FILE}"
 
 echo "============================================"
-echo "  ZK-SNARK Circuit Build (PLONK)"
+echo "  ZK-SNARK Circuit Build (Groth16)"
 echo "============================================"
 
 # ------------------------------------------
@@ -60,14 +60,21 @@ else
 fi
 
 # ------------------------------------------
-# Step 3: PLONK Setup (no per-circuit ceremony needed)
+# Step 3: Groth16 Setup (phase 2 contribution included)
 # ------------------------------------------
 echo ""
-echo "[3/5] Running PLONK setup..."
-npx snarkjs plonk setup \
+echo "[3/5] Running Groth16 setup..."
+npx snarkjs groth16 setup \
     ${CIRCUIT}.r1cs \
     ${PTAU_FILE} \
-    ${CIRCUIT}.zkey
+    ${CIRCUIT}_0000.zkey
+
+npx snarkjs zkey contribute \
+    ${CIRCUIT}_0000.zkey \
+    ${CIRCUIT}.zkey \
+    --name="Development Phase 2" -v -e="some random text for entropy"
+
+rm ${CIRCUIT}_0000.zkey
 
 echo "  ✓ Proving key: ${CIRCUIT}.zkey"
 
@@ -98,6 +105,6 @@ echo ""
 echo "  Files produced:"
 echo "    ${CIRCUIT}.r1cs         — constraint system"
 echo "    ${CIRCUIT}_js/          — WASM witness generator"
-echo "    ${CIRCUIT}.zkey         — PLONK proving key"
+echo "    ${CIRCUIT}.zkey         — Groth16 proving key"
 echo "    verification_key.json   — verification key"
 echo "============================================"
