@@ -21,6 +21,7 @@ function sha256Hash(data) {
   return crypto.createHash("sha256").update(String(data)).digest("hex");
 }
 
+// secp256k1 key derivation — for LRS only (unchanged)
 function deriveK(faceHash, salt) {
   const hash = sha256Hash(faceHash + salt);
   let k = new BN(hash, 16).umod(ec.curve.n);
@@ -54,7 +55,10 @@ function decryptPayload(encryptedPayload, password) {
 
 /**
  * POST /api/v1/vote
- * Cast anonymous vote using linkable ring signature
+ * Cast anonymous vote using:
+ *   1. ZK-SNARK proof (Poseidon + Baby Jubjub + cosine similarity)
+ *   2. Linkable Ring Signature (secp256k1, unchanged)
+ *   3. Homomorphic encryption of vote vector
  * 
  * Body:
  * - qrCode: encrypted QR with user credentials
@@ -72,7 +76,7 @@ router.post(
       const faceFile = req.files.faceImg?.[0];
       
       // Get external dependencies from res.locals (set by server.js)
-      const { fabricClient, decodeQRCode, getFaceEmbedding, compareEmbeddings, ballotRoutes, tallyRoutes } = res.locals;
+      const { fabricClient, decodeQRCode, getFaceEmbedding, compareEmbeddings, ballotRoutes, tallyRoutes, snark } = res.locals;
 
       if (!password || !qrFile || !faceFile || !voteChoice) {
         return res.status(400).json({ 
@@ -81,7 +85,7 @@ router.post(
         });
       }
 
-      console.log("\n=== VOTE SUBMISSION START ===");
+      console.log("\n=== VOTE SUBMISSION START (ZK-SNARK + LRS) ===");
       console.log("Vote choice:", voteChoice);
 
       // 1. Check if there's an active ballot
@@ -137,7 +141,7 @@ router.post(
       const qrData = decryptPayload(encryptedStr, password);
       console.log("✅ QR decrypted");
 
-      // 7. Live face verification
+      // 7. Live face embedding extraction
       const faceLogin = await getFaceEmbedding(faceFile);
       const registeredEmbedding = qrData.faceEmbedding;
       
@@ -145,30 +149,64 @@ router.post(
         throw new Error("No face embedding found in QR code");
       }
 
-      const isMatch = await compareEmbeddings(faceLogin, registeredEmbedding);
-      console.log("Face match result:", isMatch);
+      // =====================================================
+      // 8. ZK-SNARK PROOF — replaces simple compareEmbeddings
+      // Proves inside the circuit:
+      //   a) Poseidon(embedding || salt) == faceHash
+      //   b) S = k * G on Baby Jubjub (key ownership)
+      //   c) squared_cosine(live, registered) >= threshold
+      // =====================================================
+      let snarkProofResult = null;
 
-      if (!isMatch) {
-        return res.json({
-          ok: false,
-          error: "Face verification failed - biometric mismatch",
-          isMatch: false
-        });
+      if (qrData.poseidonFaceHash && qrData.bjjSx && qrData.bjjSy && snark) {
+        console.log("🔐 Generating ZK-SNARK proof of biometric match...");
+        
+        snarkProofResult = await snark.generateAuthProof(
+          faceLogin,
+          registeredEmbedding,
+          qrData.salt,
+          BigInt(qrData.poseidonFaceHash),
+          BigInt(qrData.bjjSx),
+          BigInt(qrData.bjjSy)
+        );
+
+        if (!snarkProofResult.isValid) {
+          return res.json({
+            ok: false,
+            error: "ZK-SNARK proof verification failed — biometric mismatch or data tampering",
+            isMatch: false
+          });
+        }
+
+        console.log("✅ ZK-SNARK biometric proof verified");
+      } else {
+        // Legacy fallback: use Python compare endpoint
+        console.warn("⚠️  Legacy registration detected — using Python compare (no SNARK)");
+        const isMatch = await compareEmbeddings(faceLogin, registeredEmbedding);
+        console.log("Face match result:", isMatch);
+
+        if (!isMatch) {
+          return res.json({
+            ok: false,
+            error: "Face verification failed - biometric mismatch",
+            isMatch: false
+          });
+        }
+        console.log("✅ Legacy biometric verification passed");
       }
 
-      console.log("✅ Biometric verification passed");
-
-      // 8. Derive private key k from biometric
-      const k = deriveK(qrData.faceHash, qrData.salt);
+      // 9. Derive secp256k1 private key for LRS (unchanged)
+      const faceHashSha = qrData.faceHash || sha256Hash(JSON.stringify(registeredEmbedding));
+      const k = deriveK(faceHashSha, qrData.salt);
       
-      // 9. Compute link tag S = k·G
+      // 10. Compute link tag S = k·G (secp256k1)
       const S = ec.g.mul(k);
       const linkTag = {
         x: S.getX().toString(16),
         y: S.getY().toString(16)
       };
 
-      // 10. Get ring (all registered public keys)
+      // 11. Get ring (all registered public keys)
       const ringData = await fabricClient.getRing();
       
       if (!ringData || ringData.length === 0) {
@@ -197,9 +235,9 @@ router.post(
 
       console.log(`Signer index in ring: ${signerIndex}`);
 
-      // 11. Homomorphic encryption of vote vector + ZKP
+      // 12. Homomorphic encryption of vote vector + ZKP (unchanged)
       let encryptedVoteVector = null;
-      let signatureMessage = voteChoice; // Fallback for legacy signing if encryption fails
+      let signatureMessage = voteChoice;
       
       try {
         const axios = require('axios');
@@ -230,8 +268,6 @@ router.post(
           
           console.log(`✅ Vote encrypted as vector of size ${encryptedVoteVector.length}`);
           
-          // The message to sign is the hash of the encrypted vector
-          // This cryptographically binds the encrypted vote to the LRS without revealing the choice
           signatureMessage = sha256Hash(JSON.stringify(encryptedVoteVector));
         } else {
           console.warn("No encryption key found for ballot - vote will not be encrypted");
@@ -241,18 +277,18 @@ router.post(
         console.warn("Could not encrypt vote:", err.message);
       }
 
-      // 12. Generate linkable ring signature over the encrypted vector
+      // 13. Generate linkable ring signature over the encrypted vector (secp256k1, unchanged)
       const signature = lrs.sign(k, ring, signerIndex, signatureMessage);
-      console.log("✅ Ring signature generated");
+      console.log("✅ Ring signature generated (secp256k1 LRS)");
 
-      // 13. Verify signature locally before submitting
+      // 14. Verify signature locally before submitting
       const isValid = lrs.verify(signature, ring, signatureMessage);
       if (!isValid) {
         throw new Error("Generated signature failed local verification");
       }
-      console.log("✅ Local signature verification passed");
+      console.log("✅ Local LRS verification passed");
 
-      // 14. Submit vote to blockchain (completely oblivious to actual choice)
+      // 15. Submit vote to blockchain
       const voteResult = await fabricClient.castVote(
         signature,
         ringData,
@@ -261,16 +297,22 @@ router.post(
 
       console.log("✅ Vote cast on blockchain");
       console.log("Vote ID:", voteResult.voteId);
-      console.log("=== VOTE SUBMISSION COMPLETE ===\n");
+      console.log("=== VOTE SUBMISSION COMPLETE (ZK-SNARK + LRS) ===\n");
 
       res.json({
         ok: true,
         isMatch: true,
         voteId: voteResult.voteId,
-        voteChoice,  // API response shows the original choice (client-side only)
+        voteChoice,
         ballotTitle: activeBallot.title,
         timestamp: voteResult.timestamp,
-        message: "Vote successfully cast anonymously"
+        zkp: {
+          snarkProof: snarkProofResult ? true : false,
+          lrsSignature: true,
+          protocol: "plonk + lrs",
+          curves: "bn128 (snark) + secp256k1 (lrs)"
+        },
+        message: "Vote successfully cast with ZK-SNARK biometric proof + anonymous ring signature"
       });
 
     } catch (err) {
@@ -369,7 +411,8 @@ router.get("/status", async (req, res) => {
       registeredVoters: ringData.length,
       totalVotes: results.totalVotes,
       votingActive: true,
-      anonymitySet: ringData.length
+      anonymitySet: ringData.length,
+      zkp: "zk-snark (PLONK) + LRS (secp256k1)"
     });
   } catch (err) {
     console.error("STATUS ERROR:", err);

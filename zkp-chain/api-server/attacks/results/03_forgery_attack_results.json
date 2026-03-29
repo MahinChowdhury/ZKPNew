@@ -1,14 +1,14 @@
 {
   "category": "Ring Signature Forgery",
-  "timestamp": "2026-03-28T11:57:11.270Z",
+  "timestamp": "2026-03-29T06:44:53.414Z",
   "tests": {
     "3.1_random_forgery": {
       "trials": 1000,
       "accepted": 0,
       "rejected": 1000,
       "forgery_success_rate": "0.000000%",
-      "total_time_ms": "41049",
-      "avg_verify_time_ms": "41.049",
+      "total_time_ms": "39491",
+      "avg_verify_time_ms": "39.491",
       "pass": true
     },
     "3.2_ring_manipulation": {
