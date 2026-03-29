@@ -9,7 +9,7 @@ set -e
 
 CIRCUIT=face_auth
 PTAU_SIZE=16   # 2^16 = 65536 constraints (adjust if needed)
-PTAU_FILE="powersOfTau28_bnb254_final_${PTAU_SIZE}.ptau"
+PTAU_FILE="powersOfTau28_hez_final_${PTAU_SIZE}.ptau"
 PTAU_URL="https://storage.googleapis.com/zkevm/ptau/${PTAU_FILE}"
 
 echo "============================================"
