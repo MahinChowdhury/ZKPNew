@@ -194,21 +194,46 @@ router.post("/compute/:ballotId", async (req, res) => {
         // The vote is an array of ciphertexts, one for each option
         // We sum them element-wise
         if (ballot && ballot.options && vote.encryptedVote.length === ballot.options.length) {
+          
+          let isValidVote = true;
+          const ciphertexts = [];
+
+          // First pass: Verify all proofs
           for (let i = 0; i < ballot.options.length; i++) {
-            const optionName = ballot.options[i].name;
             const ciphertext = homomorphic.deserializeCiphertext(vote.encryptedVote[i]);
+            ciphertexts.push(ciphertext);
             
-            if (encryptedTallies[optionName] === null) {
-              encryptedTallies[optionName] = ciphertext;
+            const proof = vote.encryptedVote[i].validityProof;
+            if (proof) {
+               const isValid = homomorphic.verifyValidVote(keypair.publicKey, ciphertext, proof);
+               if (!isValid) {
+                  console.warn(`  Vote ${vote.voteId} validity proof failed (perhaps encrypted with an older public key) - skipping`);
+                  isValidVote = false;
+                  break;
+               }
             } else {
-              encryptedTallies[optionName] = homomorphic.addCiphertexts(
-                encryptedTallies[optionName],
-                ciphertext
-              );
+               // Allow for testing, but warn
+               console.warn(`  Vote ${vote.voteId} missing validity proof`);
             }
           }
-          console.log(`  Processed vector vote ${vote.voteId}`);
-          processedCount++;
+
+          if (isValidVote) {
+            for (let i = 0; i < ballot.options.length; i++) {
+              const optionName = ballot.options[i].name;
+              const ciphertext = ciphertexts[i];
+              
+              if (encryptedTallies[optionName] === null) {
+                encryptedTallies[optionName] = ciphertext;
+              } else {
+                encryptedTallies[optionName] = homomorphic.addCiphertexts(
+                  encryptedTallies[optionName],
+                  ciphertext
+                );
+              }
+            }
+            console.log(`  Processed vector vote ${vote.voteId}`);
+            processedCount++;
+          }
         } else {
           console.warn(`  Vector vote ${vote.voteId} length doesn't match ballot options - skipping`);
         }
