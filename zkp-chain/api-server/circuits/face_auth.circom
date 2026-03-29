@@ -138,7 +138,7 @@ template FaceAuth(embeddingSize) {
     // Hash the embedding
     component embeddingHash = PoseidonHashChunked(embeddingSize, 8);
     for (var i = 0; i < embeddingSize; i++) {
-        embeddingHash.in[i] <== embedding[i];
+        embeddingHash.in[i] <== registeredEmbedding[i];
     }
 
     // Combine embedding hash with salt
@@ -172,8 +172,9 @@ template FaceAuth(embeddingSize) {
 
     // All three checks must pass
     // (faceHash and key ownership are hard constraints via ===)
-    // Cosine similarity is the soft gate
+    // Cosine similarity must be strictly enforced:
     valid <== cosine.pass;
+    valid === 1;
 }
 
 // Instantiate with 64-dimensional embeddings
