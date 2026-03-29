@@ -27,7 +27,7 @@
 
 "use strict";
 
-const { runAll } = require("./attacks/run_all_attacks");
+const { runAll } = require("../attacks/run_all_attacks");
 
 // Determine mode from CLI args
 const args = process.argv.slice(2);

@@ -4,129 +4,48 @@
     "attack": "Sybil Registration",
     "layer": "Chaincode",
     "property": "Eligibility",
-    "status": "PASS",
-    "detail": {
-      "nid_hash": "1f4e934469110955...",
-      "first_registration": true,
-      "duplicate_attempts": 10,
-      "rejected": 10,
-      "rejection_rate": "100.0%",
-      "pass": true
-    }
+    "status": "NOT RUN",
+    "detail": {}
   },
   {
     "id": 2,
     "attack": "Duplicate Key Injection",
     "layer": "Chaincode",
     "property": "Uniqueness",
-    "status": "PASS",
-    "detail": {
-      "ring_size_before": 2,
-      "ring_size_after": 2,
-      "key_deduplicated_or_rejected": true,
-      "pass": true
-    }
+    "status": "NOT RUN",
+    "detail": {}
   },
   {
     "id": 3,
     "attack": "Outsider Key Attack",
     "layer": "API + LRS",
     "property": "Eligibility",
-    "status": "PASS",
-    "detail": {
-      "ring_size": 2,
-      "outsider_attempts": 10,
-      "rejected": 10,
-      "rejection_rate": "100.0%",
-      "pass": true
-    }
+    "status": "NOT RUN",
+    "detail": {}
   },
   {
     "id": 4,
     "attack": "Concurrent Replay",
     "layer": "Chaincode",
     "property": "Revote Prevention",
-    "status": "PASS",
-    "detail": {
-      "concurrency_levels": [
-        1,
-        5,
-        10,
-        25,
-        50
-      ],
-      "results": [
-        {
-          "concurrency": 1,
-          "successful_commits": 1,
-          "double_vote_rejections": 0,
-          "other_errors": 0,
-          "duration_ms": "2086",
-          "pass": true
-        },
-        {
-          "concurrency": 5,
-          "successful_commits": 0,
-          "double_vote_rejections": 5,
-          "other_errors": 0,
-          "duration_ms": "41",
-          "pass": true
-        },
-        {
-          "concurrency": 10,
-          "successful_commits": 0,
-          "double_vote_rejections": 10,
-          "other_errors": 0,
-          "duration_ms": "66",
-          "pass": true
-        },
-        {
-          "concurrency": 25,
-          "successful_commits": 0,
-          "double_vote_rejections": 25,
-          "other_errors": 0,
-          "duration_ms": "166",
-          "pass": true
-        },
-        {
-          "concurrency": 50,
-          "successful_commits": 0,
-          "double_vote_rejections": 50,
-          "other_errors": 0,
-          "duration_ms": "306",
-          "pass": true
-        }
-      ],
-      "pass": true
-    }
+    "status": "NOT RUN",
+    "detail": {}
   },
   {
     "id": 5,
     "attack": "Re-sign Same Key",
     "layer": "Chaincode",
     "property": "Linkability",
-    "status": "PASS",
-    "detail": {
-      "first_commit": true,
-      "resign_attempts": 10,
-      "successful_commits": 0,
-      "double_vote_rejections": 10,
-      "link_tag_is_deterministic": true,
-      "pass": true
-    }
+    "status": "NOT RUN",
+    "detail": {}
   },
   {
     "id": 6,
     "attack": "Sequential Replay",
     "layer": "Chaincode",
     "property": "Idempotency",
-    "status": "PASS",
-    "detail": {
-      "first_accepted": true,
-      "replay_attempts": 5,
-      "rejected": 5,
-      "pass": true
-    }
+    "status": "NOT RUN",
+    "detail": {}
   },
   {
     "id": 7,
@@ -139,8 +58,8 @@
       "accepted": 0,
       "rejected": 1000,
       "forgery_success_rate": "0.000000%",
-      "total_time_ms": "41049",
-      "avg_verify_time_ms": "41.049",
+      "total_time_ms": "39491",
+      "avg_verify_time_ms": "39.491",
       "pass": true
     }
   },
@@ -407,134 +326,32 @@
     "attack": "DoS Flood",
     "layer": "API",
     "property": "Availability",
-    "status": "PASS",
-    "detail": {
-      "levels": [
-        50,
-        100,
-        250,
-        500
-      ],
-      "results": [
-        {
-          "requests": 50,
-          "correctly_rejected": 50,
-          "server_errors": 0,
-          "timeouts": 0,
-          "duration_ms": "69",
-          "rejection_rate": "100.0%",
-          "response_time_mean_ms": "47.5",
-          "response_time_p95_ms": "57.1",
-          "response_time_p99_ms": "57.5",
-          "pass": true
-        },
-        {
-          "requests": 100,
-          "correctly_rejected": 100,
-          "server_errors": 0,
-          "timeouts": 0,
-          "duration_ms": "88",
-          "rejection_rate": "100.0%",
-          "response_time_mean_ms": "53.8",
-          "response_time_p95_ms": "71.8",
-          "response_time_p99_ms": "74.8",
-          "pass": true
-        },
-        {
-          "requests": 250,
-          "correctly_rejected": 250,
-          "server_errors": 0,
-          "timeouts": 0,
-          "duration_ms": "203",
-          "rejection_rate": "100.0%",
-          "response_time_mean_ms": "144.6",
-          "response_time_p95_ms": "173.7",
-          "response_time_p99_ms": "177.5",
-          "pass": true
-        },
-        {
-          "requests": 500,
-          "correctly_rejected": 500,
-          "server_errors": 0,
-          "timeouts": 0,
-          "duration_ms": "404",
-          "rejection_rate": "100.0%",
-          "response_time_mean_ms": "254.9",
-          "response_time_p95_ms": "331.2",
-          "response_time_p99_ms": "347.9",
-          "pass": true
-        }
-      ],
-      "pass": true
-    }
+    "status": "NOT RUN",
+    "detail": {}
   },
   {
     "id": 19,
     "attack": "Valid-Looking Flood",
     "layer": "API",
     "property": "Validation",
-    "status": "PASS",
-    "detail": {
-      "requests": 100,
-      "rejected": 100,
-      "errors": 0,
-      "rejection_rate": "100.0%",
-      "response_time_mean_ms": "59.2",
-      "response_time_p95_ms": "94.4",
-      "pass": true
-    }
+    "status": "NOT RUN",
+    "detail": {}
   },
   {
     "id": 20,
     "attack": "Large Payload",
     "layer": "API",
     "property": "Resource Safety",
-    "status": "PASS",
-    "detail": {
-      "sizes_mb": [
-        1,
-        5,
-        10,
-        50
-      ],
-      "results": [
-        {
-          "size_mb": 1,
-          "response": "HTTP 400",
-          "no_crash": true
-        },
-        {
-          "size_mb": 5,
-          "response": "HTTP 400",
-          "no_crash": true
-        },
-        {
-          "size_mb": 10,
-          "response": "HTTP 400",
-          "no_crash": true
-        },
-        {
-          "size_mb": 50,
-          "response": "HTTP 400",
-          "no_crash": true
-        }
-      ],
-      "pass": true
-    }
+    "status": "NOT RUN",
+    "detail": {}
   },
   {
     "id": 21,
     "attack": "Private Key Exposure",
     "layer": "API",
     "property": "Confidentiality",
-    "status": "PASS",
-    "detail": {
-      "endpoint": "/api/v1/tally/keys",
-      "keys_exposed_without_auth": true,
-      "keys_count": 0,
-      "vulnerability": "CRITICAL — ElGamal private keys accessible without authentication",
-      "pass": true
-    }
+    "status": "NOT RUN",
+    "detail": {}
   },
   {
     "id": 22,
@@ -596,10 +413,10 @@
     "detail": {
       "ring_size": 10,
       "trials": 100,
-      "correct_guesses": 10,
-      "guess_rate_pct": "10.0",
+      "correct_guesses": 13,
+      "guess_rate_pct": "13.0",
       "expected_by_chance_pct": "10.0",
-      "z_score": "0.000",
+      "z_score": "1.000",
       "attacker_has_advantage": false,
       "pass": true
     }
@@ -648,71 +465,71 @@
       "iterations_per_position": 50,
       "position_stats": {
         "0": {
-          "mean": 53.93473953999579,
-          "stddev": 0.49655723332049645,
-          "min": 53.03232800029218,
-          "max": 56.321402999572456
+          "mean": 52.80664799690246,
+          "stddev": 2.1002342091124104,
+          "min": 51.3091000020504,
+          "max": 64.04330000281334
         },
         "1": {
-          "mean": 55.208515779990705,
-          "stddev": 3.733343501945325,
-          "min": 52.900423999875784,
-          "max": 75.97152500040829
+          "mean": 54.135381999015806,
+          "stddev": 0.8324332320539081,
+          "min": 52.91440001130104,
+          "max": 57.02290001511574
         },
         "2": {
-          "mean": 54.81196118002757,
-          "stddev": 0.7122812718993874,
-          "min": 53.4940470000729,
-          "max": 56.287545000202954
+          "mean": 53.222898001670835,
+          "stddev": 0.6479615857864142,
+          "min": 52.032900005578995,
+          "max": 54.9311999976635
         },
         "3": {
-          "mean": 54.40468412006274,
-          "stddev": 0.5956449730613519,
-          "min": 53.33064300008118,
-          "max": 56.08907900005579
+          "mean": 53.38241999745369,
+          "stddev": 0.38665142590990265,
+          "min": 52.65700000524521,
+          "max": 54.412999987602234
         },
         "4": {
-          "mean": 55.1724088800326,
-          "stddev": 1.8367756391387047,
-          "min": 53.52226800005883,
-          "max": 64.71100900042802
+          "mean": 52.670998000502586,
+          "stddev": 2.6922446379555107,
+          "min": 50.455300003290176,
+          "max": 69.67249998450279
         },
         "5": {
-          "mean": 55.083520220015195,
-          "stddev": 1.012989071499523,
-          "min": 53.57931899931282,
-          "max": 57.415056000463665
+          "mean": 51.08187799572945,
+          "stddev": 0.449483659749202,
+          "min": 50.58790001273155,
+          "max": 53.11100000143051
         },
         "6": {
-          "mean": 54.61369031989947,
-          "stddev": 0.5921861511003889,
-          "min": 53.596477000042796,
-          "max": 56.44190299976617
+          "mean": 51.339757999777795,
+          "stddev": 0.9537279355430115,
+          "min": 50.28830000758171,
+          "max": 54.74109998345375
         },
         "7": {
-          "mean": 55.45227703996002,
-          "stddev": 1.449207070414671,
-          "min": 53.32628499995917,
-          "max": 57.84653799980879
+          "mean": 53.61025600075722,
+          "stddev": 0.43197755757700934,
+          "min": 52.958899974823,
+          "max": 54.9835000038147
         },
         "8": {
-          "mean": 54.01415464000777,
-          "stddev": 0.4444333937638896,
-          "min": 53.228579999879,
-          "max": 55.74590500071645
+          "mean": 52.98989599823952,
+          "stddev": 0.7167015174432376,
+          "min": 50.394499987363815,
+          "max": 54.43569999933243
         },
         "9": {
-          "mean": 54.18184911992401,
-          "stddev": 0.44660823593447435,
-          "min": 53.42274099960923,
-          "max": 56.1396989999339
+          "mean": 50.94327799797058,
+          "stddev": 0.39837384736849657,
+          "min": 50.28819999098778,
+          "max": 52.433899998664856
         }
       },
-      "grand_mean_ms": "54.69",
-      "f_statistic": "6.4103",
+      "grand_mean_ms": "52.62",
+      "f_statistic": "40.9912",
       "f_critical_alpha_005": 1.93,
       "no_significant_difference": true,
-      "coefficient_of_variation_pct": "0.94",
+      "coefficient_of_variation_pct": "2.01",
       "pass": true
     }
   },
@@ -725,15 +542,15 @@
     "detail": {
       "iterations": 200,
       "encrypt": {
-        "mean_m0_ms": "1.859",
-        "mean_m1_ms": "1.939",
-        "ratio": "1.043",
+        "mean_m0_ms": "1.838",
+        "mean_m1_ms": "1.884",
+        "ratio": "1.025",
         "safe": true
       },
       "prove": {
-        "mean_m0_ms": "6.424",
-        "mean_m1_ms": "6.385",
-        "ratio": "1.006",
+        "mean_m0_ms": "6.367",
+        "mean_m1_ms": "6.204",
+        "ratio": "1.026",
         "safe": true
       },
       "pass": true

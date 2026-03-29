@@ -25,9 +25,9 @@ const BN           = require("bn.js");
 const fs           = require("fs");
 const axios        = require("axios");
 const FormData     = require("form-data");
-const lrs          = require("./crypto/lrs");
-const homomorphic  = require("./crypto/homomorphic");
-const FabricClient = require("./fabric-client");
+const lrs          = require("../crypto/lrs");
+const homomorphic  = require("../crypto/homomorphic");
+const FabricClient = require("../fabric-client");
 
 const ec = new EC("secp256k1");
 

@@ -25,8 +25,8 @@ const crypto   = require("crypto");
 const EC       = require("elliptic").ec;
 const BN       = require("bn.js");
 const fs       = require("fs");
-const lrs      = require("./crypto/lrs");
-const homomorphic = require("./crypto/homomorphic");
+const lrs      = require("../crypto/lrs");
+const homomorphic = require("../crypto/homomorphic");
 
 const ec = new EC("secp256k1");
 
@@ -166,7 +166,7 @@ async function fabricSubmitMock(signature, ringData, encryptedVector) {
 
 async function fabricSubmitLive(signature, ringData, encryptedVector) {
   // Live path — only runs with --live flag
-  const fabricClient = require("./fabric-client");
+  const fabricClient = require("../fabric-client");
   await fabricClient.connect();
   return fabricClient.castVote(signature, ringData, encryptedVector);
 }

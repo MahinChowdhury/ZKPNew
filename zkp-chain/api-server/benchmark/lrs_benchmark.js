@@ -14,7 +14,7 @@ const crypto = require("crypto");
 const EC = require("elliptic").ec;
 const BN = require("bn.js");
 const fs = require("fs");
-const { sign, verify, linkTagsEqual } = require("./lrs");
+const { sign, verify, linkTagsEqual } = require("../crypto/lrs");
 
 const ec = new EC("secp256k1");
 

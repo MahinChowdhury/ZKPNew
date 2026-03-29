@@ -16,6 +16,7 @@ const FabricClient = require("./fabric-client");
 const voteRoutes = require("./routes/vote");
 const ballotRoutes = require("./routes/ballot");
 const tallyRoutes = require("./routes/tally");
+const snark = require("./crypto/snark");
 
 require("dotenv").config();
 
@@ -95,48 +96,12 @@ async function decodeQRCode(file) {
   return code.data;
 }
 
+// Legacy secp256k1 key derivation — kept for LRS (ring signatures)
 function deriveK(faceHash, salt) {
   const hash = sha256Hash(faceHash + salt);
   let k = new BN(hash, 16).umod(ec.curve.n);
   if (k.isZero()) k = k.iaddn(1);
   return k;
-}
-
-// ============================
-// Schnorr ZKP Functions
-// (Kept for backward compatibility with login endpoints)
-// ============================
-
-function schnorrProverStep1(k) {
-  const r = new BN(crypto.randomBytes(32)).umod(ec.curve.n);
-  if (r.isZero()) throw new Error("Invalid random nonce");
-  const R = ec.g.mul(r);
-  return { r, R };
-}
-
-function schnorrVerifierChallenge(R, S, nidHash) {
-  const Rx = R.getX().toString(16, 64);
-  const Ry = R.getY().toString(16, 64);
-  const Sx = S.getX().toString(16, 64);
-  const Sy = S.getY().toString(16, 64);
-  
-  const challengeInput = Rx + Ry + Sx + Sy + nidHash;
-  const challengeHash = sha256Hash(challengeInput);
-  
-  const c = new BN(challengeHash, 16).umod(ec.curve.n);
-  return c;
-}
-
-function schnorrProverStep3(r, c, k) {
-  const s = r.add(c.mul(k)).umod(ec.curve.n);
-  return s;
-}
-
-function schnorrVerify(R, c, s, S) {
-  const sG = ec.g.mul(s);
-  const cS = S.mul(c);
-  const RplusCsS = R.add(cS);
-  return sG.eq(RplusCsS);
 }
 
 // ============================
@@ -186,6 +151,7 @@ app.use((req, res, next) => {
   res.locals.compareEmbeddings = compareEmbeddings;
   res.locals.ballotRoutes = ballotRoutes;
   res.locals.tallyRoutes = tallyRoutes;
+  res.locals.snark = snark;
   next();
 });
 
@@ -204,6 +170,9 @@ app.use("/api/v1/vote", voteRoutes);
 
 // --------------------------------------
 // REGISTER
+// Uses ZK-SNARK (Poseidon + Baby Jubjub)
+// for identity commitment, plus secp256k1
+// public key for LRS ring membership.
 // --------------------------------------
 app.post("/api/v1/register", upload.single("faceImg"), async (req, res) => {
   try {
@@ -214,41 +183,47 @@ app.post("/api/v1/register", upload.single("faceImg"), async (req, res) => {
       return res.status(400).json({ ok: false, error: "Missing fields" });
     }
 
-    console.log("\n=== REGISTRATION START ===");
+    console.log("\n=== REGISTRATION START (ZK-SNARK) ===");
 
     // 1. Hash NID (for QR storage only, not blockchain)
     const nidHash = hashNidNumber(nidNumber);
     console.log("NID Hash:", nidHash);
 
-    // 2. Get embedding
+    // 2. Get embedding from Python FaceNet service
     const embedding = await getFaceEmbedding(faceFile);
     console.log("Embedding dimension:", embedding.length);
 
-    // 3. Face hash
-    const faceHash = sha256Hash(JSON.stringify(embedding));
-    console.log("Face Hash:", faceHash);
-
-    // 4. Derive k (this becomes the secret)
+    // 3. Generate random salt
     const salt = crypto.randomBytes(16).toString("hex");
-    const k = deriveK(faceHash, salt);
 
-    // 5. S = kG (public key - this is the link tag)
-    const S = ec.g.mul(k);
-    const Sx = S.getX().toString(16);
-    const Sy = S.getY().toString(16);
+    // 4. Compute SNARK-compatible registration data
+    //    - Poseidon hash of embedding
+    //    - Baby Jubjub public key S = k * G
+    const regData = await snark.computeRegistrationData(embedding, salt);
+    console.log("✅ SNARK registration data computed");
+    console.log("  Poseidon faceHash:", regData.faceHash.toString().slice(0, 20) + "...");
+    console.log("  Baby Jubjub Sx:", regData.Sx.toString().slice(0, 20) + "...");
+    console.log("  Baby Jubjub Sy:", regData.Sy.toString().slice(0, 20) + "...");
 
-    console.log("Sx:", Sx);
-    console.log("Sy:", Sy);
-    console.log("Salt:", salt);
+    // 5. Also derive secp256k1 key for LRS (ring signature — stays outside circuit)
+    const faceHashSha = sha256Hash(JSON.stringify(embedding));
+    const k_lrs = deriveK(faceHashSha, salt);
+    const S_lrs = ec.g.mul(k_lrs);
+    const Sx_lrs = S_lrs.getX().toString(16);
+    const Sy_lrs = S_lrs.getY().toString(16);
+    console.log("  secp256k1 LRS key Sx:", Sx_lrs.slice(0, 20) + "...");
 
-    // 6. Register on blockchain (add to global ring)
-    await fabricClient.registerUser(nidHash, Sx, Sy, salt);
-    console.log("✅ Registered in global ring");
+    // 6. Register secp256k1 public key on blockchain (for LRS ring)
+    await fabricClient.registerUser(nidHash, Sx_lrs, Sy_lrs, salt);
+    console.log("✅ Registered in global ring (secp256k1 for LRS)");
 
-    // 7. QR payload (store everything needed for voting)
+    // 7. QR payload — store everything needed for voting
     const qrPayload = {
       nidHash,
-      faceHash,
+      faceHash: faceHashSha,                          // SHA-256 for LRS key derivation
+      poseidonFaceHash: regData.faceHash.toString(),   // Poseidon for SNARK
+      bjjSx: regData.Sx.toString(),                    // Baby Jubjub public key
+      bjjSy: regData.Sy.toString(),                    // Baby Jubjub public key
       salt,
       faceEmbedding: embedding
     };
@@ -261,7 +236,7 @@ app.post("/api/v1/register", upload.single("faceImg"), async (req, res) => {
       errorCorrectionLevel: "L"
     });
 
-    console.log("=== REGISTRATION COMPLETE ===\n");
+    console.log("=== REGISTRATION COMPLETE (ZK-SNARK) ===\n");
 
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Content-Disposition", "attachment; filename=voter-credential.png");
@@ -274,8 +249,10 @@ app.post("/api/v1/register", upload.single("faceImg"), async (req, res) => {
 });
 
 // --------------------------------------
-// LOGIN - Step 1: Request Challenge
-// (Kept for backward compatibility)
+// LOGIN - ZK-SNARK Proof
+// Replaces Schnorr ZKP with PLONK proof
+// Proves: Poseidon hash match + Baby Jubjub
+// key ownership + face similarity
 // --------------------------------------
 app.post(
   "/api/v1/login/challenge",
@@ -290,66 +267,67 @@ app.post(
         return res.status(400).json({ ok: false, error: "Missing fields" });
       }
 
-      console.log("\n=== LOGIN CHALLENGE START ===");
+      console.log("\n=== LOGIN ZK-SNARK PROOF START ===");
 
       // 1. Decode & Decrypt QR
       const encrypted = await decodeQRCode(qrFile);
       const qrData = decryptPayload(encrypted, password);
       console.log("✅ QR decrypted");
 
-      // 2. Face verification
+      // 2. Get live face embedding
       const faceLogin = await getFaceEmbedding(faceFile);
       console.log("✅ Login face embedding extracted");
 
-      // 4. Compare embeddings
+      // 3. Check face embedding exists in QR
       const registeredEmbedding = qrData.faceEmbedding;
-      
       if (!registeredEmbedding) {
         throw new Error("No face embedding found in QR code");
       }
 
-      const isMatch = await compareEmbeddings(faceLogin, registeredEmbedding);
-      console.log("Face match:", isMatch);
+      // 4. Check Poseidon face hash exists (SNARK-registered user)
+      if (!qrData.poseidonFaceHash || !qrData.bjjSx || !qrData.bjjSy) {
+        throw new Error("QR code is from legacy registration. Please re-register with ZK-SNARK.");
+      }
 
-      if (!isMatch) {
+      // 5. Generate ZK-SNARK proof
+      //    This proves inside the circuit:
+      //    - Poseidon(embedding || salt) == faceHash
+      //    - S = k * G on Baby Jubjub
+      //    - squared_cosine(live, registered) >= threshold
+      const { proof, publicSignals, isValid } = await snark.generateAuthProof(
+        faceLogin,
+        registeredEmbedding,
+        qrData.salt,
+        BigInt(qrData.poseidonFaceHash),
+        BigInt(qrData.bjjSx),
+        BigInt(qrData.bjjSy)
+      );
+
+      if (!isValid) {
         return res.json({
           ok: false,
-          error: "Face does not match",
+          error: "ZK-SNARK proof verification failed — biometric mismatch or tampering detected",
           isMatch: false
         });
       }
 
-      // 5. Derive k (secret) from QR data
-      const k = deriveK(qrData.faceHash, qrData.salt);
-      const S = ec.g.mul(k);
-
-      // 6. Generate Schnorr proof
-      const { r, R } = schnorrProverStep1(k);
-      const Rx = R.getX().toString(16);
-      const Ry = R.getY().toString(16);
-      
-      console.log("Generated R commitment");
-
-      // 7. Generate challenge and response
-      const c = schnorrVerifierChallenge(R, S, qrData.nidHash);
-      const s = schnorrProverStep3(r, c, k);
-      
-      console.log("=== LOGIN CHALLENGE COMPLETE ===\n");
+      console.log("✅ ZK-SNARK proof generated and verified");
+      console.log("=== LOGIN ZK-SNARK PROOF COMPLETE ===\n");
 
       res.json({
         ok: true,
         isMatch: true,
-        proof: {
-          Rx,
-          Ry,
-          c: c.toString(16),
-          s: s.toString(16)
+        snarkProof: {
+          proof,
+          publicSignals,
+          protocol: "plonk",
+          curve: "bn128"
         },
         nidHash: qrData.nidHash
       });
 
     } catch (err) {
-      console.error("LOGIN CHALLENGE ERROR:", err);
+      console.error("LOGIN SNARK ERROR:", err);
       res.status(500).json({ ok: false, error: err.message });
     }
   }
@@ -369,6 +347,7 @@ app.get("/api/v1/health", async (req, res) => {
       status: "healthy",
       blockchain: "connected",
       system: "anonymous-voting",
+      zkp: "zk-snark (PLONK, Poseidon, Baby Jubjub)",
       registeredVoters: ringSize,
       totalVotes: voteCount
     });
@@ -436,14 +415,23 @@ app.get("/api/v1/identities/count", async (req, res) => {
 // ============================
 async function startServer() {
   try {
+    // Initialize SNARK Poseidon (warm up circomlibjs)
+    console.log("⏳ Initializing ZK-SNARK primitives...");
+    await snark.initPoseidon();
+    console.log("✅ Poseidon hash initialized");
+
     await fabricClient.connect();
     app.listen(PORT, () => {
       console.log(`🚀 Anonymous Voting Server running on http://localhost:${PORT}`);
+      console.log(`🔐 ZKP: zk-SNARK (Circom 2 + SnarkJS + PLONK)`);
+      console.log(`   Hash: Poseidon (SNARK-friendly)`);
+      console.log(`   ECC:  Baby Jubjub (in-circuit) + secp256k1 (LRS)`);
       console.log(`📊 Endpoints:`);
-      console.log(`   POST /api/v1/register - Register voter`);
+      console.log(`   POST /api/v1/register - Register voter (SNARK + LRS keys)`);
+      console.log(`   POST /api/v1/login/challenge - ZK-SNARK auth proof`);
       console.log(`   POST /api/v1/ballot/create - Create ballot`);
       console.log(`   POST /api/v1/tally/setup/:ballotId - Setup homomorphic encryption`);
-      console.log(`   POST /api/v1/vote - Cast anonymous vote`);
+      console.log(`   POST /api/v1/vote - Cast anonymous vote (SNARK + LRS)`);
       console.log(`   POST /api/v1/tally/compute/:ballotId - Compute homomorphic tally`);
       console.log(`   GET  /api/v1/vote/results - Get vote results`);
       console.log(`   GET  /api/v1/ring - Get voter ring`);
