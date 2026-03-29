@@ -152,6 +152,9 @@ async function deriveScalarK(faceHash, salt) {
   const kHash = poseidon([F.e(faceHash), F.e(salt), F.e(1n)]);
   let k = F.toObject(kHash);
 
+  // Mask k to 253 bits to prevent Circom BabyPbk Num2Bits(253) assertion error
+  k = k & ((1n << 253n) - 1n);
+
   // Ensure k != 0 (extremely unlikely but safety check)
   if (k === 0n) k = 1n;
 
