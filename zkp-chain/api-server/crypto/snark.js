@@ -1,11 +1,18 @@
 // ============================================================
 // crypto/snark.js — ZK-SNARK proof generation & verification
+// Architecture: Merkle Tree + Nullifier (Semaphore-style)
 // Uses: snarkjs (Groth16), circomlibjs (Poseidon), ffjavascript
 // ============================================================
 
 const snarkjs = require("snarkjs");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
+const { execFile } = require("child_process");
+const util = require("util");
+const os = require("os");
+
+const execFileAsync = util.promisify(execFile);
 
 // ============================================================
 // Paths to compiled circuit artifacts
@@ -15,12 +22,35 @@ const WASM_PATH = path.join(CIRCUITS_DIR, "face_auth_js", "face_auth.wasm");
 const ZKEY_PATH = path.join(CIRCUITS_DIR, "face_auth.zkey");
 const VKEY_PATH = path.join(CIRCUITS_DIR, "verification_key.json");
 
+const RAPIDSNARK_PROVER = path.join(CIRCUITS_DIR, "rapidsnark", "package", "bin", "prover");
+const CPP_WITNESS_GEN = path.join(CIRCUITS_DIR, "face_auth_cpp", "face_auth");
+
+// ============================================================
+// Constants
+// ============================================================
+const MERKLE_TREE_LEVELS = 20; // Supports up to 2^20 ~ 1M voters
+const SCALE_FACTOR = 1000000; // 1e6
+const BN128_PRIME = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+
+function toFieldString(val) {
+  let v = BigInt(val);
+  if (v < 0n) {
+    v = (v % BN128_PRIME) + BN128_PRIME;
+  }
+  return (v % BN128_PRIME).toString();
+}
+
 // ============================================================
 // Cache verification key and circuit artifacts
 // ============================================================
 let _vkey = null;
 let _wasmBuffer = null;
 let _zkeyBuffer = null;
+
+// Sparse Merkle tree caches
+let _zeroHashes = null;
+let _cachedTree = null;
+let _cachedTreeFingerprint = null;
 
 function getVerificationKey() {
   if (!_vkey) {
@@ -86,42 +116,8 @@ async function poseidonHashEmbedding(embedding, salt) {
 }
 
 // ============================================================
-// Baby Jubjub key derivation
-// ============================================================
-
-let _babyJub = null;
-
-async function initBabyJub() {
-  if (!_babyJub) {
-    const circomlibjs = require("circomlibjs");
-    _babyJub = await circomlibjs.buildBabyjub();
-  }
-  return _babyJub;
-}
-
-/**
- * Derive Baby Jubjub public key S = k * G (base point)
- * @param {BigInt} k - private scalar
- * @returns {Promise<{Sx: BigInt, Sy: BigInt}>}
- */
-async function deriveBabyJubKey(k) {
-  const babyJub = await initBabyJub();
-  const F = babyJub.F;
-
-  // BabyPbk in circomlib uses Base8 as generator
-  const pubKey = babyJub.mulPointEscalar(babyJub.Base8, k);
-
-  return {
-    Sx: F.toObject(pubKey[0]),
-    Sy: F.toObject(pubKey[1]),
-  };
-}
-
-// ============================================================
 // Embedding scaling utilities
 // ============================================================
-
-const SCALE_FACTOR = 1000000; // 1e6
 
 /**
  * Scale float embedding to integer for circuit
@@ -138,29 +134,243 @@ function scaleEmbedding(embedding) {
 }
 
 // ============================================================
-// Key derivation (Poseidon-based, replaces SHA-256 deriveK)
+// Merkle Tree (Poseidon-based binary tree)
 // ============================================================
 
 /**
- * Derive private scalar k from faceHash + salt via Poseidon
- * @param {BigInt} faceHash - Poseidon hash of embedding
- * @param {BigInt} salt - registration salt
- * @returns {Promise<BigInt>} scalar k for Baby Jubjub
+ * Compute Poseidon hash of two children (for Merkle tree)
+ * @param {BigInt} left
+ * @param {BigInt} right
+ * @returns {Promise<BigInt>}
  */
-async function deriveScalarK(faceHash, salt) {
+async function poseidonHash2(left, right) {
   const { poseidon, F } = await initPoseidon();
+  const h = poseidon([F.e(left), F.e(right)]);
+  return F.toObject(h);
+}
 
-  // k = Poseidon(faceHash, salt, 1) — the "1" domain-separates from faceHash computation
-  const kHash = poseidon([F.e(faceHash), F.e(salt), F.e(1n)]);
-  let k = F.toObject(kHash);
+// ============================================================
+// Dense Merkle Tree (LEGACY — kept for backward compatibility)
+// WARNING: O(2^levels) hashes — extremely slow for large trees
+// ============================================================
 
-  // Mask k to 253 bits to prevent Circom BabyPbk Num2Bits(253) assertion error
-  k = k & ((1n << 253n) - 1n);
+async function buildMerkleTree(leaves) {
+  const targetSize = Math.pow(2, MERKLE_TREE_LEVELS);
+  const paddedLeaves = [...leaves];
+  while (paddedLeaves.length < targetSize) {
+    paddedLeaves.push(0n);
+  }
+  const layers = [paddedLeaves];
+  let currentLayer = paddedLeaves;
+  for (let level = 0; level < MERKLE_TREE_LEVELS; level++) {
+    const nextLayer = [];
+    for (let i = 0; i < currentLayer.length; i += 2) {
+      const hash = await poseidonHash2(currentLayer[i], currentLayer[i + 1]);
+      nextLayer.push(hash);
+    }
+    layers.push(nextLayer);
+    currentLayer = nextLayer;
+  }
+  return { root: layers[layers.length - 1][0], layers };
+}
 
-  // Ensure k != 0 (extremely unlikely but safety check)
-  if (k === 0n) k = 1n;
+function getMerkleProof(layers, leafIndex) {
+  const pathElements = [];
+  const pathIndices = [];
+  let currentIndex = leafIndex;
+  for (let level = 0; level < MERKLE_TREE_LEVELS; level++) {
+    const isRight = currentIndex % 2;
+    const siblingIndex = isRight ? currentIndex - 1 : currentIndex + 1;
+    pathElements.push(layers[level][siblingIndex]);
+    pathIndices.push(isRight ? 1 : 0);
+    currentIndex = Math.floor(currentIndex / 2);
+  }
+  return { pathElements, pathIndices };
+}
 
-  return k;
+// ============================================================
+// Optimized Sparse Merkle Tree
+// Instead of building a full 2^20 tree (~1,048,575 Poseidon hashes),
+// this uses pre-computed zero subtree hashes and only processes
+// paths containing actual (non-zero) leaves.
+//
+// Complexity: O(N * levels) instead of O(2^levels)
+//   - 10 voters, 20 levels: ~200 hashes vs ~1,048,575
+//   - Speedup: ~5,000x on tree construction alone
+// ============================================================
+
+/**
+ * Pre-compute the hash of an empty subtree at each level.
+ * zeroHashes[0] = 0n (empty leaf)
+ * zeroHashes[i] = Poseidon(zeroHashes[i-1], zeroHashes[i-1])
+ * Computed once and cached permanently.
+ */
+async function getZeroHashes() {
+  if (!_zeroHashes) {
+    _zeroHashes = [0n];
+    for (let i = 0; i < MERKLE_TREE_LEVELS; i++) {
+      _zeroHashes.push(await poseidonHash2(_zeroHashes[i], _zeroHashes[i]));
+    }
+    console.log(`  ⚡ Zero hashes pre-computed for ${MERKLE_TREE_LEVELS} levels`);
+  }
+  return _zeroHashes;
+}
+
+/**
+ * Fast fingerprint of commitments array for cache invalidation.
+ */
+function commitmentsFingerprint(commitments) {
+  const hash = crypto.createHash('sha256');
+  for (const c of commitments) {
+    hash.update(c.toString() + ',');
+  }
+  return hash.digest('hex');
+}
+
+/**
+ * Build a sparse Poseidon Merkle tree.
+ * Only hashes paths containing non-zero leaves; uses pre-computed
+ * zero hashes for all-empty subtrees. Results are cached.
+ *
+ * @param {BigInt[]} commitments - actual voter commitments
+ * @returns {Promise<{root: BigInt, layers: Map<number,BigInt>[], zeroHashes: BigInt[]}>}
+ */
+async function buildMerkleTreeOptimized(commitments) {
+  // Check cache first
+  const fingerprint = commitmentsFingerprint(commitments);
+  if (_cachedTree && _cachedTreeFingerprint === fingerprint) {
+    console.log("  ⚡ Merkle tree cache HIT — skipping rebuild");
+    return _cachedTree;
+  }
+
+  const zeroHashes = await getZeroHashes();
+  const startTime = Date.now();
+
+  // Layer 0: store actual leaves in a sparse Map
+  const layers = [new Map()];
+  for (let i = 0; i < commitments.length; i++) {
+    if (commitments[i] !== 0n) {
+      layers[0].set(i, commitments[i]);
+    }
+  }
+
+  // Build tree bottom-up — only hash where at least one child is non-zero
+  for (let level = 0; level < MERKLE_TREE_LEVELS; level++) {
+    const nextLayer = new Map();
+    const currentLayer = layers[level];
+
+    // Collect unique parent indices
+    const parentIndices = new Set();
+    for (const idx of currentLayer.keys()) {
+      parentIndices.add(Math.floor(idx / 2));
+    }
+
+    for (const parentIdx of parentIndices) {
+      const leftIdx = parentIdx * 2;
+      const rightIdx = parentIdx * 2 + 1;
+      const left = currentLayer.has(leftIdx) ? currentLayer.get(leftIdx) : zeroHashes[level];
+      const right = currentLayer.has(rightIdx) ? currentLayer.get(rightIdx) : zeroHashes[level];
+      nextLayer.set(parentIdx, await poseidonHash2(left, right));
+    }
+
+    layers.push(nextLayer);
+  }
+
+  const root = layers[MERKLE_TREE_LEVELS].has(0)
+    ? layers[MERKLE_TREE_LEVELS].get(0)
+    : zeroHashes[MERKLE_TREE_LEVELS];
+
+  const elapsed = Date.now() - startTime;
+  const totalNodes = layers.reduce((sum, layer) => sum + layer.size, 0);
+  console.log(`  ⚡ Sparse Merkle tree: ${elapsed}ms, ${totalNodes} nodes hashed (vs ~1,048,575 in dense tree)`);
+
+  const result = { root, layers, zeroHashes };
+
+  // Cache for subsequent votes
+  _cachedTree = result;
+  _cachedTreeFingerprint = fingerprint;
+
+  return result;
+}
+
+/**
+ * Generate Merkle proof from sparse tree layers.
+ * Uses zero hashes for missing siblings.
+ */
+function getMerkleProofOptimized(layers, zeroHashes, leafIndex) {
+  const pathElements = [];
+  const pathIndices = [];
+  let currentIndex = leafIndex;
+
+  for (let level = 0; level < MERKLE_TREE_LEVELS; level++) {
+    const isRight = currentIndex % 2;
+    const siblingIndex = isRight ? currentIndex - 1 : currentIndex + 1;
+
+    const sibling = layers[level].has(siblingIndex)
+      ? layers[level].get(siblingIndex)
+      : zeroHashes[level];
+
+    pathElements.push(sibling);
+    pathIndices.push(isRight ? 1 : 0);
+
+    currentIndex = Math.floor(currentIndex / 2);
+  }
+
+  return { pathElements, pathIndices };
+}
+
+/**
+ * Invalidate the Merkle tree cache (call after new voter registration)
+ */
+function invalidateMerkleCache() {
+  _cachedTree = null;
+  _cachedTreeFingerprint = null;
+  console.log("  🔄 Merkle tree cache invalidated");
+}
+
+// ============================================================
+// Commitment & Nullifier computation
+// ============================================================
+
+/**
+ * Compute a voter commitment leaf
+ *   commitment = Poseidon(faceHash, secretKey)
+ *
+ * @param {BigInt} faceHash - Poseidon hash of embedding + salt
+ * @param {BigInt} secretKey - voter's random secret key
+ * @returns {Promise<BigInt>}
+ */
+async function computeCommitment(faceHash, secretKey) {
+  const { poseidon, F } = await initPoseidon();
+  const h = poseidon([F.e(faceHash), F.e(secretKey)]);
+  return F.toObject(h);
+}
+
+/**
+ * Compute the nullifier for double-vote prevention
+ *   nullifier = Poseidon(secretKey, electionId)
+ *
+ * @param {BigInt} secretKey - voter's secret key
+ * @param {BigInt} electionId - unique election identifier
+ * @returns {Promise<BigInt>}
+ */
+async function computeNullifier(secretKey, electionId) {
+  const { poseidon, F } = await initPoseidon();
+  const h = poseidon([F.e(secretKey), F.e(electionId)]);
+  return F.toObject(h);
+}
+
+/**
+ * Generate a random secret key (252 bits to fit safely in BN128 field)
+ * @returns {BigInt}
+ */
+function generateSecretKey() {
+  const bytes = crypto.randomBytes(32);
+  let sk = BigInt("0x" + bytes.toString("hex"));
+  // Mask to 252 bits to stay safely within the BN128 field
+  sk = sk & ((1n << 252n) - 1n);
+  if (sk === 0n) sk = 1n;
+  return sk;
 }
 
 // ============================================================
@@ -168,15 +378,18 @@ async function deriveScalarK(faceHash, salt) {
 // ============================================================
 
 /**
- * Generate a ZK-SNARK proof of biometric authentication
+ * Generate a ZK-SNARK proof of biometric authentication + Merkle membership + nullifier
  *
  * @param {BigInt[]} embedding - live face embedding (integer-scaled, 64 elements)
  * @param {BigInt[]} registeredEmbedding - registered face embedding (integer-scaled)
- * @param {BigInt} k - private scalar
  * @param {BigInt} salt - registration salt
+ * @param {BigInt} secretKey - voter's secret key
  * @param {BigInt} faceHash - Poseidon hash commitment
- * @param {BigInt} Sx - public key x (Baby Jubjub)
- * @param {BigInt} Sy - public key y (Baby Jubjub)
+ * @param {BigInt} merkleRoot - Merkle tree root
+ * @param {BigInt[]} pathElements - Merkle proof sibling hashes
+ * @param {number[]} pathIndices - Merkle proof directions (0=left, 1=right)
+ * @param {BigInt} electionId - unique election identifier
+ * @param {BigInt} nullifier - precomputed nullifier
  * @param {BigInt} threshold_sq_num - squared threshold numerator (e.g. 25)
  * @param {BigInt} threshold_sq_den - squared threshold denominator (e.g. 100)
  * @returns {Promise<{proof: Object, publicSignals: string[]}>}
@@ -184,11 +397,14 @@ async function deriveScalarK(faceHash, salt) {
 async function generateProof(
   embedding,
   registeredEmbedding,
-  k,
   salt,
+  secretKey,
   faceHash,
-  Sx,
-  Sy,
+  merkleRoot,
+  pathElements,
+  pathIndices,
+  electionId,
+  nullifier,
   threshold_sq_num = 25n,
   threshold_sq_den = 100n
 ) {
@@ -207,40 +423,107 @@ async function generateProof(
   // Build witness input
   const input = {
     // Public inputs
-    faceHash: faceHash.toString(),
-    Sx: Sx.toString(),
-    Sy: Sy.toString(),
-    threshold_sq_num: threshold_sq_num.toString(),
-    threshold_sq_den: threshold_sq_den.toString(),
+    faceHash: toFieldString(faceHash),
+    merkleRoot: toFieldString(merkleRoot),
+    nullifier: toFieldString(nullifier),
+    electionId: toFieldString(electionId),
+    threshold_sq_num: toFieldString(threshold_sq_num),
+    threshold_sq_den: toFieldString(threshold_sq_den),
 
     // Private inputs
-    embedding: embedding.map((v) => v.toString()),
-    registeredEmbedding: registeredEmbedding.map((v) => v.toString()),
-    k: k.toString(),
-    salt: salt.toString(),
+    embedding: embedding.map(toFieldString),
+    registeredEmbedding: registeredEmbedding.map(toFieldString),
+    salt: toFieldString(salt),
+    secretKey: toFieldString(secretKey),
+    pathElements: pathElements.map(toFieldString),
+    pathIndices: pathIndices.map(toFieldString),
   };
 
-  console.log("\n=== SNARK PROOF GENERATION ===");
+  console.log("\n=== SNARK PROOF GENERATION (Merkle + Nullifier) ===");
   console.log(`Embedding size: ${embedding.length}`);
   console.log(`faceHash: ${faceHash.toString().slice(0, 20)}...`);
-  console.log(`Public key: (${Sx.toString().slice(0, 16)}..., ${Sy.toString().slice(0, 16)}...)`);
+  console.log(`merkleRoot: ${merkleRoot.toString().slice(0, 20)}...`);
+  console.log(`nullifier: ${nullifier.toString().slice(0, 20)}...`);
+  console.log(`electionId: ${electionId.toString()}`);
 
   const startTime = Date.now();
 
-  // Cache artifacts in memory to prevent heavy I/O on every proof
-  if (!_wasmBuffer) {
-    _wasmBuffer = new Uint8Array(fs.readFileSync(WASM_PATH));
-  }
-  if (!_zkeyBuffer) {
-    _zkeyBuffer = new Uint8Array(fs.readFileSync(ZKEY_PATH));
-  }
+  let proof;
+  let publicSignals;
 
-  // Generate proof using Groth16
-  const { proof, publicSignals } = await snarkjs.groth16.fullProve(
-    input,
-    _wasmBuffer,
-    _zkeyBuffer
-  );
+  // Check if rapidsnark is installed
+  const useRapidsnark = fs.existsSync(RAPIDSNARK_PROVER);
+  const useCppWitness = fs.existsSync(CPP_WITNESS_GEN);
+
+  if (useRapidsnark) {
+    console.log("  ⚡ Using rapidsnark C++ native prover for 10-50x speedup");
+    if (useCppWitness) {
+      console.log("  ⚡ Using C++ native witness generator");
+    }
+
+    // Temporary files for IPC with native binaries
+    const tmpDir = os.tmpdir();
+    const nonce = crypto.randomBytes(8).toString('hex');
+    const inputPath = path.join(tmpDir, `zkp_input_${nonce}.json`);
+    const wtnsPath = path.join(tmpDir, `zkp_witness_${nonce}.wtns`);
+    const proofPath = path.join(tmpDir, `zkp_proof_${nonce}.json`);
+    const publicPath = path.join(tmpDir, `zkp_public_${nonce}.json`);
+
+    try {
+      // Write input JSON to disk for the witness generator
+      fs.writeFileSync(inputPath, JSON.stringify(input));
+
+      // 1. Generate Witness (.wtns)
+      const wtnsStart = Date.now();
+      if (useCppWitness) {
+        // Fastest: C++ witness generator
+        await execFileAsync(CPP_WITNESS_GEN, [inputPath, wtnsPath]);
+      } else {
+        // Fallback: snarkjs WASM witness generator (writing to file)
+        console.log("  (Fallback) Using WASM witness generator");
+        await snarkjs.wtns.calculate(input, WASM_PATH, wtnsPath);
+      }
+      console.log(`  ⏱️  Witness generation: ${Date.now() - wtnsStart}ms`);
+
+      // 2. Generate Proof via rapidsnark
+      const proveStart = Date.now();
+      await execFileAsync(RAPIDSNARK_PROVER, [ZKEY_PATH, wtnsPath, proofPath, publicPath]);
+      console.log(`  ⏱️  Proof generation: ${Date.now() - proveStart}ms`);
+
+      // Read output files
+      proof = JSON.parse(fs.readFileSync(proofPath, "utf8"));
+      publicSignals = JSON.parse(fs.readFileSync(publicPath, "utf8"));
+
+    } finally {
+      // Clean up temporary files
+      [inputPath, wtnsPath, proofPath, publicPath].forEach(p => {
+        if (fs.existsSync(p)) {
+          try { fs.unlinkSync(p); } catch(e) {}
+        }
+      });
+    }
+
+  } else {
+    // Fallback to pure WASM / NodeJS
+    console.log("  🐢 Using snarkjs pure WASM prover (fallback)");
+
+    // Cache artifacts in memory to prevent heavy I/O on every proof
+    if (!_wasmBuffer) {
+      _wasmBuffer = new Uint8Array(fs.readFileSync(WASM_PATH));
+    }
+    if (!_zkeyBuffer) {
+      _zkeyBuffer = new Uint8Array(fs.readFileSync(ZKEY_PATH));
+    }
+
+    // Generate proof using Groth16 in pure Node/WASM
+    const result = await snarkjs.groth16.fullProve(
+      input,
+      _wasmBuffer,
+      _zkeyBuffer
+    );
+    proof = result.proof;
+    publicSignals = result.publicSignals;
+  }
 
   const elapsed = Date.now() - startTime;
   console.log(`✅ Proof generated in ${elapsed}ms`);
@@ -280,10 +563,10 @@ async function verifyProof(proof, publicSignals) {
 // ============================================================
 
 /**
- * Compute all registration data using SNARK-compatible primitives
+ * Compute all registration data
  * @param {number[]} embeddingFloat - raw float64 embedding from FaceNet
  * @param {string} saltHex - random hex salt string
- * @returns {Promise<{faceHash, k, Sx, Sy, salt, embeddingScaled}>}
+ * @returns {Promise<{faceHash, secretKey, commitment, salt, embeddingScaled}>}
  */
 async function computeRegistrationData(embeddingFloat, saltHex) {
   // 1. Scale embedding to integers
@@ -295,13 +578,13 @@ async function computeRegistrationData(embeddingFloat, saltHex) {
   // 3. Compute Poseidon hash
   const faceHash = await poseidonHashEmbedding(embeddingScaled, salt);
 
-  // 4. Derive private key k
-  const k = await deriveScalarK(faceHash, salt);
+  // 4. Generate random secret key
+  const secretKey = generateSecretKey();
 
-  // 5. Derive Baby Jubjub public key
-  const { Sx, Sy } = await deriveBabyJubKey(k);
+  // 5. Compute commitment = Poseidon(faceHash, secretKey)
+  const commitment = await computeCommitment(faceHash, secretKey);
 
-  return { faceHash, k, Sx, Sy, salt, embeddingScaled };
+  return { faceHash, secretKey, commitment, salt, embeddingScaled };
 }
 
 // ============================================================
@@ -309,55 +592,107 @@ async function computeRegistrationData(embeddingFloat, saltHex) {
 // ============================================================
 
 /**
- * Generate a full authentication proof
+ * Generate a full authentication proof with Merkle membership + nullifier
+ *
  * @param {number[]} liveEmbeddingFloat - live face embedding (float)
  * @param {number[]} registeredEmbeddingFloat - registered face embedding (float)
  * @param {string} saltHex - registration salt (hex string)
  * @param {BigInt} faceHash - pre-computed Poseidon hash
- * @param {BigInt} Sx - registered Baby Jubjub public key x
- * @param {BigInt} Sy - registered Baby Jubjub public key y
- * @returns {Promise<{proof, publicSignals, isValid}>}
+ * @param {BigInt} secretKey - voter's secret key
+ * @param {BigInt[]} commitments - all registered commitments (for building Merkle tree)
+ * @param {BigInt} electionId - unique election identifier
+ * @returns {Promise<{proof, publicSignals, isValid, nullifier, merkleRoot}>}
  */
 async function generateAuthProof(
   liveEmbeddingFloat,
   registeredEmbeddingFloat,
   saltHex,
   faceHash,
-  Sx,
-  Sy
+  secretKey,
+  commitments,
+  electionId
 ) {
+  const totalStart = Date.now();
+  const timings = {};
+
   // Scale embeddings
+  let t0 = Date.now();
   const liveScaled = scaleEmbedding(liveEmbeddingFloat);
   const regScaled = scaleEmbedding(registeredEmbeddingFloat);
+  timings.scaling = Date.now() - t0;
 
   // Convert salt
   const salt = BigInt("0x" + saltHex);
 
-  // Derive k from the live embedding's hash (should match registered if same person)
-  // Important: k is derived from REGISTERED embedding hash, not live
-  const k = await deriveScalarK(faceHash, salt);
+  // Compute the voter's commitment
+  t0 = Date.now();
+  const commitment = await computeCommitment(faceHash, secretKey);
+  timings.commitment = Date.now() - t0;
+
+  // Find the voter's leaf index in the commitments array
+  const leafIndex = commitments.findIndex((c) => c === commitment);
+  if (leafIndex === -1) {
+    throw new Error(
+      "Voter commitment not found in the registered commitments. User may not be registered."
+    );
+  }
+
+  console.log(`Voter leaf index: ${leafIndex} out of ${commitments.length} commitments`);
+
+  // Build Merkle tree and get proof (OPTIMIZED — sparse tree)
+  t0 = Date.now();
+  const { root, layers, zeroHashes } = await buildMerkleTreeOptimized(commitments);
+  timings.merkleTree = Date.now() - t0;
+
+  t0 = Date.now();
+  const { pathElements, pathIndices } = getMerkleProofOptimized(layers, zeroHashes, leafIndex);
+  timings.merkleProof = Date.now() - t0;
+
+  // Compute nullifier
+  t0 = Date.now();
+  const nullifier = await computeNullifier(secretKey, electionId);
+  timings.nullifier = Date.now() - t0;
 
   // Threshold: cosine sim >= 0.5 → squared = 0.25 → 25/100
   const threshold_sq_num = 25n;
   const threshold_sq_den = 100n;
 
-  // Generate proof
+  // Generate SNARK proof (Groth16)
+  t0 = Date.now();
   const { proof, publicSignals } = await generateProof(
     liveScaled,
     regScaled,
-    k,
     salt,
+    secretKey,
     faceHash,
-    Sx,
-    Sy,
+    root,
+    pathElements,
+    pathIndices,
+    electionId,
+    nullifier,
     threshold_sq_num,
     threshold_sq_den
   );
+  timings.snarkProve = Date.now() - t0;
 
   // Verify locally
+  t0 = Date.now();
   const isValid = await verifyProof(proof, publicSignals);
+  timings.snarkVerify = Date.now() - t0;
 
-  return { proof, publicSignals, isValid };
+  const totalElapsed = Date.now() - totalStart;
+  console.log(`\n⏱️  AUTH PROOF TIMING BREAKDOWN:`);
+  console.log(`  Embedding scaling:  ${timings.scaling}ms`);
+  console.log(`  Commitment compute: ${timings.commitment}ms`);
+  console.log(`  Merkle tree build:  ${timings.merkleTree}ms`);
+  console.log(`  Merkle proof gen:   ${timings.merkleProof}ms`);
+  console.log(`  Nullifier compute:  ${timings.nullifier}ms`);
+  console.log(`  SNARK proof gen:    ${timings.snarkProve}ms`);
+  console.log(`  SNARK verification: ${timings.snarkVerify}ms`);
+  console.log(`  ─────────────────────────────`);
+  console.log(`  TOTAL:              ${totalElapsed}ms\n`);
+
+  return { proof, publicSignals, isValid, nullifier, merkleRoot: root };
 }
 
 module.exports = {
@@ -369,10 +704,23 @@ module.exports = {
   // Poseidon utilities
   poseidonHashEmbedding,
   initPoseidon,
+  poseidonHash2,
 
-  // Baby Jubjub utilities
-  deriveBabyJubKey,
-  deriveScalarK,
+  // Merkle tree (legacy dense — kept for backward compat)
+  buildMerkleTree,
+  getMerkleProof,
+  MERKLE_TREE_LEVELS,
+
+  // Merkle tree (optimized sparse)
+  buildMerkleTreeOptimized,
+  getMerkleProofOptimized,
+  getZeroHashes,
+  invalidateMerkleCache,
+
+  // Commitment & Nullifier
+  computeCommitment,
+  computeNullifier,
+  generateSecretKey,
 
   // Embedding utilities
   scaleEmbedding,

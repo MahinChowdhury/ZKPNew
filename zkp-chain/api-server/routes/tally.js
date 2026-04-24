@@ -106,8 +106,8 @@ router.post("/compute/:ballotId", async (req, res) => {
     }
 
     // Get all votes from blockchain
-    const allVotes = await fabricClient.getAllVotes();
-    console.log(`Total votes on blockchain: ${allVotes.length}`);
+    const allVotes = await fabricClient.getAllVotes(ballotId);
+    console.log(`Total votes on blockchain for ballot: ${allVotes.length}`);
 
     if (allVotes.length === 0) {
       return res.json({
@@ -342,7 +342,7 @@ router.post("/verify/:ballotId", async (req, res) => {
     console.log(`\n=== VERIFYING TALLY ===`);
 
     // Get all votes
-    const allVotes = await fabricClient.getAllVotes();
+    const allVotes = await fabricClient.getAllVotes(ballotId);
 
     // Recompute encrypted sums
     const recomputedSums = {};

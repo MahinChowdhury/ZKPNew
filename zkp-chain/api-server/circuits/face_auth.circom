@@ -1,14 +1,16 @@
 // ============================================================
 // face_auth.circom — ZK-SNARK for biometric voter authentication
-// Stack: Circom 2 + PLONK, Poseidon hash, Baby Jubjub ECC
+// Architecture: Merkle Tree + Nullifier (Semaphore-style)
+// Stack: Circom 2 + Groth16, Poseidon hash
 // ============================================================
 
 pragma circom 2.1.6;
 
 include "node_modules/circomlib/circuits/poseidon.circom";
-include "node_modules/circomlib/circuits/babyjub.circom";
 include "node_modules/circomlib/circuits/comparators.circom";
 include "node_modules/circomlib/circuits/bitify.circom";
+include "node_modules/circomlib/circuits/mux1.circom";
+include "node_modules/circomlib/circuits/switcher.circom";
 
 // ============================================================
 // PoseidonHashChunked
@@ -38,6 +40,44 @@ template PoseidonHashChunked(n, chunkSize) {
     }
 
     out <== finalHash.out;
+}
+
+// ============================================================
+// MerkleTreeChecker
+// Verifies that a leaf is a member of a Merkle tree with a
+// given root, using a Poseidon-based binary Merkle tree.
+// ============================================================
+template MerkleTreeChecker(levels) {
+    signal input leaf;
+    signal input root;
+    signal input pathElements[levels];
+    signal input pathIndices[levels];  // 0 = left, 1 = right
+
+    // At each level, hash (left, right) where the ordering
+    // depends on pathIndices[i]
+    component hashers[levels];
+    component switchers[levels];
+
+    signal levelHashes[levels + 1];
+    levelHashes[0] <== leaf;
+
+    for (var i = 0; i < levels; i++) {
+        // Use Switcher to order (current, sibling) based on pathIndices[i]
+        switchers[i] = Switcher();
+        switchers[i].sel <== pathIndices[i];
+        switchers[i].L <== levelHashes[i];
+        switchers[i].R <== pathElements[i];
+
+        // Hash the pair
+        hashers[i] = Poseidon(2);
+        hashers[i].inputs[0] <== switchers[i].outL;
+        hashers[i].inputs[1] <== switchers[i].outR;
+
+        levelHashes[i + 1] <== hashers[i].out;
+    }
+
+    // The final hash must equal the root
+    root === levelHashes[levels];
 }
 
 // ============================================================
@@ -108,26 +148,30 @@ template SquaredCosineSimilarity(n) {
 }
 
 // ============================================================
-// FaceAuth — Main circuit
+// FaceAuth — Main circuit (Merkle + Nullifier architecture)
 //
 // Proves:
-//   1. Poseidon(embedding || salt) == faceHash
-//   2. S = k * G  on Baby Jubjub
-//   3. squared_cosine(embedding, registeredEmbedding) >= threshold
+//   1. Poseidon(registeredEmbedding || salt) == faceHash
+//   2. commitment = Poseidon(faceHash, secretKey) is in the Merkle tree
+//   3. nullifier = Poseidon(secretKey, electionId)
+//   4. squared_cosine(liveEmbedding, registeredEmbedding) >= threshold
 // ============================================================
-template FaceAuth(embeddingSize) {
+template FaceAuth(embeddingSize, treeLevels) {
     // --- Public Inputs ---
-    signal input faceHash;               // Poseidon hash commitment
-    signal input Sx;                     // Public key x on Baby Jubjub
-    signal input Sy;                     // Public key y on Baby Jubjub
+    signal input faceHash;               // Poseidon hash commitment of registered embedding
+    signal input merkleRoot;             // Root of the voter commitment Merkle tree
+    signal input nullifier;              // Nullifier = Poseidon(secretKey, electionId)
+    signal input electionId;             // Unique election identifier
     signal input threshold_sq_num;       // Squared threshold numerator
     signal input threshold_sq_den;       // Squared threshold denominator
 
     // --- Private Inputs ---
     signal input embedding[embeddingSize];              // Live face (integer-scaled)
     signal input registeredEmbedding[embeddingSize];    // Registered face (integer-scaled)
-    signal input k;                                     // Private scalar
     signal input salt;                                  // Salt for hash
+    signal input secretKey;                             // Voter's secret key
+    signal input pathElements[treeLevels];              // Merkle proof siblings
+    signal input pathIndices[treeLevels];               // Merkle proof path (0=left, 1=right)
 
     // --- Output ---
     signal output valid;
@@ -135,32 +179,50 @@ template FaceAuth(embeddingSize) {
     // =====================
     // 1. Poseidon hash check: H(embedding || salt) == faceHash
     // =====================
-    // Hash the embedding
+    // Hash the registered embedding
     component embeddingHash = PoseidonHashChunked(embeddingSize, 8);
     for (var i = 0; i < embeddingSize; i++) {
         embeddingHash.in[i] <== registeredEmbedding[i];
     }
 
     // Combine embedding hash with salt
-    component finalHash = Poseidon(2);
-    finalHash.inputs[0] <== embeddingHash.out;
-    finalHash.inputs[1] <== salt;
+    component faceHasher = Poseidon(2);
+    faceHasher.inputs[0] <== embeddingHash.out;
+    faceHasher.inputs[1] <== salt;
 
     // Constrain: computed hash must equal public faceHash
-    finalHash.out === faceHash;
+    faceHasher.out === faceHash;
 
     // =====================
-    // 2. Baby Jubjub key ownership: S = k * G
+    // 2. Compute commitment and verify Merkle membership
+    //    commitment = Poseidon(faceHash, secretKey)
     // =====================
-    component bjjMul = BabyPbk();
-    bjjMul.in <== k;
+    component commitmentHasher = Poseidon(2);
+    commitmentHasher.inputs[0] <== faceHash;
+    commitmentHasher.inputs[1] <== secretKey;
 
-    // Constrain: computed public key must match declared (Sx, Sy)
-    bjjMul.Ax === Sx;
-    bjjMul.Ay === Sy;
+    // Verify Merkle tree membership
+    component merkleChecker = MerkleTreeChecker(treeLevels);
+    merkleChecker.leaf <== commitmentHasher.out;
+    merkleChecker.root <== merkleRoot;
+    for (var i = 0; i < treeLevels; i++) {
+        merkleChecker.pathElements[i] <== pathElements[i];
+        merkleChecker.pathIndices[i] <== pathIndices[i];
+    }
 
     // =====================
-    // 3. Squared cosine similarity check
+    // 3. Compute and constrain nullifier
+    //    nullifier = Poseidon(secretKey, electionId)
+    // =====================
+    component nullifierHasher = Poseidon(2);
+    nullifierHasher.inputs[0] <== secretKey;
+    nullifierHasher.inputs[1] <== electionId;
+
+    // Constrain: computed nullifier must equal public nullifier
+    nullifierHasher.out === nullifier;
+
+    // =====================
+    // 4. Squared cosine similarity check
     // =====================
     component cosine = SquaredCosineSimilarity(embeddingSize);
     for (var i = 0; i < embeddingSize; i++) {
@@ -170,12 +232,12 @@ template FaceAuth(embeddingSize) {
     cosine.threshold_sq_num <== threshold_sq_num;
     cosine.threshold_sq_den <== threshold_sq_den;
 
-    // All three checks must pass
-    // (faceHash and key ownership are hard constraints via ===)
+    // All checks must pass
+    // (faceHash, Merkle root, and nullifier are hard constraints via ===)
     // Cosine similarity must be strictly enforced:
     valid <== cosine.pass;
     valid === 1;
 }
 
-// Instantiate with 64-dimensional embeddings
-component main {public [faceHash, Sx, Sy, threshold_sq_num, threshold_sq_den]} = FaceAuth(64);
+// Instantiate with 64-dimensional embeddings, 20-level Merkle tree (~1M voters)
+component main {public [faceHash, merkleRoot, nullifier, electionId, threshold_sq_num, threshold_sq_den]} = FaceAuth(64, 20);

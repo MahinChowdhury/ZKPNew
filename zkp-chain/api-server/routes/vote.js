@@ -1,16 +1,14 @@
 // ============================
 // Vote Routes
+// Architecture: ZK-SNARK + Merkle Tree + Nullifier
+// Supports: Face AND Iris biometric modes (independent)
 // ============================
 
 const express = require("express");
 const multer = require("multer");
 const crypto = require("crypto");
-const EC = require("elliptic").ec;
-const BN = require("bn.js");
-const lrs = require("../crypto/lrs");
 const homomorphic = require("../crypto/homomorphic");
 
-const ec = new EC("secp256k1");
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -19,14 +17,6 @@ function sha256Hash(data) {
     throw new Error("sha256Hash() received undefined data");
   }
   return crypto.createHash("sha256").update(String(data)).digest("hex");
-}
-
-// secp256k1 key derivation — for LRS only (unchanged)
-function deriveK(faceHash, salt) {
-  const hash = sha256Hash(faceHash + salt);
-  let k = new BN(hash, 16).umod(ec.curve.n);
-  if (k.isZero()) k = k.iaddn(1);
-  return k;
 }
 
 function deriveKeyFromPassword(password, salt) {
@@ -56,44 +46,63 @@ function decryptPayload(encryptedPayload, password) {
 /**
  * POST /api/v1/vote
  * Cast anonymous vote using:
- *   1. ZK-SNARK proof (Poseidon + Baby Jubjub + cosine similarity)
- *   2. Linkable Ring Signature (secp256k1, unchanged)
- *   3. Homomorphic encryption of vote vector
+ *   1. ZK-SNARK proof (Face: cosine similarity | Iris: Hamming distance)
+ *      + Merkle Tree membership + Nullifier
+ *   2. Homomorphic encryption of vote vector
  * 
  * Body:
+ * - ballotId: ID of the ballot to vote on (required)
  * - qrCode: encrypted QR with user credentials
- * - faceImg: live face photo for biometric verification
+ * - faceImg: live face photo (for face mode)
+ * - irisImg: live iris photo (for iris mode)
  * - password: to decrypt QR
- * - voteChoice: the vote (must match an option in active ballot)
+ * - voteChoice: the vote (must match an option in the specified ballot)
+ * - biometricMode: "face" (default) or "iris"
  */
 router.post(
   "/",
-  upload.fields([{ name: "qrCode" }, { name: "faceImg" }]),
+  upload.fields([{ name: "qrCode" }, { name: "faceImg" }, { name: "irisImg" }]),
   async (req, res) => {
     try {
-      const { password, voteChoice } = req.body;
+      const { password, voteChoice, biometricMode, ballotId } = req.body;
+      const mode = biometricMode || "face";
+
       const qrFile = req.files.qrCode?.[0];
       const faceFile = req.files.faceImg?.[0];
+      const irisFile = req.files.irisImg?.[0];
       
       // Get external dependencies from res.locals (set by server.js)
-      const { fabricClient, decodeQRCode, getFaceEmbedding, compareEmbeddings, ballotRoutes, tallyRoutes, snark } = res.locals;
+      const {
+        fabricClient, decodeQRCode, getFaceEmbedding, getIrisCode,
+        ballotRoutes, tallyRoutes, snark, irisSnark, credentialStore,
+      } = res.locals;
 
-      if (!password || !qrFile || !faceFile || !voteChoice) {
+      if (!password || !qrFile || !voteChoice || !ballotId) {
         return res.status(400).json({ 
           ok: false, 
-          error: "Missing required fields: password, qrCode, faceImg, voteChoice" 
+          error: "Missing required fields: ballotId, password, qrCode, voteChoice" 
         });
       }
 
-      console.log("\n=== VOTE SUBMISSION START (ZK-SNARK + LRS) ===");
-      console.log("Vote choice:", voteChoice);
+      if (mode === "face" && !faceFile) {
+        return res.status(400).json({ ok: false, error: "Missing faceImg for face biometric mode" });
+      }
 
-      // 1. Check if there's an active ballot
-      const activeBallot = ballotRoutes.getActiveBallot();
+      if (mode === "iris" && !irisFile) {
+        return res.status(400).json({ ok: false, error: "Missing irisImg for iris biometric mode" });
+      }
+
+      console.log(`\n=== VOTE SUBMISSION START (${mode.toUpperCase()} — ZK-SNARK + Merkle + Nullifier) ===`);
+      console.log("Ballot ID:", ballotId);
+      console.log("Vote choice:", voteChoice);
+      console.log("Biometric mode:", mode);
+
+      // 1. Look up the ballot by ID
+      const activeBallot = ballotRoutes.getBallotById(ballotId);
       if (!activeBallot) {
-        return res.status(400).json({
+        return res.status(404).json({
           ok: false,
-          error: "No active ballot available"
+          error: `Ballot not found: ${ballotId}`
         });
       }
 
@@ -137,107 +146,161 @@ router.post(
       const encryptedStr = await decodeQRCode(qrFile);
       console.log("✅ QR decoded");
       
-      // Parse and decrypt
       const qrData = decryptPayload(encryptedStr, password);
       console.log("✅ QR decrypted");
 
-      // 7. Live face embedding extraction
-      const faceLogin = await getFaceEmbedding(faceFile);
-      const registeredEmbedding = qrData.faceEmbedding;
-      
-      if (!registeredEmbedding) {
-        throw new Error("No face embedding found in QR code");
+      // Verify QR biometric mode matches request
+      const qrMode = qrData.biometricMode || "face";
+      if (qrMode !== mode) {
+        return res.status(400).json({
+          ok: false,
+          error: `QR code was registered with "${qrMode}" biometric but vote mode is "${mode}". Please use the correct mode.`,
+        });
       }
 
-      // =====================================================
-      // 8. ZK-SNARK PROOF — replaces simple compareEmbeddings
-      // Proves inside the circuit:
-      //   a) Poseidon(embedding || salt) == faceHash
-      //   b) S = k * G on Baby Jubjub (key ownership)
-      //   c) squared_cosine(live, registered) >= threshold
-      // =====================================================
-      let snarkProofResult = null;
+      // 7. Election ID from ballot
+      const electionIdHash = sha256Hash(activeBallot.id);
+      const electionId = BigInt("0x" + electionIdHash.slice(0, 32));
 
-      if (qrData.poseidonFaceHash && qrData.bjjSx && qrData.bjjSy && snark) {
-        console.log("🔐 Generating ZK-SNARK proof of biometric match...");
-        
+      let snarkProofResult;
+      let nullifier;
+
+      if (mode === "face") {
+        // =====================================================
+        // FACE VOTE PIPELINE
+        // =====================================================
+
+        // Get live face embedding
+        const faceLogin = await getFaceEmbedding(faceFile);
+        const registeredEmbedding = qrData.faceEmbedding;
+
+        if (!registeredEmbedding) {
+          throw new Error("No face embedding found in QR code");
+        }
+
+        // Load face SNARK credentials
+        const snarkCreds = credentialStore.loadCredentials(qrData.nidHash, password);
+        console.log("✅ Face SNARK credentials loaded");
+
+        // Get face commitments for Merkle tree
+        const commitments = await fabricClient.getCommitments();
+        const commitmentsBigInt = commitments.map((c) => BigInt(c));
+        console.log(`✅ Fetched ${commitments.length} face commitments for Merkle tree`);
+
+        // Compute nullifier for double-vote check
+        nullifier = await snark.computeNullifier(
+          BigInt(snarkCreds.secretKey),
+          electionId
+        );
+
+        // Early double-vote check
+        const alreadyVoted = await fabricClient.hasVoted(nullifier.toString());
+        if (alreadyVoted) {
+          return res.status(403).json({
+            ok: false,
+            error: "Double voting detected - you have already cast a vote in this election",
+            code: "DOUBLE_VOTE"
+          });
+        }
+
+        // Generate face ZK-SNARK proof
+        console.log("🔐 Generating face ZK-SNARK proof...");
         snarkProofResult = await snark.generateAuthProof(
           faceLogin,
           registeredEmbedding,
           qrData.salt,
-          BigInt(qrData.poseidonFaceHash),
-          BigInt(qrData.bjjSx),
-          BigInt(qrData.bjjSy)
+          BigInt(snarkCreds.poseidonFaceHash),
+          BigInt(snarkCreds.secretKey),
+          commitmentsBigInt,
+          electionId
         );
 
         if (!snarkProofResult.isValid) {
           return res.json({
             ok: false,
-            error: "ZK-SNARK proof verification failed — biometric mismatch or data tampering",
+            error: "Face ZK-SNARK proof verification failed — biometric mismatch or data tampering",
             isMatch: false
           });
         }
 
-        console.log("✅ ZK-SNARK biometric proof verified");
-      } else {
-        // Legacy fallback: use Python compare endpoint
-        console.warn("⚠️  Legacy registration detected — using Python compare (no SNARK)");
-        const isMatch = await compareEmbeddings(faceLogin, registeredEmbedding);
-        console.log("Face match result:", isMatch);
+        console.log("✅ Face ZK-SNARK proof verified (biometric + Merkle membership + nullifier)");
 
-        if (!isMatch) {
+      } else if (mode === "iris") {
+        // =====================================================
+        // IRIS VOTE PIPELINE
+        // =====================================================
+
+        // Get live iris code from Python
+        const liveIrisResult = await getIrisCode(irisFile);
+        console.log("✅ Live iris code extracted (quality:", liveIrisResult.quality, ")");
+
+        // Load iris SNARK credentials (with _iris suffix)
+        const irisCreds = credentialStore.loadCredentials(qrData.nidHash, password, "_iris");
+        console.log("✅ Iris SNARK credentials loaded");
+
+        const registeredIrisCode256 = irisCreds.irisCode256;
+        if (!registeredIrisCode256) {
+          throw new Error("No iris code found in credential store");
+        }
+
+        // Get iris commitments for independent Merkle tree
+        const irisCommitments = await fabricClient.getIrisCommitments();
+        const irisCommitmentsBigInt = irisCommitments.map((c) => BigInt(c));
+        console.log(`✅ Fetched ${irisCommitments.length} iris commitments for Merkle tree`);
+
+        // Compute nullifier for double-vote check
+        nullifier = await irisSnark.computeIrisNullifier(
+          BigInt(irisCreds.secretKey),
+          electionId
+        );
+
+        // Early double-vote check
+        const alreadyVoted = await fabricClient.hasVoted(nullifier.toString());
+        if (alreadyVoted) {
+          return res.status(403).json({
+            ok: false,
+            error: "Double voting detected - you have already cast a vote in this election",
+            code: "DOUBLE_VOTE"
+          });
+        }
+
+        // Generate iris ZK-SNARK proof
+        console.log("🔐 Generating iris ZK-SNARK proof (Hamming distance)...");
+        snarkProofResult = await irisSnark.generateIrisAuthProof(
+          liveIrisResult.irisCode,
+          liveIrisResult.noiseMask,
+          registeredIrisCode256,
+          qrData.salt,
+          BigInt(irisCreds.poseidonIrisHash),
+          BigInt(irisCreds.secretKey),
+          irisCommitmentsBigInt,
+          electionId
+        );
+
+        if (!snarkProofResult.isValid) {
           return res.json({
             ok: false,
-            error: "Face verification failed - biometric mismatch",
+            error: "Iris ZK-SNARK proof verification failed — iris biometric mismatch or data tampering",
             isMatch: false
           });
         }
-        console.log("✅ Legacy biometric verification passed");
+
+        console.log("✅ Iris ZK-SNARK proof verified (Hamming distance + Merkle membership + nullifier)");
+
+      } else {
+        return res.status(400).json({ ok: false, error: `Invalid biometricMode: ${mode}` });
       }
 
-      // 9. Derive secp256k1 private key for LRS (unchanged)
-      const faceHashSha = qrData.faceHash || sha256Hash(JSON.stringify(registeredEmbedding));
-      const k = deriveK(faceHashSha, qrData.salt);
-      
-      // 10. Compute link tag S = k·G (secp256k1)
-      const S = ec.g.mul(k);
-      const linkTag = {
-        x: S.getX().toString(16),
-        y: S.getY().toString(16)
-      };
+      // =====================================================
+      // COMMON: Homomorphic encryption + blockchain submission
+      // (Same for both face and iris modes)
+      // =====================================================
 
-      // 11. Get ring (all registered public keys)
-      const ringData = await fabricClient.getRing();
-      
-      if (!ringData || ringData.length === 0) {
-        throw new Error("No registered users in the ring");
-      }
+      const EC = require("elliptic").ec;
+      const BN = require("bn.js");
+      const ec = new EC("secp256k1");
 
-      console.log(`Ring size: ${ringData.length} members`);
-
-      // Reconstruct ring as elliptic curve points
-      const ring = ringData.map(pk => 
-        ec.curve.point(new BN(pk.x, 16), new BN(pk.y, 16))
-      );
-
-      // Find signer's index in ring
-      let signerIndex = -1;
-      for (let i = 0; i < ringData.length; i++) {
-        if (ringData[i].x === linkTag.x && ringData[i].y === linkTag.y) {
-          signerIndex = i;
-          break;
-        }
-      }
-
-      if (signerIndex === -1) {
-        throw new Error("Signer's public key not found in ring - user not registered");
-      }
-
-      console.log(`Signer index in ring: ${signerIndex}`);
-
-      // 12. Homomorphic encryption of vote vector + ZKP (unchanged)
       let encryptedVoteVector = null;
-      let signatureMessage = voteChoice;
       
       try {
         const axios = require('axios');
@@ -267,8 +330,6 @@ router.post(
           });
           
           console.log(`✅ Vote encrypted as vector of size ${encryptedVoteVector.length}`);
-          
-          signatureMessage = sha256Hash(JSON.stringify(encryptedVoteVector));
         } else {
           console.warn("No encryption key found for ballot - vote will not be encrypted");
           console.warn("   Run: POST /api/v1/tally/setup/" + activeBallot.id);
@@ -277,42 +338,38 @@ router.post(
         console.warn("Could not encrypt vote:", err.message);
       }
 
-      // 13. Generate linkable ring signature over the encrypted vector (secp256k1, unchanged)
-      const signature = lrs.sign(k, ring, signerIndex, signatureMessage);
-      console.log("✅ Ring signature generated (secp256k1 LRS)");
-
-      // 14. Verify signature locally before submitting
-      const isValid = lrs.verify(signature, ring, signatureMessage);
-      if (!isValid) {
-        throw new Error("Generated signature failed local verification");
-      }
-      console.log("✅ Local LRS verification passed");
-
-      // 15. Submit vote to blockchain
+      // Submit vote to blockchain with SNARK proof + nullifier
       const voteResult = await fabricClient.castVote(
-        signature,
-        ringData,
-        encryptedVoteVector
+        snarkProofResult.proof,
+        snarkProofResult.publicSignals,
+        nullifier.toString(),
+        encryptedVoteVector,
+        ballotId
       );
 
       console.log("✅ Vote cast on blockchain");
       console.log("Vote ID:", voteResult.voteId);
-      console.log("=== VOTE SUBMISSION COMPLETE (ZK-SNARK + LRS) ===\n");
+      console.log(`=== VOTE SUBMISSION COMPLETE (${mode.toUpperCase()} — ZK-SNARK + Merkle + Nullifier) ===\n`);
 
       res.json({
         ok: true,
         isMatch: true,
         voteId: voteResult.voteId,
         voteChoice,
+        ballotId: activeBallot.id,
+        biometricMode: mode,
         ballotTitle: activeBallot.title,
         timestamp: voteResult.timestamp,
         zkp: {
-          snarkProof: snarkProofResult ? true : false,
-          lrsSignature: true,
-          protocol: "plonk + lrs",
-          curves: "bn128 (snark) + secp256k1 (lrs)"
+          snarkProof: true,
+          merkleProof: true,
+          nullifier: nullifier.toString().slice(0, 20) + "...",
+          protocol: mode === "face"
+            ? "groth16 + merkle + nullifier (cosine similarity)"
+            : "groth16 + merkle + nullifier (hamming distance)",
+          curve: "bn128",
         },
-        message: "Vote successfully cast with ZK-SNARK biometric proof + anonymous ring signature"
+        message: `Vote successfully cast with ${mode.toUpperCase()} ZK-SNARK biometric proof + Merkle anonymous membership + nullifier anti-replay`,
       });
 
     } catch (err) {
@@ -335,18 +392,20 @@ router.post(
 /**
  * GET /api/v1/vote/results
  * Get voting results (public)
+ * Query: ?ballotId=xyz
  */
 router.get("/results", async (req, res) => {
   try {
     const { fabricClient } = res.locals;
+    const ballotId = req.query.ballotId || '';
     
-    const results = await fabricClient.getVoteResults();
+    const results = await fabricClient.getVoteResults(ballotId);
     
     res.json({
       ok: true,
       totalVotes: results.totalVotes,
       results: results.tallies,
-      ringSize: results.ringSize
+      voterCount: results.voterCount
     });
   } catch (err) {
     console.error("GET RESULTS ERROR:", err);
@@ -356,38 +415,43 @@ router.get("/results", async (req, res) => {
 
 /**
  * GET /api/v1/vote/verify/:voteId
- * Verify a specific vote's signature (public audit)
+ * Verify a specific vote's SNARK proof (public audit)
+ * Tries face verification key first, then iris if that fails.
  */
 router.get("/verify/:voteId", async (req, res) => {
   try {
     const { voteId } = req.params;
-    const { fabricClient } = res.locals;
+    const { fabricClient, snark, irisSnark } = res.locals;
     
     const vote = await fabricClient.getVote(voteId);
     
-    // Reconstruct ring
-    const ring = vote.ring.map(pk => 
-      ec.curve.point(new BN(pk.x, 16), new BN(pk.y, 16))
-    );
-    
-    // Determine the signed message for verification
-    if (!vote.encryptedVote || !Array.isArray(vote.encryptedVote)) {
-      return res.status(400).json({
-        ok: false,
-        error: "Invalid vote format. Expected encrypted vector."
-      });
+    // Try face verification first, then iris
+    let isValid = false;
+    let verifiedWith = "unknown";
+
+    try {
+      isValid = await snark.verifyProof(vote.proof, vote.publicSignals);
+      if (isValid) verifiedWith = "face";
+    } catch (e) {
+      // Face verification failed, try iris
     }
 
-    // The signed message is the hash of the encrypted vector
-    const signatureMessage = sha256Hash(JSON.stringify(vote.encryptedVote));
-    const isValid = lrs.verify(vote.signature, ring, signatureMessage);
+    if (!isValid) {
+      try {
+        isValid = await irisSnark.verifyIrisProof(vote.proof, vote.publicSignals);
+        if (isValid) verifiedWith = "iris";
+      } catch (e) {
+        // Iris verification also failed
+      }
+    }
     
     res.json({
       ok: true,
       voteId,
       isValid,
-      timestamp: vote.timestamp,
-      ringSize: vote.ring.length
+      verifiedWith,
+      nullifier: vote.nullifier,
+      timestamp: vote.timestamp
     });
   } catch (err) {
     console.error("VERIFY VOTE ERROR:", err);
@@ -398,21 +462,32 @@ router.get("/verify/:voteId", async (req, res) => {
 /**
  * GET /api/v1/vote/status
  * Get voting system status
+ * Query: ?ballotId=xyz
  */
 router.get("/status", async (req, res) => {
   try {
     const { fabricClient } = res.locals;
+    const ballotId = req.query.ballotId || '';
     
-    const ringData = await fabricClient.getRing();
-    const results = await fabricClient.getVoteResults();
+    const faceCommitments = await fabricClient.getCommitments();
+    const irisCommitments = await fabricClient.getIrisCommitments();
+    const results = await fabricClient.getVoteResults(ballotId);
     
     res.json({
       ok: true,
-      registeredVoters: ringData.length,
+      registeredVoters: {
+        face: faceCommitments.length,
+        iris: irisCommitments.length,
+        total: faceCommitments.length + irisCommitments.length,
+      },
       totalVotes: results.totalVotes,
       votingActive: true,
-      anonymitySet: ringData.length,
-      zkp: "zk-snark (PLONK) + LRS (secp256k1)"
+      anonymitySet: {
+        face: faceCommitments.length,
+        iris: irisCommitments.length,
+      },
+      zkp: "zk-snark (Groth16) + Merkle Tree + Nullifier",
+      biometricModes: ["face (cosine similarity)", "iris (hamming distance)"],
     });
   } catch (err) {
     console.error("STATUS ERROR:", err);

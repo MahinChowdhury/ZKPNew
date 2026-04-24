@@ -68,15 +68,13 @@ class FabricClient {
   // ============================
 
   /**
-   * Register a new voter by adding public key to global ring
-   * @param {string} nidHash - Hash of NID (for legacy compatibility)
-   * @param {string} Sx - X coordinate of public key S = k·G
-   * @param {string} Sy - Y coordinate of public key S = k·G
-   * @param {string} salt - Salt used in key derivation
+   * Register a new voter by adding commitment to the global Merkle tree
+   * @param {string} nidHash - Hash of NID (for duplicate check)
+   * @param {string} commitment - Poseidon commitment = Poseidon(faceHash, secretKey)
    */
-  async registerUser(nidHash, Sx, Sy, salt) {
+  async registerUser(nidHash, commitment) {
     try {
-      const result = await this.contract.submitTransaction('register', nidHash, Sx, Sy, salt);
+      const result = await this.contract.submitTransaction('register', nidHash, commitment);
       return JSON.parse(result.toString());
     } catch (error) {
       throw error;
@@ -84,12 +82,12 @@ class FabricClient {
   }
 
   /**
-   * Get the global ring (all registered public keys)
-   * @returns {Array<{x: string, y: string}>} Array of public keys
+   * Get all registered commitments (for building Merkle tree client-side)
+   * @returns {string[]} Array of commitment strings
    */
-  async getRing() {
+  async getCommitments() {
     try {
-      const result = await this.contract.evaluateTransaction('getRing');
+      const result = await this.contract.evaluateTransaction('getCommitments');
       return JSON.parse(result.toString());
     } catch (error) {
       throw error;
@@ -97,11 +95,55 @@ class FabricClient {
   }
 
   /**
-   * Get ring size (number of registered voters)
+   * Get voter count (number of registered face commitments)
    */
-  async getRingSize() {
+  async getVoterCount() {
     try {
-      const result = await this.contract.evaluateTransaction('getRingSize');
+      const result = await this.contract.evaluateTransaction('getVoterCount');
+      return parseInt(result.toString());
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // ============================
+  // Iris Registration Functions
+  // (Independent Merkle tree)
+  // ============================
+
+  /**
+   * Register a new voter via iris biometric (independent iris Merkle tree)
+   * @param {string} nidHash - Hash of NID
+   * @param {string} commitment - Poseidon commitment = Poseidon(irisHash, secretKey)
+   */
+  async registerIrisUser(nidHash, commitment) {
+    try {
+      const result = await this.contract.submitTransaction('registerIris', nidHash, commitment);
+      return JSON.parse(result.toString());
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Get all registered iris commitments (for building iris Merkle tree)
+   * @returns {string[]} Array of iris commitment strings
+   */
+  async getIrisCommitments() {
+    try {
+      const result = await this.contract.evaluateTransaction('getIrisCommitments');
+      return JSON.parse(result.toString());
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Get iris voter count
+   */
+  async getIrisVoterCount() {
+    try {
+      const result = await this.contract.evaluateTransaction('getIrisVoterCount');
       return parseInt(result.toString());
     } catch (error) {
       throw error;
@@ -113,18 +155,22 @@ class FabricClient {
   // ============================
 
   /**
-   * Cast a vote with linkable ring signature
-   * @param {Object} signature - LRS signature { c0, s[], linkTag }
-   * @param {Array} ring - Ring of public keys at time of signing
+   * Cast a vote with ZK-SNARK proof + nullifier
+   * @param {Object} proof - Groth16 proof object
+   * @param {string[]} publicSignals - Public signals from the circuit
+   * @param {string} nullifier - Nullifier = Poseidon(secretKey, electionId)
    * @param {Array} encryptedVoteVector - Array of homomorphically encrypted votes (one per candidate)
+   * @param {string} ballotId - The ballot this vote is for
    */
-  async castVote(signature, ring, encryptedVoteVector = null) {
+  async castVote(proof, publicSignals, nullifier, encryptedVoteVector = null, ballotId = '') {
     try {
       const result = await this.contract.submitTransaction(
         'castVote',
-        JSON.stringify(signature),
-        JSON.stringify(ring),
-        encryptedVoteVector ? JSON.stringify(encryptedVoteVector) : ''
+        JSON.stringify(proof),
+        JSON.stringify(publicSignals),
+        nullifier,
+        encryptedVoteVector ? JSON.stringify(encryptedVoteVector) : '',
+        ballotId
       );
       return JSON.parse(result.toString());
     } catch (error) {
@@ -133,11 +179,25 @@ class FabricClient {
   }
 
   /**
+   * Check if a nullifier has been used (double-vote check)
+   * @param {string} nullifier - The nullifier to check
+   * @returns {boolean} true if nullifier already used
+   */
+  async hasVoted(nullifier) {
+    try {
+      const result = await this.contract.evaluateTransaction('hasVoted', nullifier);
+      return result.toString() === 'true';
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
    * Get vote results (tallies)
    */
-  async getVoteResults() {
+  async getVoteResults(ballotId = '') {
     try {
-      const result = await this.contract.evaluateTransaction('getVoteResults');
+      const result = await this.contract.evaluateTransaction('getVoteResults', ballotId);
       return JSON.parse(result.toString());
     } catch (error) {
       throw error;
@@ -159,9 +219,9 @@ class FabricClient {
   /**
    * Get total vote count
    */
-  async getVoteCount() {
+  async getVoteCount(ballotId = '') {
     try {
-      const result = await this.contract.evaluateTransaction('getVoteCount');
+      const result = await this.contract.evaluateTransaction('getVoteCount', ballotId);
       return parseInt(result.toString());
     } catch (error) {
       throw error;
@@ -171,22 +231,10 @@ class FabricClient {
   /**
    * Get all votes (for auditing)
    */
-  async getAllVotes() {
+  async getAllVotes(ballotId = '') {
     try {
-      const result = await this.contract.evaluateTransaction('getAllVotes');
+      const result = await this.contract.evaluateTransaction('getAllVotes', ballotId);
       return JSON.parse(result.toString());
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  /**
-   * Check if a link tag has been used (double-vote check)
-   */
-  async hasVoted(linkTagX, linkTagY) {
-    try {
-      const result = await this.contract.evaluateTransaction('hasVoted', linkTagX, linkTagY);
-      return result.toString() === 'true';
     } catch (error) {
       throw error;
     }
@@ -197,36 +245,18 @@ class FabricClient {
   // ============================
 
   /**
-   * Get user data by nidHash (legacy - for backward compatibility)
-   * Note: In the new system, we don't store per-user data
+   * Get ring (legacy — returns commitments instead)
    */
-  async getUserData(nidHash) {
-    // This is kept for backward compatibility with existing login endpoints
-    // In practice, the ring signature system doesn't need this
-    throw new Error('getUserData is deprecated - use getRing() instead');
+  async getRing() {
+    const commitments = await this.getCommitments();
+    return commitments.map((c, i) => ({ index: i, commitment: c }));
   }
 
   /**
-   * Get all registered identities (legacy)
+   * Get ring size (legacy — returns voter count)
    */
-  async getAllRegistered() {
-    try {
-      const ring = await this.getRing();
-      return ring.map((pk, index) => `voter_${index}`);
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  /**
-   * Get registered count (legacy)
-   */
-  async getRegisteredCount() {
-    try {
-      return await this.getRingSize();
-    } catch (error) {
-      throw error;
-    }
+  async getRingSize() {
+    return await this.getVoterCount();
   }
 }
 

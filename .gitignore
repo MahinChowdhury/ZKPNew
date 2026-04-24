@@ -8,3 +8,17 @@ build/
 .env
 
 zkp-chain/model/venv
+
+# Circom and snarkjs artifacts
+*.r1cs
+*.sym
+*.wasm
+*.ptau
+*.zkey
+*.wtns
+*_js/
+*_cpp/
+proof.json
+public.json
+verification_key.json
+rapidsnark/

@@ -1,564 +1,547 @@
 {
   "meta": {
-    "date": "2026-03-28T07:37:25.799Z",
+    "date": "2026-04-11T19:53:20.151Z",
+    "platform": "Linux x64",
+    "cpu": "AMD Ryzen 7 5700U with Radeon Graphics",
+    "node": "v24.14.0",
     "iterations": 10,
-    "python_url": "http://localhost:8000",
-    "live": true
+    "architecture": "ZK-SNARK (Groth16) + Merkle Tree + Nullifier"
   },
-  "biometric_baseline": {
-    "face_embed": {
-      "mean": 610.747,
-      "sd": 14.335,
-      "min": 595.406,
-      "max": 639.535,
-      "p95": 639.535,
-      "p99": 639.535
-    },
-    "face_compare": {
-      "mean": 4.145,
-      "sd": 0.639,
-      "min": 2.912,
-      "max": 5.067,
-      "p95": 5.067,
-      "p99": 5.067
-    }
-  },
-  "dim1_ring_sweep": [
+  "dim1_voter_sweep": [
     {
-      "ring_size": 2,
-      "p1_qr_decrypt": {
-        "mean": 18.909,
-        "sd": 1.294,
-        "min": 17.893,
-        "max": 22.62,
-        "p95": 22.62,
-        "p99": 22.62
+      "voters": 2,
+      "face": {
+        "merkle_build": {
+          "mean": 2.027,
+          "sd": 0.485,
+          "min": 1.435,
+          "max": 3.227,
+          "p95": 3.227,
+          "trimmedMean": 2.027,
+          "trimmedSd": 0.485
+        },
+        "snark_prove": {
+          "mean": 219.258,
+          "sd": 20.653,
+          "min": 177.041,
+          "max": 258.782,
+          "p95": 258.782,
+          "trimmedMean": 219.258,
+          "trimmedSd": 20.653
+        },
+        "snark_verify": {
+          "mean": 56.667,
+          "sd": 95.77,
+          "min": 22.215,
+          "max": 343.928,
+          "p95": 343.928,
+          "trimmedMean": 56.667,
+          "trimmedSd": 95.77
+        },
+        "total_crypto": {
+          "mean": 277.952,
+          "sd": 83.252,
+          "min": 221.723,
+          "max": 523.179,
+          "p95": 523.179,
+          "trimmedMean": 277.952,
+          "trimmedSd": 83.252
+        }
       },
-      "p4_key_derive": {
-        "mean": 0.948,
-        "sd": 0.212,
-        "min": 0.813,
-        "max": 1.548,
-        "p95": 1.548,
-        "p99": 1.548
-      },
-      "p6_lrs_sign": {
-        "mean": 18.957,
-        "sd": 2.024,
-        "min": 17.167,
-        "max": 24.214,
-        "p95": 24.214,
-        "p99": 24.214
-      },
-      "p7_lrs_verify": {
-        "mean": 23.518,
-        "sd": 17.135,
-        "min": 13.05,
-        "max": 72.951,
-        "p95": 72.951,
-        "p99": 72.951
-      },
-      "p8_elgamal_zkp": {
-        "mean": 37.867,
-        "sd": 11.208,
-        "min": 32.079,
-        "max": 71.28,
-        "p95": 71.28,
-        "p99": 71.28
-      },
-      "total_crypto_mean": 100.199
-    },
-    {
-      "ring_size": 4,
-      "p1_qr_decrypt": {
-        "mean": 19.367,
-        "sd": 1.899,
-        "min": 17.505,
-        "max": 23.33,
-        "p95": 23.33,
-        "p99": 23.33
-      },
-      "p4_key_derive": {
-        "mean": 0.921,
-        "sd": 0.275,
-        "min": 0.787,
-        "max": 1.74,
-        "p95": 1.74,
-        "p99": 1.74
-      },
-      "p6_lrs_sign": {
-        "mean": 32.79,
-        "sd": 2.03,
-        "min": 30.855,
-        "max": 37.96,
-        "p95": 37.96,
-        "p99": 37.96
-      },
-      "p7_lrs_verify": {
-        "mean": 28.159,
-        "sd": 2.562,
-        "min": 25.537,
-        "max": 34.667,
-        "p95": 34.667,
-        "p99": 34.667
-      },
-      "p8_elgamal_zkp": {
-        "mean": 32.836,
-        "sd": 2.343,
-        "min": 29.716,
-        "max": 36.461,
-        "p95": 36.461,
-        "p99": 36.461
-      },
-      "total_crypto_mean": 114.073
+      "iris": {
+        "merkle_build": {
+          "mean": 1.712,
+          "sd": 0.126,
+          "min": 1.499,
+          "max": 1.979,
+          "p95": 1.979,
+          "trimmedMean": 1.712,
+          "trimmedSd": 0.126
+        },
+        "snark_prove": {
+          "mean": 196.64,
+          "sd": 13.682,
+          "min": 172.62,
+          "max": 231.101,
+          "p95": 231.101,
+          "trimmedMean": 196.64,
+          "trimmedSd": 13.682
+        },
+        "snark_verify": {
+          "mean": 23.9,
+          "sd": 1.285,
+          "min": 22.07,
+          "max": 26.061,
+          "p95": 26.061,
+          "trimmedMean": 23.9,
+          "trimmedSd": 1.285
+        },
+        "total_crypto": {
+          "mean": 222.252,
+          "sd": 13.663,
+          "min": 197.834,
+          "max": 256.342,
+          "p95": 256.342,
+          "trimmedMean": 222.252,
+          "trimmedSd": 13.663
+        }
+      }
     },
     {
-      "ring_size": 8,
-      "p1_qr_decrypt": {
-        "mean": 18.434,
-        "sd": 0.864,
-        "min": 17.607,
-        "max": 20.188,
-        "p95": 20.188,
-        "p99": 20.188
+      "voters": 5,
+      "face": {
+        "merkle_build": {
+          "mean": 2.029,
+          "sd": 0.272,
+          "min": 1.627,
+          "max": 2.524,
+          "p95": 2.524,
+          "trimmedMean": 2.029,
+          "trimmedSd": 0.272
+        },
+        "snark_prove": {
+          "mean": 231.458,
+          "sd": 13.163,
+          "min": 219.151,
+          "max": 263.733,
+          "p95": 263.733,
+          "trimmedMean": 231.458,
+          "trimmedSd": 13.163
+        },
+        "snark_verify": {
+          "mean": 26.042,
+          "sd": 4.463,
+          "min": 21.663,
+          "max": 38.94,
+          "p95": 38.94,
+          "trimmedMean": 26.042,
+          "trimmedSd": 4.463
+        },
+        "total_crypto": {
+          "mean": 259.529,
+          "sd": 16.777,
+          "min": 246.001,
+          "max": 305.198,
+          "p95": 305.198,
+          "trimmedMean": 259.529,
+          "trimmedSd": 16.777
+        }
       },
-      "p4_key_derive": {
-        "mean": 0.842,
-        "sd": 0.035,
-        "min": 0.799,
-        "max": 0.9,
-        "p95": 0.9,
-        "p99": 0.9
-      },
-      "p6_lrs_sign": {
-        "mean": 57.698,
-        "sd": 3.246,
-        "min": 54.519,
-        "max": 63.666,
-        "p95": 63.666,
-        "p99": 63.666
-      },
-      "p7_lrs_verify": {
-        "mean": 54.325,
-        "sd": 1.843,
-        "min": 51.742,
-        "max": 58.885,
-        "p95": 58.885,
-        "p99": 58.885
-      },
-      "p8_elgamal_zkp": {
-        "mean": 32.699,
-        "sd": 2.155,
-        "min": 30.067,
-        "max": 38.507,
-        "p95": 38.507,
-        "p99": 38.507
-      },
-      "total_crypto_mean": 163.998
+      "iris": {
+        "merkle_build": {
+          "mean": 2.344,
+          "sd": 0.947,
+          "min": 1.839,
+          "max": 5.154,
+          "p95": 5.154,
+          "trimmedMean": 2.344,
+          "trimmedSd": 0.947
+        },
+        "snark_prove": {
+          "mean": 201.354,
+          "sd": 7.47,
+          "min": 190.945,
+          "max": 214.654,
+          "p95": 214.654,
+          "trimmedMean": 201.354,
+          "trimmedSd": 7.47
+        },
+        "snark_verify": {
+          "mean": 24.915,
+          "sd": 1.197,
+          "min": 23.206,
+          "max": 27.049,
+          "p95": 27.049,
+          "trimmedMean": 24.915,
+          "trimmedSd": 1.197
+        },
+        "total_crypto": {
+          "mean": 228.613,
+          "sd": 7.717,
+          "min": 219.88,
+          "max": 243.581,
+          "p95": 243.581,
+          "trimmedMean": 228.613,
+          "trimmedSd": 7.717
+        }
+      }
     },
     {
-      "ring_size": 16,
-      "p1_qr_decrypt": {
-        "mean": 18.754,
-        "sd": 0.794,
-        "min": 17.592,
-        "max": 20.505,
-        "p95": 20.505,
-        "p99": 20.505
+      "voters": 10,
+      "face": {
+        "merkle_build": {
+          "mean": 2.113,
+          "sd": 0.222,
+          "min": 1.868,
+          "max": 2.541,
+          "p95": 2.541,
+          "trimmedMean": 2.113,
+          "trimmedSd": 0.222
+        },
+        "snark_prove": {
+          "mean": 227.967,
+          "sd": 20.518,
+          "min": 203.507,
+          "max": 261.024,
+          "p95": 261.024,
+          "trimmedMean": 227.967,
+          "trimmedSd": 20.518
+        },
+        "snark_verify": {
+          "mean": 23.5,
+          "sd": 3.13,
+          "min": 19.559,
+          "max": 28.566,
+          "p95": 28.566,
+          "trimmedMean": 23.5,
+          "trimmedSd": 3.13
+        },
+        "total_crypto": {
+          "mean": 253.58,
+          "sd": 23.71,
+          "min": 225.013,
+          "max": 292.043,
+          "p95": 292.043,
+          "trimmedMean": 253.58,
+          "trimmedSd": 23.71
+        }
       },
-      "p4_key_derive": {
-        "mean": 0.825,
-        "sd": 0.047,
-        "min": 0.78,
-        "max": 0.957,
-        "p95": 0.957,
-        "p99": 0.957
-      },
-      "p6_lrs_sign": {
-        "mean": 112.233,
-        "sd": 4.133,
-        "min": 106.848,
-        "max": 119.805,
-        "p95": 119.805,
-        "p99": 119.805
-      },
-      "p7_lrs_verify": {
-        "mean": 109.407,
-        "sd": 4.714,
-        "min": 103.124,
-        "max": 118.773,
-        "p95": 118.773,
-        "p99": 118.773
-      },
-      "p8_elgamal_zkp": {
-        "mean": 32.512,
-        "sd": 1.594,
-        "min": 29.886,
-        "max": 35.521,
-        "p95": 35.521,
-        "p99": 35.521
-      },
-      "total_crypto_mean": 273.731
+      "iris": {
+        "merkle_build": {
+          "mean": 2.123,
+          "sd": 0.254,
+          "min": 1.778,
+          "max": 2.557,
+          "p95": 2.557,
+          "trimmedMean": 2.123,
+          "trimmedSd": 0.254
+        },
+        "snark_prove": {
+          "mean": 199.092,
+          "sd": 17.693,
+          "min": 178.839,
+          "max": 224.342,
+          "p95": 224.342,
+          "trimmedMean": 199.092,
+          "trimmedSd": 17.693
+        },
+        "snark_verify": {
+          "mean": 23.35,
+          "sd": 2.86,
+          "min": 19.985,
+          "max": 28.461,
+          "p95": 28.461,
+          "trimmedMean": 23.35,
+          "trimmedSd": 2.86
+        },
+        "total_crypto": {
+          "mean": 224.565,
+          "sd": 20.475,
+          "min": 201.12,
+          "max": 254.655,
+          "p95": 254.655,
+          "trimmedMean": 224.565,
+          "trimmedSd": 20.475
+        }
+      }
     },
     {
-      "ring_size": 32,
-      "p1_qr_decrypt": {
-        "mean": 19.405,
-        "sd": 0.672,
-        "min": 18.043,
-        "max": 20.604,
-        "p95": 20.604,
-        "p99": 20.604
+      "voters": 25,
+      "face": {
+        "merkle_build": {
+          "mean": 3.044,
+          "sd": 0.273,
+          "min": 2.644,
+          "max": 3.559,
+          "p95": 3.559,
+          "trimmedMean": 3.044,
+          "trimmedSd": 0.273
+        },
+        "snark_prove": {
+          "mean": 230.197,
+          "sd": 17.844,
+          "min": 206.839,
+          "max": 259.76,
+          "p95": 259.76,
+          "trimmedMean": 230.197,
+          "trimmedSd": 17.844
+        },
+        "snark_verify": {
+          "mean": 23.278,
+          "sd": 2.914,
+          "min": 20.093,
+          "max": 29.116,
+          "p95": 29.116,
+          "trimmedMean": 23.278,
+          "trimmedSd": 2.914
+        },
+        "total_crypto": {
+          "mean": 256.518,
+          "sd": 20.635,
+          "min": 230.486,
+          "max": 291.701,
+          "p95": 291.701,
+          "trimmedMean": 256.518,
+          "trimmedSd": 20.635
+        }
       },
-      "p4_key_derive": {
-        "mean": 0.881,
-        "sd": 0.129,
-        "min": 0.772,
-        "max": 1.176,
-        "p95": 1.176,
-        "p99": 1.176
-      },
-      "p6_lrs_sign": {
-        "mean": 221.237,
-        "sd": 5.898,
-        "min": 211.51,
-        "max": 231.206,
-        "p95": 231.206,
-        "p99": 231.206
-      },
-      "p7_lrs_verify": {
-        "mean": 220.404,
-        "sd": 3.798,
-        "min": 215.358,
-        "max": 229.669,
-        "p95": 229.669,
-        "p99": 229.669
-      },
-      "p8_elgamal_zkp": {
-        "mean": 37.799,
-        "sd": 6.427,
-        "min": 30.92,
-        "max": 49.278,
-        "p95": 49.278,
-        "p99": 49.278
-      },
-      "total_crypto_mean": 499.726
+      "iris": {
+        "merkle_build": {
+          "mean": 3.146,
+          "sd": 0.436,
+          "min": 2.719,
+          "max": 4.33,
+          "p95": 4.33,
+          "trimmedMean": 3.146,
+          "trimmedSd": 0.436
+        },
+        "snark_prove": {
+          "mean": 197.884,
+          "sd": 12.316,
+          "min": 177.212,
+          "max": 224.243,
+          "p95": 224.243,
+          "trimmedMean": 197.884,
+          "trimmedSd": 12.316
+        },
+        "snark_verify": {
+          "mean": 22.238,
+          "sd": 1.746,
+          "min": 19.966,
+          "max": 25.409,
+          "p95": 25.409,
+          "trimmedMean": 22.238,
+          "trimmedSd": 1.746
+        },
+        "total_crypto": {
+          "mean": 223.267,
+          "sd": 13.237,
+          "min": 200.425,
+          "max": 251.546,
+          "p95": 251.546,
+          "trimmedMean": 223.267,
+          "trimmedSd": 13.237
+        }
+      }
     },
     {
-      "ring_size": 64,
-      "p1_qr_decrypt": {
-        "mean": 21.572,
-        "sd": 6.497,
-        "min": 17.95,
-        "max": 40.656,
-        "p95": 40.656,
-        "p99": 40.656
+      "voters": 50,
+      "face": {
+        "merkle_build": {
+          "mean": 4.326,
+          "sd": 0.396,
+          "min": 3.443,
+          "max": 5.022,
+          "p95": 5.022,
+          "trimmedMean": 4.326,
+          "trimmedSd": 0.396
+        },
+        "snark_prove": {
+          "mean": 216.132,
+          "sd": 8.492,
+          "min": 207.029,
+          "max": 236.434,
+          "p95": 236.434,
+          "trimmedMean": 216.132,
+          "trimmedSd": 8.492
+        },
+        "snark_verify": {
+          "mean": 21.965,
+          "sd": 1.775,
+          "min": 20.413,
+          "max": 25.751,
+          "p95": 25.751,
+          "trimmedMean": 21.965,
+          "trimmedSd": 1.775
+        },
+        "total_crypto": {
+          "mean": 242.423,
+          "sd": 9.062,
+          "min": 231.933,
+          "max": 262.516,
+          "p95": 262.516,
+          "trimmedMean": 242.423,
+          "trimmedSd": 9.062
+        }
       },
-      "p4_key_derive": {
-        "mean": 0.922,
-        "sd": 0.177,
-        "min": 0.774,
-        "max": 1.271,
-        "p95": 1.271,
-        "p99": 1.271
-      },
-      "p6_lrs_sign": {
-        "mean": 439.761,
-        "sd": 15.518,
-        "min": 426.496,
-        "max": 477.982,
-        "p95": 477.982,
-        "p99": 477.982
-      },
-      "p7_lrs_verify": {
-        "mean": 435.663,
-        "sd": 10.587,
-        "min": 421.03,
-        "max": 455.989,
-        "p95": 455.989,
-        "p99": 455.989
-      },
-      "p8_elgamal_zkp": {
-        "mean": 35.442,
-        "sd": 5.941,
-        "min": 31.391,
-        "max": 51.136,
-        "p95": 51.136,
-        "p99": 51.136
-      },
-      "total_crypto_mean": 933.36
+      "iris": {
+        "merkle_build": {
+          "mean": 4.609,
+          "sd": 0.243,
+          "min": 4.272,
+          "max": 5.113,
+          "p95": 5.113,
+          "trimmedMean": 4.609,
+          "trimmedSd": 0.243
+        },
+        "snark_prove": {
+          "mean": 189.239,
+          "sd": 5.05,
+          "min": 180.896,
+          "max": 198.074,
+          "p95": 198.074,
+          "trimmedMean": 189.239,
+          "trimmedSd": 5.05
+        },
+        "snark_verify": {
+          "mean": 21.306,
+          "sd": 1.527,
+          "min": 19.566,
+          "max": 24.426,
+          "p95": 24.426,
+          "trimmedMean": 21.306,
+          "trimmedSd": 1.527
+        },
+        "total_crypto": {
+          "mean": 215.154,
+          "sd": 6.156,
+          "min": 206.372,
+          "max": 225.45,
+          "p95": 225.45,
+          "trimmedMean": 215.154,
+          "trimmedSd": 6.156
+        }
+      }
     },
     {
-      "ring_size": 128,
-      "p1_qr_decrypt": {
-        "mean": 19.201,
-        "sd": 0.688,
-        "min": 18.253,
-        "max": 20.574,
-        "p95": 20.574,
-        "p99": 20.574
+      "voters": 100,
+      "face": {
+        "merkle_build": {
+          "mean": 8.38,
+          "sd": 1.115,
+          "min": 6.085,
+          "max": 10.932,
+          "p95": 10.932,
+          "trimmedMean": 8.38,
+          "trimmedSd": 1.115
+        },
+        "snark_prove": {
+          "mean": 230.102,
+          "sd": 16.193,
+          "min": 201.607,
+          "max": 258.223,
+          "p95": 258.223,
+          "trimmedMean": 230.102,
+          "trimmedSd": 16.193
+        },
+        "snark_verify": {
+          "mean": 22.561,
+          "sd": 1.334,
+          "min": 20.08,
+          "max": 25.099,
+          "p95": 25.099,
+          "trimmedMean": 22.561,
+          "trimmedSd": 1.334
+        },
+        "total_crypto": {
+          "mean": 261.044,
+          "sd": 17.808,
+          "min": 227.771,
+          "max": 288.942,
+          "p95": 288.942,
+          "trimmedMean": 261.044,
+          "trimmedSd": 17.808
+        }
       },
-      "p4_key_derive": {
-        "mean": 0.815,
-        "sd": 0.067,
-        "min": 0.77,
-        "max": 1.001,
-        "p95": 1.001,
-        "p99": 1.001
-      },
-      "p6_lrs_sign": {
-        "mean": 874.635,
-        "sd": 19.83,
-        "min": 855.284,
-        "max": 926.703,
-        "p95": 926.703,
-        "p99": 926.703
-      },
-      "p7_lrs_verify": {
-        "mean": 875.65,
-        "sd": 9.807,
-        "min": 858.317,
-        "max": 893.061,
-        "p95": 893.061,
-        "p99": 893.061
-      },
-      "p8_elgamal_zkp": {
-        "mean": 31.906,
-        "sd": 1.031,
-        "min": 30.536,
-        "max": 33.944,
-        "p95": 33.944,
-        "p99": 33.944
-      },
-      "total_crypto_mean": 1802.2069999999999
-    },
-    {
-      "ring_size": 256,
-      "p1_qr_decrypt": {
-        "mean": 19.114,
-        "sd": 1.062,
-        "min": 18.093,
-        "max": 21.361,
-        "p95": 21.361,
-        "p99": 21.361
-      },
-      "p4_key_derive": {
-        "mean": 0.804,
-        "sd": 0.038,
-        "min": 0.76,
-        "max": 0.882,
-        "p95": 0.882,
-        "p99": 0.882
-      },
-      "p6_lrs_sign": {
-        "mean": 1739.463,
-        "sd": 46.372,
-        "min": 1708.165,
-        "max": 1873.183,
-        "p95": 1873.183,
-        "p99": 1873.183
-      },
-      "p7_lrs_verify": {
-        "mean": 1733.306,
-        "sd": 19.576,
-        "min": 1702.514,
-        "max": 1769.973,
-        "p95": 1769.973,
-        "p99": 1769.973
-      },
-      "p8_elgamal_zkp": {
-        "mean": 32.847,
-        "sd": 1.305,
-        "min": 31.032,
-        "max": 35.196,
-        "p95": 35.196,
-        "p99": 35.196
-      },
-      "total_crypto_mean": 3525.534
+      "iris": {
+        "merkle_build": {
+          "mean": 8.208,
+          "sd": 0.642,
+          "min": 7.252,
+          "max": 9.66,
+          "p95": 9.66,
+          "trimmedMean": 8.208,
+          "trimmedSd": 0.642
+        },
+        "snark_prove": {
+          "mean": 201.18,
+          "sd": 10.82,
+          "min": 180.635,
+          "max": 220.059,
+          "p95": 220.059,
+          "trimmedMean": 201.18,
+          "trimmedSd": 10.82
+        },
+        "snark_verify": {
+          "mean": 24.681,
+          "sd": 3.507,
+          "min": 21.328,
+          "max": 34.357,
+          "p95": 34.357,
+          "trimmedMean": 24.681,
+          "trimmedSd": 3.507
+        },
+        "total_crypto": {
+          "mean": 234.069,
+          "sd": 12.732,
+          "min": 209.214,
+          "max": 253.663,
+          "p95": 253.663,
+          "trimmedMean": 234.069,
+          "trimmedSd": 12.732
+        }
+      }
     }
   ],
   "dim2_candidate_sweep": [
     {
       "candidates": 2,
       "elgamal_zkp": {
-        "mean": 22.068,
-        "sd": 1.352,
-        "min": 20.634,
-        "max": 24.321,
-        "p95": 24.321,
-        "p99": 24.321
-      },
-      "lrs_sign": {
-        "mean": 222.233,
-        "sd": 5.63,
-        "min": 214.1,
-        "max": 234.081,
-        "p95": 234.081,
-        "p99": 234.081
-      },
-      "total_client_mean": 244.301,
-      "total_client_sd": 6.148
+        "mean": 43.264,
+        "sd": 34.088,
+        "min": 17.714,
+        "max": 134.246,
+        "p95": 134.246,
+        "trimmedMean": 43.264,
+        "trimmedSd": 34.088
+      }
     },
     {
       "candidates": 3,
       "elgamal_zkp": {
-        "mean": 32.955,
-        "sd": 1.639,
-        "min": 30.946,
-        "max": 35.537,
-        "p95": 35.537,
-        "p99": 35.537
-      },
-      "lrs_sign": {
-        "mean": 224.651,
-        "sd": 12.011,
-        "min": 212.346,
-        "max": 257.306,
-        "p95": 257.306,
-        "p99": 257.306
-      },
-      "total_client_mean": 257.606,
-      "total_client_sd": 12.984
+        "mean": 35.209,
+        "sd": 6.217,
+        "min": 27.983,
+        "max": 47.95,
+        "p95": 47.95,
+        "trimmedMean": 35.209,
+        "trimmedSd": 6.217
+      }
     },
     {
       "candidates": 5,
       "elgamal_zkp": {
-        "mean": 56.633,
-        "sd": 5.571,
-        "min": 52.654,
-        "max": 72.84,
-        "p95": 72.84,
-        "p99": 72.84
-      },
-      "lrs_sign": {
-        "mean": 223.321,
-        "sd": 10.3,
-        "min": 216.256,
-        "max": 253.082,
-        "p95": 253.082,
-        "p99": 253.082
-      },
-      "total_client_mean": 279.954,
-      "total_client_sd": 10.537
+        "mean": 45.138,
+        "sd": 4.377,
+        "min": 37.789,
+        "max": 53.146,
+        "p95": 53.146,
+        "trimmedMean": 45.138,
+        "trimmedSd": 4.377
+      }
     },
     {
       "candidates": 10,
       "elgamal_zkp": {
-        "mean": 111.763,
-        "sd": 5.097,
-        "min": 105.766,
-        "max": 123.079,
-        "p95": 123.079,
-        "p99": 123.079
-      },
-      "lrs_sign": {
-        "mean": 220.038,
-        "sd": 4.998,
-        "min": 211.268,
-        "max": 230.089,
-        "p95": 230.089,
-        "p99": 230.089
-      },
-      "total_client_mean": 331.801,
-      "total_client_sd": 2.818
+        "mean": 97.762,
+        "sd": 16.511,
+        "min": 80.98,
+        "max": 129.884,
+        "p95": 129.884,
+        "trimmedMean": 97.762,
+        "trimmedSd": 16.511
+      }
     },
     {
       "candidates": 20,
       "elgamal_zkp": {
-        "mean": 221.046,
-        "sd": 5.495,
-        "min": 211.282,
-        "max": 231.283,
-        "p95": 231.283,
-        "p99": 231.283
-      },
-      "lrs_sign": {
-        "mean": 223.563,
-        "sd": 4.534,
-        "min": 219.242,
-        "max": 231.951,
-        "p95": 231.951,
-        "p99": 231.951
-      },
-      "total_client_mean": 444.609,
-      "total_client_sd": 6.433
-    }
-  ],
-  "dim3_tps_sweep": [
-    {
-      "concurrency": 1,
-      "tps": {
-        "mean": 0.427,
-        "sd": 0.003,
-        "min": 0.421,
-        "max": 0.43,
-        "p95": 0.43,
-        "p99": 0.43
-      },
-      "submit_latency": {
-        "mean": 2093,
-        "sd": 15.837,
-        "min": 2073.429,
-        "max": 2131.865,
-        "p95": 2131.865,
-        "p99": 2131.865
-      }
-    },
-    {
-      "concurrency": 5,
-      "tps": {
-        "mean": 1.436,
-        "sd": 0.01,
-        "min": 1.421,
-        "max": 1.444,
-        "p95": 1.444,
-        "p99": 1.444
-      },
-      "submit_latency": {
-        "mean": 2684.728,
-        "sd": 384.703,
-        "min": 2116.205,
-        "max": 3249.606,
-        "p95": 3249.606,
-        "p99": 3249.606
-      }
-    },
-    {
-      "concurrency": 10,
-      "tps": {
-        "mean": 3.675,
-        "sd": 0.051,
-        "min": 3.605,
-        "max": 3.721,
-        "p95": 3.721,
-        "p99": 3.721
-      },
-      "submit_latency": {
-        "mean": 1374.084,
-        "sd": 708.853,
-        "min": 251.028,
-        "max": 2537.864,
-        "p95": 2468.764,
-        "p99": 2537.864
-      }
-    },
-    {
-      "concurrency": 20,
-      "tps": {
-        "mean": 3.683,
-        "sd": 0.114,
-        "min": 3.538,
-        "max": 3.816,
-        "p95": 3.816,
-        "p99": 3.816
-      },
-      "submit_latency": {
-        "mean": 2806.106,
-        "sd": 1430.09,
-        "min": 423.153,
-        "max": 5310.506,
-        "p95": 4978.627,
-        "p99": 5310.506
+        "mean": 181.144,
+        "sd": 6.039,
+        "min": 168.67,
+        "max": 188.72,
+        "p95": 188.72,
+        "trimmedMean": 181.144,
+        "trimmedSd": 6.039
       }
     }
   ]

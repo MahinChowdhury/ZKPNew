@@ -42,7 +42,7 @@ echo -e "${GREEN}✅ Cleanup complete${NC}\n"
 
 echo -e "${YELLOW}Step 2: Starting Hyperledger Fabric network...${NC}"
 
-./network.sh up createChannel -ca -c mychannel
+./network.sh up createChannel -ca -c mychannel -s couchdb
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}❌ Failed to start network${NC}"
@@ -311,7 +311,7 @@ echo -e "\n${GREEN}✅ Ledger initialized${NC}\n"
 
 echo -e "${YELLOW}Step 15: Testing chaincode query...${NC}"
 
-peer chaincode query -C mychannel -n identity -c '{"function":"getRegisteredCount","Args":[]}'
+peer chaincode query -C mychannel -n identity -c '{"function":"getVoterCount","Args":[]}'
 
 echo -e "\n${GREEN}✅ Query successful${NC}\n"
 

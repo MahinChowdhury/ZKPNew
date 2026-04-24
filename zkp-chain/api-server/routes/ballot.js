@@ -273,4 +273,12 @@ router.delete("/:ballotId", (req, res) => {
 // Helper function to get active ballot (for vote validation)
 router.getActiveBallot = () => activeBallot;
 
+// Helper function to get a ballot by ID (active or from history)
+router.getBallotById = (ballotId) => {
+  if (activeBallot && activeBallot.id === ballotId) {
+    return activeBallot;
+  }
+  return ballotHistory.find(b => b.id === ballotId) || null;
+};
+
 module.exports = router;

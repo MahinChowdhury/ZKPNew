@@ -1,0 +1,11 @@
+{
+  "index": {
+    "fields": [
+      "docType",
+      "ballotId"
+    ]
+  },
+  "ddoc": "voteIndexDoc",
+  "name": "voteIndex",
+  "type": "json"
+}

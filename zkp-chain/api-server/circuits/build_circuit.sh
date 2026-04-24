@@ -8,7 +8,7 @@
 set -e
 
 CIRCUIT=face_auth
-PTAU_SIZE=16   # 2^16 = 65536 constraints (adjust if needed)
+PTAU_SIZE=18   # 2^18 = 262144 constraints (Merkle tree depth=20 adds ~20 Poseidon hashes)
 PTAU_FILE="powersOfTau28_hez_final_${PTAU_SIZE}.ptau"
 PTAU_URL="https://storage.googleapis.com/zkevm/ptau/${PTAU_FILE}"
 
@@ -36,12 +36,21 @@ circom ${CIRCUIT}.circom \
     --r1cs \
     --wasm \
     --sym \
+    --c \
     --output . \
     -l node_modules
 
 echo "  ✓ R1CS:  ${CIRCUIT}.r1cs"
 echo "  ✓ WASM:  ${CIRCUIT}_js/${CIRCUIT}.wasm"
+echo "  ✓ C++:   ${CIRCUIT}_cpp/"
 echo "  ✓ SYM:   ${CIRCUIT}.sym"
+
+echo ""
+echo "[1.5/5] Compiling C++ witness generator..."
+cd ${CIRCUIT}_cpp
+make -j$(nproc)
+cd ..
+echo "  ✓ C++ witness binary: ${CIRCUIT}_cpp/${CIRCUIT}"
 
 # Print circuit info
 echo ""

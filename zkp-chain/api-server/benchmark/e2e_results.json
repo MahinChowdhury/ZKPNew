@@ -1,100 +1,238 @@
 {
   "meta": {
-    "date": "2026-03-28T07:00:19.295Z",
+    "date": "2026-04-11T19:52:18.552Z",
+    "platform": "Linux x64",
+    "cpu": "AMD Ryzen 7 5700U with Radeon Graphics",
+    "node": "v24.14.0",
     "iterations": 30,
-    "ring_size": 32,
+    "warmup": 2,
     "candidates": 3,
-    "live_fabric": false
+    "voters": 10,
+    "merkle_depth": 20,
+    "live_fabric": false,
+    "architecture": "ZK-SNARK (Groth16) + Merkle Tree + Nullifier"
   },
-  "phases": {
-    "p1_qr_decrypt": {
-      "label": "P1  QR Decode + PBKDF2 + AES",
-      "stats": {
-        "mean": 22.846,
-        "sd": 1.534,
-        "min": 18.175,
-        "max": 26.358,
-        "p95": 24.948,
-        "p99": 26.358
+  "face": {
+    "phases": {
+      "p1_qr_decrypt": {
+        "label": "P1  QR+PBKDF2+AES Decrypt",
+        "stats": {
+          "mean": 14.509,
+          "sd": 1.156,
+          "min": 12.649,
+          "max": 17.582,
+          "p95": 16.56,
+          "p99": 17.582,
+          "trimmedMean": 14.466,
+          "trimmedSd": 0.984
+        }
+      },
+      "p2_bio_extract": {
+        "label": "P2  Biometric Extraction (API)",
+        "stats": {
+          "mean": 101.399,
+          "sd": 11.703,
+          "min": 80.63,
+          "max": 119.398,
+          "p95": 118.571,
+          "p99": 119.398,
+          "trimmedMean": 101.498,
+          "trimmedSd": 10.943
+        }
+      },
+      "p3_cred_nullifier": {
+        "label": "P3  Credential Load + Nullifier",
+        "stats": {
+          "mean": 0.248,
+          "sd": 0.076,
+          "min": 0.138,
+          "max": 0.444,
+          "p95": 0.388,
+          "p99": 0.444,
+          "trimmedMean": 0.245,
+          "trimmedSd": 0.067
+        }
+      },
+      "p4_merkle_build": {
+        "label": "P4  Merkle Tree Build (depth=20)",
+        "stats": {
+          "mean": 2.162,
+          "sd": 0.498,
+          "min": 1.549,
+          "max": 3.699,
+          "p95": 3.305,
+          "p99": 3.699,
+          "trimmedMean": 2.129,
+          "trimmedSd": 0.409
+        }
+      },
+      "p5_snark_prove": {
+        "label": "P5  ZK-SNARK Proof Gen (Groth16)",
+        "stats": {
+          "mean": 197.021,
+          "sd": 18.625,
+          "min": 169.928,
+          "max": 244.757,
+          "p95": 241.792,
+          "p99": 244.757,
+          "trimmedMean": 196.284,
+          "trimmedSd": 16.234
+        }
+      },
+      "p6_snark_verify": {
+        "label": "P6  ZK-SNARK Proof Verify",
+        "stats": {
+          "mean": 21.337,
+          "sd": 2.616,
+          "min": 17.477,
+          "max": 29.427,
+          "p95": 26.872,
+          "p99": 29.427,
+          "trimmedMean": 21.186,
+          "trimmedSd": 2.107
+        }
+      },
+      "p7_elgamal_zkp": {
+        "label": "P7  ElGamal+ZKP (vote encrypt)",
+        "stats": {
+          "mean": 26.117,
+          "sd": 3.86,
+          "min": 22.171,
+          "max": 38.778,
+          "p95": 38.428,
+          "p99": 38.778,
+          "trimmedMean": 25.806,
+          "trimmedSd": 3.096
+        }
+      },
+      "p8_fabric_submit": {
+        "label": "P8  Blockchain Submit (Fabric)",
+        "stats": {
+          "mean": 229.093,
+          "sd": 13.689,
+          "min": 202.529,
+          "max": 248.533,
+          "p95": 247.547,
+          "p99": 248.533,
+          "trimmedMean": 229.348,
+          "trimmedSd": 12.728
+        }
       }
     },
-    "p2_face_embed": {
-      "label": "P2  Face Embedding (Python API)",
-      "stats": {
-        "mean": 100.524,
-        "sd": 11.32,
-        "min": 82.99,
-        "max": 123.595,
-        "p95": 119.275,
-        "p99": 123.595
-      }
-    },
-    "p3_face_compare": {
-      "label": "P3  Cosine Similarity Compare",
-      "stats": {
-        "mean": 0.103,
-        "sd": 0.087,
-        "min": 0.019,
-        "max": 0.476,
-        "p95": 0.215,
-        "p99": 0.476
-      }
-    },
-    "p4_key_derive": {
-      "label": "P4  Key Derivation (SHA-256→k→k·G)",
-      "stats": {
-        "mean": 1.577,
-        "sd": 0.45,
-        "min": 0.87,
-        "max": 2.584,
-        "p95": 2.447,
-        "p99": 2.584
-      }
-    },
-    "p5_lrs_sign": {
-      "label": "P5  Ring Signature Sign",
-      "stats": {
-        "mean": 229.276,
-        "sd": 8.825,
-        "min": 219.147,
-        "max": 258.168,
-        "p95": 242.704,
-        "p99": 258.168
-      }
-    },
-    "p6_lrs_verify": {
-      "label": "P6  Ring Signature Verify (local)",
-      "stats": {
-        "mean": 224.485,
-        "sd": 29.232,
-        "min": 210.682,
-        "max": 377.024,
-        "p95": 240.341,
-        "p99": 377.024
-      }
-    },
-    "p7_elgamal_vector": {
-      "label": "P7  ElGamal Vector + ZKP",
-      "stats": {
-        "mean": 33.391,
-        "sd": 1.212,
-        "min": 31.456,
-        "max": 37.095,
-        "p95": 35.682,
-        "p99": 37.095
-      }
-    },
-    "p8_fabric_submit": {
-      "label": "P8  Blockchain Submit (Fabric)",
-      "stats": {
-        "mean": 220.956,
-        "sd": 14.26,
-        "min": 203.272,
-        "max": 254.873,
-        "p95": 244.477,
-        "p99": 254.873
-      }
-    }
+    "total_trimmed_mean_ms": 590.962
   },
-  "total_mean_ms": 833.158
+  "iris": {
+    "phases": {
+      "p1_qr_decrypt": {
+        "label": "P1  QR+PBKDF2+AES Decrypt",
+        "stats": {
+          "mean": 14.154,
+          "sd": 0.921,
+          "min": 12.426,
+          "max": 15.887,
+          "p95": 15.784,
+          "p99": 15.887,
+          "trimmedMean": 14.154,
+          "trimmedSd": 0.834
+        }
+      },
+      "p2_bio_extract": {
+        "label": "P2  Biometric Extraction (API)",
+        "stats": {
+          "mean": 75.854,
+          "sd": 7.886,
+          "min": 60.41,
+          "max": 89.353,
+          "p95": 87.443,
+          "p99": 89.353,
+          "trimmedMean": 75.923,
+          "trimmedSd": 7.183
+        }
+      },
+      "p3_cred_nullifier": {
+        "label": "P3  Credential Load + Nullifier",
+        "stats": {
+          "mean": 0.249,
+          "sd": 0.064,
+          "min": 0.149,
+          "max": 0.441,
+          "p95": 0.401,
+          "p99": 0.441,
+          "trimmedMean": 0.245,
+          "trimmedSd": 0.052
+        }
+      },
+      "p4_merkle_build": {
+        "label": "P4  Merkle Tree Build (depth=20)",
+        "stats": {
+          "mean": 2.36,
+          "sd": 0.76,
+          "min": 1.44,
+          "max": 5.218,
+          "p95": 3.958,
+          "p99": 5.218,
+          "trimmedMean": 2.291,
+          "trimmedSd": 0.541
+        }
+      },
+      "p5_snark_prove": {
+        "label": "P5  ZK-SNARK Proof Gen (Groth16)",
+        "stats": {
+          "mean": 171.395,
+          "sd": 12.774,
+          "min": 149.501,
+          "max": 206.4,
+          "p95": 197.064,
+          "p99": 206.4,
+          "trimmedMean": 170.926,
+          "trimmedSd": 10.664
+        }
+      },
+      "p6_snark_verify": {
+        "label": "P6  ZK-SNARK Proof Verify",
+        "stats": {
+          "mean": 20.947,
+          "sd": 1.983,
+          "min": 17.33,
+          "max": 25.728,
+          "p95": 25.368,
+          "p99": 25.728,
+          "trimmedMean": 20.906,
+          "trimmedSd": 1.711
+        }
+      },
+      "p7_elgamal_zkp": {
+        "label": "P7  ElGamal+ZKP (vote encrypt)",
+        "stats": {
+          "mean": 25.568,
+          "sd": 4.208,
+          "min": 22.009,
+          "max": 45.819,
+          "p95": 32.055,
+          "p99": 45.819,
+          "trimmedMean": 24.972,
+          "trimmedSd": 1.876
+        }
+      },
+      "p8_fabric_submit": {
+        "label": "P8  Blockchain Submit (Fabric)",
+        "stats": {
+          "mean": 224.843,
+          "sd": 12.338,
+          "min": 200.164,
+          "max": 247.395,
+          "p95": 239.821,
+          "p99": 247.395,
+          "trimmedMean": 224.919,
+          "trimmedSd": 11.099
+        }
+      }
+    },
+    "total_trimmed_mean_ms": 534.336
+  },
+  "comparison": {
+    "total_face_ms": 590.962,
+    "total_iris_ms": 534.336,
+    "speedup_ratio": 1.11
+  }
 }

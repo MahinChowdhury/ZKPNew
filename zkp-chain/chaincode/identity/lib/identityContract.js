@@ -8,34 +8,38 @@ class IdentityContract extends Contract {
   async initLedger(ctx) {
     console.log('============= START : Initialize Ledger ===========');
     
-    // Initialize global ring storage for voting
-    const ring = {
-      publicKeys: [],
-      docType: 'ring'
+    // Initialize global face commitments storage
+    const commitmentsStore = {
+      commitments: [],
+      docType: 'commitments'
     };
-    await ctx.stub.putState('GLOBAL_RING', Buffer.from(JSON.stringify(ring)));
+    await ctx.stub.putState('GLOBAL_COMMITMENTS', Buffer.from(JSON.stringify(commitmentsStore)));
+
+    // Initialize global iris commitments storage (independent Merkle tree)
+    const irisCommitmentsStore = {
+      commitments: [],
+      docType: 'iris_commitments'
+    };
+    await ctx.stub.putState('GLOBAL_IRIS_COMMITMENTS', Buffer.from(JSON.stringify(irisCommitmentsStore)));
     
-    // No shared VOTE_COUNTER needed — votes use txId as unique key
-    
-    console.log('Identity verification and voting ledger initialized');
+    console.log('Identity verification and voting ledger initialized (Merkle + Nullifier, face + iris)');
     console.log('============= END : Initialize Ledger ===========');
   }
 
   // ============================
-  // LEGACY IDENTITY FUNCTIONS
-  // (Backward compatibility)
+  // REGISTRATION FUNCTIONS
   // ============================
 
-  // Register a new identity (LEGACY - stores per-user)
-  async register(ctx, nidHash, Sx, Sy, salt) {
+  // Register a new voter by adding their Poseidon commitment
+  async register(ctx, nidHash, commitment) {
     console.log('============= START : Register Identity ===========');
     
     // Validate inputs
-    if (!nidHash || !Sx || !Sy || !salt) {
-      throw new Error('All parameters (nidHash, Sx, Sy, salt) are required');
+    if (!nidHash || !commitment) {
+      throw new Error('All parameters (nidHash, commitment) are required');
     }
 
-    // Check if already registered
+    // Check if already registered (by NID)
     const exists = await this.userExists(ctx, nidHash);
     if (exists) {
       throw new Error(`Identity with NID hash ${nidHash} is already registered`);
@@ -45,289 +49,241 @@ class IdentityContract extends Contract {
     const txTimestamp = ctx.stub.getTxTimestamp();
     const timestampStr = new Date(txTimestamp.seconds.low * 1000).toISOString();
 
-    // Create identity object (LEGACY format)
+    // Create identity object
     const identity = {
       nidHash,
-      Sx,
-      Sy,
-      salt,
+      commitment,
       registeredAt: timestampStr,
       docType: 'identity'
     };
 
-    // Store in ledger (per-user storage)
+    // Store in ledger (per-user storage for duplicate checking)
     await ctx.stub.putState(nidHash, Buffer.from(JSON.stringify(identity)));
 
-    // ALSO add to global ring for voting
-    await this._addToRing(ctx, Sx, Sy, salt, timestampStr);
+    // Add commitment to global commitments list
+    await this._addCommitment(ctx, commitment, timestampStr);
 
     // Emit registration event
     const eventPayload = {
       nidHash,
-      Sx,
-      Sy,
-      salt,
+      commitment,
       timestamp: timestampStr
     };
     
     await ctx.stub.setEvent('Registered', Buffer.from(JSON.stringify(eventPayload)));
 
     console.log(`Identity registered: ${nidHash}`);
+    console.log(`Commitment: ${commitment.slice(0, 20)}...`);
     console.log('============= END : Register Identity ===========');
 
     return JSON.stringify(identity);
   }
 
-  // Get user data by nidHash (LEGACY)
-  async getUserData(ctx, nidHash) {
-    console.log('============= START : Get User Data ===========');
-    
-    if (!nidHash) {
-      throw new Error('NID hash is required');
-    }
-
-    const identityBytes = await ctx.stub.getState(nidHash);
-    
-    if (!identityBytes || identityBytes.length === 0) {
-      throw new Error(`Identity with NID hash ${nidHash} does not exist`);
-    }
-
-    const identity = JSON.parse(identityBytes.toString());
-    
-    console.log(`Retrieved identity: ${nidHash}`);
-    console.log('============= END : Get User Data ===========');
-
-    // Return only the public key components and salt
-    return JSON.stringify({
-      Sx: identity.Sx,
-      Sy: identity.Sy,
-      salt: identity.salt
-    });
-  }
-
-  // Check if user exists (LEGACY)
+  // Check if user exists
   async userExists(ctx, nidHash) {
     const identityBytes = await ctx.stub.getState(nidHash);
     return identityBytes && identityBytes.length > 0;
   }
 
-  // Get all registered identities (LEGACY)
-  async getAllRegistered(ctx) {
-    console.log('============= START : Get All Registered ===========');
+  // Helper: Add commitment to global list
+  async _addCommitment(ctx, commitment, timestamp) {
+    // Get current commitments
+    const commitmentsBytes = await ctx.stub.getState('GLOBAL_COMMITMENTS');
+    let store;
     
-    const allResults = [];
-    
-    // Get all states from ledger
-    const iterator = await ctx.stub.getStateByRange('', '');
-    let result = await iterator.next();
-
-    while (!result.done) {
-      const strValue = Buffer.from(result.value.value.toString()).toString('utf8');
-      
-      try {
-        const record = JSON.parse(strValue);
-        
-        // Only include documents of type 'identity'
-        if (record.docType === 'identity') {
-          allResults.push(record.nidHash);
-        }
-      } catch (err) {
-        console.log('Error parsing record:', err);
-      }
-      
-      result = await iterator.next();
-    }
-    
-    await iterator.close();
-    
-    console.log(`Found ${allResults.length} registered identities`);
-    console.log('============= END : Get All Registered ===========');
-    
-    return JSON.stringify(allResults);
-  }
-
-  // Get count of registered identities (LEGACY)
-  async getRegisteredCount(ctx) {
-    console.log('============= START : Get Registered Count ===========');
-    
-    const allRegistered = await this.getAllRegistered(ctx);
-    const results = JSON.parse(allRegistered);
-    const count = results.length;
-    
-    console.log(`Total registered identities: ${count}`);
-    console.log('============= END : Get Registered Count ===========');
-    
-    return count;
-  }
-
-  // Get registered identity at specific index (LEGACY)
-  async getRegisteredAt(ctx, index) {
-    console.log('============= START : Get Registered At Index ===========');
-    
-    const indexNum = parseInt(index);
-    
-    if (isNaN(indexNum) || indexNum < 0) {
-      throw new Error('Index must be a valid non-negative number');
-    }
-
-    const allRegistered = await this.getAllRegistered(ctx);
-    const results = JSON.parse(allRegistered);
-    
-    if (indexNum >= results.length) {
-      throw new Error(`Index ${indexNum} is out of bounds. Total registered: ${results.length}`);
-    }
-    
-    const nidHash = results[indexNum];
-    
-    console.log(`Identity at index ${indexNum}: ${nidHash}`);
-    console.log('============= END : Get Registered At Index ===========');
-    
-    return nidHash;
-  }
-
-  // Query identity with full details (LEGACY)
-  async queryIdentity(ctx, nidHash) {
-    console.log('============= START : Query Identity ===========');
-    
-    if (!nidHash) {
-      throw new Error('NID hash is required');
-    }
-
-    const identityBytes = await ctx.stub.getState(nidHash);
-    
-    if (!identityBytes || identityBytes.length === 0) {
-      throw new Error(`Identity with NID hash ${nidHash} does not exist`);
-    }
-
-    const identity = JSON.parse(identityBytes.toString());
-    
-    console.log('============= END : Query Identity ===========');
-    
-    return JSON.stringify(identity);
-  }
-
-  // Get transaction history for an identity (LEGACY)
-  async getIdentityHistory(ctx, nidHash) {
-    console.log('============= START : Get Identity History ===========');
-    
-    if (!nidHash) {
-      throw new Error('NID hash is required');
-    }
-
-    const historyIterator = await ctx.stub.getHistoryForKey(nidHash);
-    const history = [];
-
-    let result = await historyIterator.next();
-    
-    while (!result.done) {
-      if (result.value) {
-        const record = {
-          txId: result.value.txId,
-          timestamp: result.value.timestamp,
-          isDelete: result.value.isDelete,
-          value: result.value.value.toString('utf8')
-        };
-        
-        history.push(record);
-      }
-      
-      result = await historyIterator.next();
-    }
-    
-    await historyIterator.close();
-    
-    console.log(`Found ${history.length} history records`);
-    console.log('============= END : Get Identity History ===========');
-    
-    return JSON.stringify(history);
-  }
-
-  // ============================
-  // NEW VOTING FUNCTIONS
-  // ============================
-
-  // Helper: Add public key to global ring
-  async _addToRing(ctx, Sx, Sy, salt, timestamp) {
-    // Get current ring
-    const ringBytes = await ctx.stub.getState('GLOBAL_RING');
-    let ring;
-    
-    if (!ringBytes || ringBytes.length === 0) {
-      ring = { publicKeys: [], docType: 'ring' };
+    if (!commitmentsBytes || commitmentsBytes.length === 0) {
+      store = { commitments: [], docType: 'commitments' };
     } else {
-      ring = JSON.parse(ringBytes.toString());
+      store = JSON.parse(commitmentsBytes.toString());
     }
 
-    // Check for duplicate
-    const isDuplicate = ring.publicKeys.some(pk => pk.x === Sx && pk.y === Sy);
+    // Check for duplicate commitment
+    const isDuplicate = store.commitments.some(c => c.value === commitment);
     if (isDuplicate) {
-      console.log('Public key already in ring, skipping duplicate');
+      console.log('Commitment already registered, skipping duplicate');
       return;
     }
 
-    // Add to ring
-    ring.publicKeys.push({
-      x: Sx,
-      y: Sy,
-      salt,
+    // Add commitment
+    store.commitments.push({
+      value: commitment,
       registeredAt: timestamp
     });
 
-    // Update ring
-    await ctx.stub.putState('GLOBAL_RING', Buffer.from(JSON.stringify(ring)));
+    // Update store
+    await ctx.stub.putState('GLOBAL_COMMITMENTS', Buffer.from(JSON.stringify(store)));
     
-    console.log(`Added to ring. New ring size: ${ring.publicKeys.length}`);
+    console.log(`Added commitment. Total commitments: ${store.commitments.length}`);
   }
 
-  // Get the global ring (all public keys)
-  async getRing(ctx) {
-    console.log('============= START : Get Ring ===========');
+  // Get all registered commitments (for building Merkle tree client-side)
+  async getCommitments(ctx) {
+    console.log('============= START : Get Commitments ===========');
     
-    const ringBytes = await ctx.stub.getState('GLOBAL_RING');
+    const commitmentsBytes = await ctx.stub.getState('GLOBAL_COMMITMENTS');
     
-    if (!ringBytes || ringBytes.length === 0) {
+    if (!commitmentsBytes || commitmentsBytes.length === 0) {
       return JSON.stringify([]);
     }
 
-    const ring = JSON.parse(ringBytes.toString());
+    const store = JSON.parse(commitmentsBytes.toString());
     
-    console.log(`Ring size: ${ring.publicKeys.length}`);
-    console.log('============= END : Get Ring ===========');
+    console.log(`Commitments count: ${store.commitments.length}`);
+    console.log('============= END : Get Commitments ===========');
 
-    // Return only the public keys (x, y coordinates)
-    return JSON.stringify(ring.publicKeys.map(pk => ({ x: pk.x, y: pk.y })));
+    // Return only the commitment values
+    return JSON.stringify(store.commitments.map(c => c.value));
   }
 
-  // Get ring size
-  async getRingSize(ctx) {
-    console.log('============= START : Get Ring Size ===========');
+  // Get voter count (number of registered commitments)
+  async getVoterCount(ctx) {
+    console.log('============= START : Get Voter Count ===========');
     
-    const ringBytes = await ctx.stub.getState('GLOBAL_RING');
+    const commitmentsBytes = await ctx.stub.getState('GLOBAL_COMMITMENTS');
     
-    if (!ringBytes || ringBytes.length === 0) {
+    if (!commitmentsBytes || commitmentsBytes.length === 0) {
       return 0;
     }
 
-    const ring = JSON.parse(ringBytes.toString());
+    const store = JSON.parse(commitmentsBytes.toString());
     
-    console.log(`Ring size: ${ring.publicKeys.length}`);
-    console.log('============= END : Get Ring Size ===========');
+    console.log(`Voter count: ${store.commitments.length}`);
+    console.log('============= END : Get Voter Count ===========');
     
-    return ring.publicKeys.length;
+    return store.commitments.length;
   }
 
-  // Cast a vote with linkable ring signature
-  // For privacy, the chaincode is completely oblivious to the voter's choice.
-  // The choice is contained within encryptedVoteJSON as an encrypted vector.
-  async castVote(ctx, signatureJSON, ringJSON, encryptedVoteJSON) {
-    console.log('============= START : Cast Vote ===========');
+  // ============================
+  // IRIS REGISTRATION FUNCTIONS
+  // (Independent Merkle tree)
+  // ============================
+
+  // Register a new voter via iris biometric
+  async registerIris(ctx, nidHash, commitment) {
+    console.log('============= START : Register Iris Identity ===========');
     
-    if (!signatureJSON || !ringJSON) {
-      throw new Error('Required parameters: signature, ring');
+    if (!nidHash || !commitment) {
+      throw new Error('All parameters (nidHash, commitment) are required');
     }
 
-    const signature = JSON.parse(signatureJSON);
-    const ring = JSON.parse(ringJSON);
+    // Check if already registered with iris (separate key space)
+    const irisKey = `IRIS_${nidHash}`;
+    const exists = await ctx.stub.getState(irisKey);
+    if (exists && exists.length > 0) {
+      throw new Error(`Iris identity with NID hash ${nidHash} is already registered`);
+    }
+
+    const txTimestamp = ctx.stub.getTxTimestamp();
+    const timestampStr = new Date(txTimestamp.seconds.low * 1000).toISOString();
+
+    const identity = {
+      nidHash,
+      commitment,
+      biometricType: 'iris',
+      registeredAt: timestampStr,
+      docType: 'iris_identity'
+    };
+
+    // Store per-user iris identity
+    await ctx.stub.putState(irisKey, Buffer.from(JSON.stringify(identity)));
+
+    // Add commitment to the independent iris commitments list
+    await this._addIrisCommitment(ctx, commitment, timestampStr);
+
+    // Emit registration event
+    const eventPayload = {
+      nidHash,
+      commitment,
+      biometricType: 'iris',
+      timestamp: timestampStr
+    };
+    await ctx.stub.setEvent('IrisRegistered', Buffer.from(JSON.stringify(eventPayload)));
+
+    console.log(`Iris identity registered: ${nidHash}`);
+    console.log(`Iris commitment: ${commitment.slice(0, 20)}...`);
+    console.log('============= END : Register Iris Identity ===========');
+
+    return JSON.stringify(identity);
+  }
+
+  // Helper: Add commitment to global iris list
+  async _addIrisCommitment(ctx, commitment, timestamp) {
+    const commitmentsBytes = await ctx.stub.getState('GLOBAL_IRIS_COMMITMENTS');
+    let store;
+
+    if (!commitmentsBytes || commitmentsBytes.length === 0) {
+      store = { commitments: [], docType: 'iris_commitments' };
+    } else {
+      store = JSON.parse(commitmentsBytes.toString());
+    }
+
+    const isDuplicate = store.commitments.some(c => c.value === commitment);
+    if (isDuplicate) {
+      console.log('Iris commitment already registered, skipping duplicate');
+      return;
+    }
+
+    store.commitments.push({
+      value: commitment,
+      registeredAt: timestamp
+    });
+
+    await ctx.stub.putState('GLOBAL_IRIS_COMMITMENTS', Buffer.from(JSON.stringify(store)));
+    console.log(`Added iris commitment. Total iris commitments: ${store.commitments.length}`);
+  }
+
+  // Get all registered iris commitments (for building Merkle tree)
+  async getIrisCommitments(ctx) {
+    console.log('============= START : Get Iris Commitments ===========');
+
+    const commitmentsBytes = await ctx.stub.getState('GLOBAL_IRIS_COMMITMENTS');
+
+    if (!commitmentsBytes || commitmentsBytes.length === 0) {
+      return JSON.stringify([]);
+    }
+
+    const store = JSON.parse(commitmentsBytes.toString());
+
+    console.log(`Iris commitments count: ${store.commitments.length}`);
+    console.log('============= END : Get Iris Commitments ===========');
+
+    return JSON.stringify(store.commitments.map(c => c.value));
+  }
+
+  // Get iris voter count
+  async getIrisVoterCount(ctx) {
+    console.log('============= START : Get Iris Voter Count ===========');
+
+    const commitmentsBytes = await ctx.stub.getState('GLOBAL_IRIS_COMMITMENTS');
+
+    if (!commitmentsBytes || commitmentsBytes.length === 0) {
+      return 0;
+    }
+
+    const store = JSON.parse(commitmentsBytes.toString());
+
+    console.log(`Iris voter count: ${store.commitments.length}`);
+    console.log('============= END : Get Iris Voter Count ===========');
+
+    return store.commitments.length;
+  }
+
+  // ============================
+  // VOTING FUNCTIONS
+  // ============================
+
+  // Cast a vote with ZK-SNARK proof + nullifier
+  // The chaincode is completely oblivious to the voter's identity.
+  // The nullifier prevents double voting without revealing who voted.
+  async castVote(ctx, proofJSON, publicSignalsJSON, nullifier, encryptedVoteJSON, ballotId) {
+    console.log('============= START : Cast Vote ===========');
+    
+    if (!proofJSON || !publicSignalsJSON || !nullifier) {
+      throw new Error('Required parameters: proof, publicSignals, nullifier');
+    }
+
+    const proof = JSON.parse(proofJSON);
+    const publicSignals = JSON.parse(publicSignalsJSON);
     
     // Parse encrypted vote if provided
     let encryptedVote = null;
@@ -342,18 +298,15 @@ class IdentityContract extends Contract {
       console.log('⚠️  Warning: No encrypted vote provided');
     }
 
-    // Extract link tag
-    const linkTag = signature.linkTag;
-    const linkTagKey = `LINK_TAG_${linkTag.x}_${linkTag.y}`;
-
-    // Check for double voting
-    const existingVote = await ctx.stub.getState(linkTagKey);
+    // Check for double voting using nullifier
+    const nullifierKey = `NULLIFIER_${nullifier}`;
+    const existingVote = await ctx.stub.getState(nullifierKey);
     
     if (existingVote && existingVote.length > 0) {
       throw new Error('Double voting detected - this identity has already voted');
     }
 
-    // Use txId as the unique, conflict-free vote identifier — no shared counter needed
+    // Use txId as the unique, conflict-free vote identifier
     const txId = ctx.stub.getTxID();
     const voteId = `VOTE_${txId}`;
 
@@ -364,9 +317,11 @@ class IdentityContract extends Contract {
     // Create vote record — NO plaintext or hashed candidate names stored!
     const vote = {
       voteId,
-      signature,
-      ring,
-      encryptedVote,  // CRITICAL: This must be included
+      ballotId: ballotId || '',
+      proof,
+      publicSignals,
+      nullifier,
+      encryptedVote,
       timestamp: timestampStr,
       txId,
       docType: 'vote'
@@ -375,18 +330,18 @@ class IdentityContract extends Contract {
     // Store vote — key is unique per transaction, zero read-write conflict
     await ctx.stub.putState(voteId, Buffer.from(JSON.stringify(vote)));
 
-    // Store link tag to prevent double voting
-    const linkTagRecord = {
+    // Store nullifier to prevent double voting
+    const nullifierRecord = {
       voteId,
       timestamp: timestampStr,
-      docType: 'linkTag'
+      docType: 'nullifier'
     };
-    await ctx.stub.putState(linkTagKey, Buffer.from(JSON.stringify(linkTagRecord)));
+    await ctx.stub.putState(nullifierKey, Buffer.from(JSON.stringify(nullifierRecord)));
 
     // Emit vote event (without revealing identity or choice)
     const eventPayload = {
       voteId,
-      ringSize: ring.length,
+      ballotId: ballotId || '',
       hasEncryption: encryptedVote !== null,
       timestamp: timestampStr
     };
@@ -394,24 +349,50 @@ class IdentityContract extends Contract {
     await ctx.stub.setEvent('VoteCast', Buffer.from(JSON.stringify(eventPayload)));
 
     console.log(`Vote cast: ${voteId}`);
+    console.log(`Ballot: ${ballotId || 'not specified'}`);
+    console.log(`Nullifier: ${nullifier.slice(0, 20)}...`);
     console.log(`Encrypted: ${encryptedVote !== null}`);
     console.log('============= END : Cast Vote ===========');
 
     return JSON.stringify({
       voteId,
+      ballotId: ballotId || '',
       timestamp: timestampStr
     });
   }
 
+  // Check if a nullifier has been used (double-vote check)
+  async hasVoted(ctx, nullifier) {
+    console.log('============= START : Check Has Voted ===========');
+    
+    const nullifierKey = `NULLIFIER_${nullifier}`;
+    const existingVote = await ctx.stub.getState(nullifierKey);
+    
+    const hasVoted = existingVote && existingVote.length > 0;
+    
+    console.log(`Nullifier used: ${hasVoted}`);
+    console.log('============= END : Check Has Voted ===========');
+    
+    return hasVoted;
+  }
+
   // Get vote results (tally)
-  async getVoteResults(ctx) {
+  async getVoteResults(ctx, ballotId = '') {
     console.log('============= START : Get Vote Results ===========');
     
-    const tallies = {};
     let totalVotes = 0;
 
-    // Query all votes
-    const iterator = await ctx.stub.getStateByRange('', '');
+    const queryString = {
+      selector: {
+        docType: 'vote'
+      }
+    };
+    
+    if (ballotId && ballotId.trim() !== '') {
+      queryString.selector.ballotId = ballotId;
+    }
+
+    const iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString));
     let result = await iterator.next();
 
     while (!result.done) {
@@ -422,13 +403,6 @@ class IdentityContract extends Contract {
         
         if (record.docType === 'vote') {
           totalVotes++;
-          
-          const choiceHash = record.voteChoiceHash || record.voteChoice || 'unknown';
-          if (tallies[choiceHash]) {
-            tallies[choiceHash]++;
-          } else {
-            tallies[choiceHash] = 1;
-          }
         }
       } catch (err) {
         console.log('Error parsing record:', err);
@@ -439,23 +413,23 @@ class IdentityContract extends Contract {
     
     await iterator.close();
 
-    // Get ring size
-    const ringBytes = await ctx.stub.getState('GLOBAL_RING');
-    let ringSize = 0;
+    // Get voter count
+    const commitmentsBytes = await ctx.stub.getState('GLOBAL_COMMITMENTS');
+    let voterCount = 0;
     
-    if (ringBytes && ringBytes.length > 0) {
-      const ring = JSON.parse(ringBytes.toString());
-      ringSize = ring.publicKeys.length;
+    if (commitmentsBytes && commitmentsBytes.length > 0) {
+      const store = JSON.parse(commitmentsBytes.toString());
+      voterCount = store.commitments.length;
     }
 
     console.log(`Total votes: ${totalVotes}`);
-    console.log(`Ring size: ${ringSize}`);
+    console.log(`Voter count: ${voterCount}`);
     console.log('============= END : Get Vote Results ===========');
     
     return JSON.stringify({
       totalVotes,
-      tallies,
-      ringSize
+      tallies: {},
+      voterCount
     });
   }
 
@@ -480,13 +454,25 @@ class IdentityContract extends Contract {
     return JSON.stringify(vote);
   }
 
-  // Get vote count — derived from the vote index (no shared counter)
-  async getVoteCount(ctx) {
+  // Get vote count
+  async getVoteCount(ctx, ballotId = '') {
     console.log('============= START : Get Vote Count ===========');
 
     let count = 0;
-    const iterator = await ctx.stub.getStateByRange('VOTE_', 'VOTE_~');
+    
+    const queryString = {
+      selector: {
+        docType: 'vote'
+      }
+    };
+    
+    if (ballotId && ballotId.trim() !== '') {
+      queryString.selector.ballotId = ballotId;
+    }
+
+    const iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString));
     let result = await iterator.next();
+    
     while (!result.done) {
       const strValue = Buffer.from(result.value.value.toString()).toString('utf8');
       try {
@@ -503,27 +489,23 @@ class IdentityContract extends Contract {
     return count;
   }
 
-  // Check if link tag has been used (double-vote check)
-  async hasVoted(ctx, linkTagX, linkTagY) {
-    console.log('============= START : Check Has Voted ===========');
-    
-    const linkTagKey = `LINK_TAG_${linkTagX}_${linkTagY}`;
-    const existingVote = await ctx.stub.getState(linkTagKey);
-    
-    const hasVoted = existingVote && existingVote.length > 0;
-    
-    console.log(`Link tag voted: ${hasVoted}`);
-    console.log('============= END : Check Has Voted ===========');
-    
-    return hasVoted;
-  }
-
-  // Get all votes (for auditing) - FIXED TO INCLUDE ENCRYPTED VOTES
-  async getAllVotes(ctx) {
+  // Get all votes (for auditing)
+  async getAllVotes(ctx, ballotId = '') {
     console.log('============= START : Get All Votes ===========');
     
     const allVotes = [];
-    const iterator = await ctx.stub.getStateByRange('', '');
+    
+    const queryString = {
+      selector: {
+        docType: 'vote'
+      }
+    };
+    
+    if (ballotId && ballotId.trim() !== '') {
+      queryString.selector.ballotId = ballotId;
+    }
+
+    const iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString));
     let result = await iterator.next();
 
     while (!result.done) {
@@ -533,15 +515,14 @@ class IdentityContract extends Contract {
         const record = JSON.parse(strValue);
         
         if (record.docType === 'vote') {
-          // Return vote data with hash (no plaintext choice on-chain)
           allVotes.push({
             voteId: record.voteId,
-            voteChoiceHash: record.voteChoiceHash || record.voteChoice,  // backward compat
+            ballotId: record.ballotId || '',
+            nullifier: record.nullifier,
             timestamp: record.timestamp,
-            ringSize: record.ring ? record.ring.length : 0,
             encryptedVote: record.encryptedVote,
-            signature: record.signature,
-            ring: record.ring
+            proof: record.proof,
+            publicSignals: record.publicSignals
           });
         }
       } catch (err) {
@@ -558,6 +539,83 @@ class IdentityContract extends Contract {
     console.log('============= END : Get All Votes ===========');
     
     return JSON.stringify(allVotes);
+  }
+
+  // ============================
+  // LEGACY COMPATIBILITY
+  // ============================
+
+  // Get user data by nidHash (legacy)
+  async getUserData(ctx, nidHash) {
+    console.log('============= START : Get User Data ===========');
+    
+    if (!nidHash) {
+      throw new Error('NID hash is required');
+    }
+
+    const identityBytes = await ctx.stub.getState(nidHash);
+    
+    if (!identityBytes || identityBytes.length === 0) {
+      throw new Error(`Identity with NID hash ${nidHash} does not exist`);
+    }
+
+    const identity = JSON.parse(identityBytes.toString());
+    
+    console.log(`Retrieved identity: ${nidHash}`);
+    console.log('============= END : Get User Data ===========');
+
+    return JSON.stringify({
+      commitment: identity.commitment
+    });
+  }
+
+  // Get all registered identities (legacy)
+  async getAllRegistered(ctx) {
+    console.log('============= START : Get All Registered ===========');
+    
+    const allResults = [];
+    
+    const queryString = {
+      selector: {
+        docType: 'identity'
+      }
+    };
+    
+    const iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString));
+    let result = await iterator.next();
+
+    while (!result.done) {
+      const strValue = Buffer.from(result.value.value.toString()).toString('utf8');
+      
+      try {
+        const record = JSON.parse(strValue);
+        
+        if (record.docType === 'identity') {
+          allResults.push(record.nidHash);
+        }
+      } catch (err) {
+        console.log('Error parsing record:', err);
+      }
+      
+      result = await iterator.next();
+    }
+    
+    await iterator.close();
+    
+    console.log(`Found ${allResults.length} registered identities`);
+    console.log('============= END : Get All Registered ===========');
+    
+    return JSON.stringify(allResults);
+  }
+
+  // Legacy: getRing → returns commitments
+  async getRing(ctx) {
+    return await this.getCommitments(ctx);
+  }
+
+  // Legacy: getRingSize → returns voter count
+  async getRingSize(ctx) {
+    return await this.getVoterCount(ctx);
   }
 }
 

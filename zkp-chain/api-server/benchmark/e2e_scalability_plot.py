@@ -1,18 +1,20 @@
 """
-E2E Scalability Plot Generator — Q1 Journal
-Reads e2e_scalability_results.json and generates Figure 9 (4 panels).
+E2E Scalability Plot Generator — Dual Modality
+Architecture: ZK-SNARK (Groth16) + Merkle Tree + Nullifier
+Reads e2e_scalability_results.json and generates a 4-panel figure.
 """
-import json, numpy as np, matplotlib.pyplot as plt
+import json, os, numpy as np, matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
-with open("e2e_scalability_results.json") as f:
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+INPUT_PATH = os.path.join(SCRIPT_DIR, "e2e_scalability_results.json")
+
+with open(INPUT_PATH) as f:
     data = json.load(f)
 
-meta      = data["meta"]
-bio       = data["biometric_baseline"]
-ring_sw   = data["dim1_ring_sweep"]
-cand_sw   = data["dim2_candidate_sweep"]
-tps_sw    = data["dim3_tps_sweep"]
+meta     = data["meta"]
+voter_sw = data["dim1_voter_sweep"]
+cand_sw  = data["dim2_candidate_sweep"]
 
 plt.rcParams.update({
     "font.family":       "serif",
@@ -24,138 +26,251 @@ plt.rcParams.update({
     "axes.spines.top":   False, "axes.spines.right": False,
 })
 
-BLUE   = "#2563EB"; RED = "#DC2626"; GREEN = "#16A34A"
-PURPLE = "#7C3AED"; GRAY = "#6B7280"; ORANGE = "#F59E0B"
+FACE_COLOR  = "#E74C3C"
+IRIS_COLOR  = "#2E86C1"
+GREEN       = "#27AE60"
+PURPLE      = "#8E44AD"
+ORANGE      = "#F39C12"
+GRAY        = "#6B7280"
 
 fig = plt.figure(figsize=(14, 10))
 gs  = GridSpec(2, 2, figure=fig, hspace=0.42, wspace=0.35)
 
 fig.suptitle(
-    f"Figure 9 — ZKP E2E Vote Casting Scalability Analysis\n"
-    f"(Biometric baseline: embed={bio['face_embed']['mean']:.0f}ms, compare={bio['face_compare']['mean']:.0f}ms)",
+    f"ZK-SNARK Scalability Analysis — Face vs. Iris Pipeline\n"
+    f"(Groth16 + Poseidon Merkle Tree, {meta['iterations']} iterations per config)",
     fontsize=12, fontweight="bold"
 )
 
-# ── Panel (a): LRS Sign/Verify vs ring size ────────────────────────────────────
+# ── Panel (a): SNARK Prove Time vs Voter Count ────────────────────────────────
 ax1 = fig.add_subplot(gs[0, 0])
-ns         = [r["ring_size"]                for r in ring_sw]
-sign_mean  = [r["p6_lrs_sign"]["mean"]      for r in ring_sw]
-sign_sd    = [r["p6_lrs_sign"]["sd"]        for r in ring_sw]
-verify_mean= [r["p7_lrs_verify"]["mean"]    for r in ring_sw]
-verify_sd  = [r["p7_lrs_verify"]["sd"]      for r in ring_sw]
-total_mean = [r["total_crypto_mean"]        for r in ring_sw]
+ns = [r["voters"] for r in voter_sw]
 
-ax1.errorbar(ns, sign_mean,   yerr=sign_sd,   fmt="o-", color=BLUE,   lw=2, capsize=3, ms=5, label="LRS Sign")
-ax1.errorbar(ns, verify_mean, yerr=verify_sd, fmt="s-", color=RED,    lw=2, capsize=3, ms=5, label="LRS Verify")
-ax1.plot    (ns, total_mean,              "^--", color=GRAY,   lw=1.5, ms=5, label="Total Crypto")
+face_prove = [r["face"]["snark_prove"]["trimmedMean"] for r in voter_sw]
+face_prove_sd = [r["face"]["snark_prove"]["trimmedSd"] for r in voter_sw]
+iris_prove = [r["iris"]["snark_prove"]["trimmedMean"] for r in voter_sw]
+iris_prove_sd = [r["iris"]["snark_prove"]["trimmedSd"] for r in voter_sw]
 
-# O(n) reference line
-c_fit = np.polyfit(ns, sign_mean, 1)
-fit_x = np.linspace(ns[0], ns[-1], 100)
-ax1.plot(fit_x, np.polyval(c_fit, fit_x), ":", color=BLUE, lw=1.2, alpha=0.7,
-         label=f"O(n) fit: {c_fit[0]:.2f}n+{c_fit[1]:.1f}")
+ax1.errorbar(ns, face_prove, yerr=face_prove_sd, fmt="o-", color=FACE_COLOR,
+             lw=2, capsize=3, ms=6, label="Face SNARK Prove")
+ax1.errorbar(ns, iris_prove, yerr=iris_prove_sd, fmt="s-", color=IRIS_COLOR,
+             lw=2, capsize=3, ms=6, label="Iris SNARK Prove")
 
-ax1.set_xscale("log", base=2)
-ax1.set_xlabel("Ring size (n)")
-ax1.set_ylabel("Latency (ms)")
-ax1.set_title("(a) LRS Scalability — O(n) complexity")
-ax1.set_xticks(ns)
-ax1.get_xaxis().set_major_formatter(plt.ScalarFormatter())
-ax1.legend(fontsize=8)
+# Annotate speedup at largest voter count
+if iris_prove[-1] > 0:
+    speedup = face_prove[-1] / iris_prove[-1]
+    ax1.annotate(
+        f"{speedup:.1f}× faster",
+        xy=(ns[-1], iris_prove[-1]),
+        xytext=(ns[-2], (face_prove[-1] + iris_prove[-1]) / 2),
+        fontsize=10, fontweight="bold", color=GREEN,
+        arrowprops=dict(arrowstyle="->", color=GREEN, lw=1.5),
+        ha="center",
+    )
 
-# ── Panel (b): ElGamal+ZKP vs candidate count ─────────────────────────────────
+ax1.set_xlabel("Number of registered voters (Merkle tree size)")
+ax1.set_ylabel("SNARK Prove Time (ms)")
+ax1.set_title("(a) ZK-SNARK Proving Time vs. Voter Pool Size")
+ax1.legend()
+
+# ── Panel (b): Merkle Tree Build Time vs Voter Count ──────────────────────────
 ax2 = fig.add_subplot(gs[0, 1])
-cs          = [c["candidates"]               for c in cand_sw]
-enc_mean    = [c["elgamal_zkp"]["mean"]      for c in cand_sw]
-enc_sd      = [c["elgamal_zkp"]["sd"]        for c in cand_sw]
-total_c     = [c["total_client_mean"]        for c in cand_sw]
-total_c_sd  = [c["total_client_sd"]          for c in cand_sw]
 
-ax2.errorbar(cs, enc_mean, yerr=enc_sd, fmt="o-", color=PURPLE, lw=2, capsize=3, ms=5, label="Encrypt+ZKP O(C)")
-ax2.errorbar(cs, total_c,  yerr=total_c_sd, fmt="s--", color=ORANGE, lw=2, capsize=3, ms=5, label="Total Client Cost")
+face_merkle = [r["face"]["merkle_build"]["trimmedMean"] for r in voter_sw]
+face_merkle_sd = [r["face"]["merkle_build"]["trimmedSd"] for r in voter_sw]
+iris_merkle = [r["iris"]["merkle_build"]["trimmedMean"] for r in voter_sw]
+iris_merkle_sd = [r["iris"]["merkle_build"]["trimmedSd"] for r in voter_sw]
+face_total = [r["face"]["total_crypto"]["trimmedMean"] for r in voter_sw]
+iris_total = [r["iris"]["total_crypto"]["trimmedMean"] for r in voter_sw]
 
-# Linear fit annotation
-c2_fit = np.polyfit(cs, enc_mean, 1)
-fit_x2 = np.linspace(cs[0], cs[-1], 100)
-ax2.plot(fit_x2, np.polyval(c2_fit, fit_x2), ":", color=PURPLE, lw=1.2, alpha=0.7,
-         label=f"Fit: {c2_fit[0]:.1f}C+{c2_fit[1]:.1f}")
+ax2.errorbar(ns, face_merkle, yerr=face_merkle_sd, fmt="o-", color=FACE_COLOR,
+             lw=2, capsize=3, ms=5, label="Face Merkle Build")
+ax2.errorbar(ns, iris_merkle, yerr=iris_merkle_sd, fmt="s-", color=IRIS_COLOR,
+             lw=2, capsize=3, ms=5, label="Iris Merkle Build")
+ax2.plot(ns, face_total, "^--", color=FACE_COLOR, lw=1.2, ms=5, alpha=0.5, label="Face Total Crypto")
+ax2.plot(ns, iris_total, "v--", color=IRIS_COLOR, lw=1.2, ms=5, alpha=0.5, label="Iris Total Crypto")
 
-ax2.set_xlabel("Number of candidates (C)")
+ax2.set_xlabel("Number of registered voters")
 ax2.set_ylabel("Latency (ms)")
-ax2.set_title("(b) ElGamal+ZKP — O(C) complexity")
-ax2.set_xticks(cs)
+ax2.set_title("(b) Poseidon Merkle Tree Build + Total Crypto")
 ax2.legend(fontsize=8)
 
-# ── Panel (c): Stacked phase costs at each ring size ──────────────────────────
+# ── Panel (c): Stacked phase breakdown at each voter count (Face vs Iris) ─────
 ax3 = fig.add_subplot(gs[1, 0])
-qr_means   = [r["p1_qr_decrypt"]["mean"]  for r in ring_sw]
-kd_means   = [r["p4_key_derive"]["mean"]  for r in ring_sw]
-enc_means_r= [r["p8_elgamal_zkp"]["mean"] for r in ring_sw]
 
-bar_w = 0.35
 x = np.arange(len(ns))
-b1 = ax3.bar(x, qr_means,    bar_w,                         color="#A8D5F5", label="QR+PBKDF2")
-b2 = ax3.bar(x, kd_means,    bar_w, bottom=qr_means,        color="#60C070", label="Key Derivation")
-b3 = ax3.bar(x, sign_mean,   bar_w,
-             bottom=[a+b for a,b in zip(qr_means, kd_means)],
-             color=BLUE, label="LRS Sign")
-b4 = ax3.bar(x, verify_mean, bar_w,
-             bottom=[a+b+c for a,b,c in zip(qr_means, kd_means, sign_mean)],
-             color=RED, label="LRS Verify")
-b5 = ax3.bar(x, enc_means_r, bar_w,
-             bottom=[a+b+c+d for a,b,c,d in zip(qr_means, kd_means, sign_mean, verify_mean)],
-             color=PURPLE, label="ElGamal+ZKP")
+bar_w = 0.35
 
-ax3.set_xlabel("Ring size (n)")
+# Face stacked
+face_mk = [r["face"]["merkle_build"]["trimmedMean"] for r in voter_sw]
+face_pr = [r["face"]["snark_prove"]["trimmedMean"]  for r in voter_sw]
+face_vr = [r["face"]["snark_verify"]["trimmedMean"] for r in voter_sw]
+
+ax3.bar(x - bar_w/2, face_mk, bar_w, color=FACE_COLOR, alpha=0.4, label="Face: Merkle")
+ax3.bar(x - bar_w/2, face_pr, bar_w, bottom=face_mk, color=FACE_COLOR, alpha=0.7, label="Face: SNARK Prove")
+ax3.bar(x - bar_w/2, face_vr, bar_w,
+        bottom=[a + b for a, b in zip(face_mk, face_pr)],
+        color=FACE_COLOR, alpha=1.0, label="Face: SNARK Verify")
+
+# Iris stacked
+iris_mk = [r["iris"]["merkle_build"]["trimmedMean"] for r in voter_sw]
+iris_pr = [r["iris"]["snark_prove"]["trimmedMean"]  for r in voter_sw]
+iris_vr = [r["iris"]["snark_verify"]["trimmedMean"] for r in voter_sw]
+
+ax3.bar(x + bar_w/2, iris_mk, bar_w, color=IRIS_COLOR, alpha=0.4, label="Iris: Merkle")
+ax3.bar(x + bar_w/2, iris_pr, bar_w, bottom=iris_mk, color=IRIS_COLOR, alpha=0.7, label="Iris: SNARK Prove")
+ax3.bar(x + bar_w/2, iris_vr, bar_w,
+        bottom=[a + b for a, b in zip(iris_mk, iris_pr)],
+        color=IRIS_COLOR, alpha=1.0, label="Iris: SNARK Verify")
+
+ax3.set_xticks(x)
+ax3.set_xticklabels(ns)
+ax3.set_xlabel("Number of voters")
 ax3.set_ylabel("Cumulative crypto latency (ms)")
-ax3.set_title("(c) Phase breakdown vs ring size\n(Biometric + Fabric not shown)")
-ax3.set_xticks(x); ax3.set_xticklabels(ns)
+ax3.set_title("(c) Phase breakdown vs. voter count")
 ax3.legend(fontsize=7, ncol=2)
 
-# ── Panel (d): Fabric TPS vs concurrency ──────────────────────────────────────
+# ── Panel (d): ElGamal+ZKP vs Candidate Count ────────────────────────────────
 ax4 = fig.add_subplot(gs[1, 1])
-conc          = [t["concurrency"]               for t in tps_sw]
-tps_m         = [t["tps"]["mean"]               for t in tps_sw]
-tps_sd        = [t["tps"]["sd"]                 for t in tps_sw]
-lat_m         = [t["submit_latency"]["mean"]     for t in tps_sw]
-lat_sd        = [t["submit_latency"]["sd"]       for t in tps_sw]
 
-ax4_twin = ax4.twinx()
-l1 = ax4.errorbar(conc, tps_m, yerr=tps_sd,  fmt="o-", color=GREEN,  lw=2, capsize=3, ms=6, label="TPS")
-l2 = ax4_twin.errorbar(conc, lat_m, yerr=lat_sd, fmt="s--", color=ORANGE, lw=2, capsize=3, ms=6, label="Submit Latency")
+cs = [c["candidates"] for c in cand_sw]
+enc_mean = [c["elgamal_zkp"]["trimmedMean"] for c in cand_sw]
+enc_sd   = [c["elgamal_zkp"]["trimmedSd"]   for c in cand_sw]
 
-ax4.set_xlabel("Concurrent voters")
-ax4.set_ylabel("Transactions per second (TPS)", color=GREEN)
-ax4_twin.set_ylabel("Submit latency (ms)", color=ORANGE)
-ax4.tick_params(axis="y", labelcolor=GREEN)
-ax4_twin.tick_params(axis="y", labelcolor=ORANGE)
-ax4.set_xticks(conc)
-ax4.set_title("(d) Fabric TPS vs concurrent voters")
+ax4.errorbar(cs, enc_mean, yerr=enc_sd, fmt="o-", color=PURPLE, lw=2, capsize=3, ms=6,
+             label="Encrypt + Vote Validity ZKP")
 
-lines = [l1, l2]
-labels = [l.get_label() for l in lines]
-ax4.legend(lines, labels, loc="center right", fontsize=8)
+# Linear fit
+coeff = np.polyfit(cs, enc_mean, 1)
+fit_x = np.linspace(cs[0], cs[-1], 100)
+ax4.plot(fit_x, np.polyval(coeff, fit_x), ":", color=PURPLE, lw=1.2, alpha=0.7,
+         label=f"Linear fit: {coeff[0]:.1f}C + {coeff[1]:.1f}")
 
-fig.savefig("fig9_e2e_scalability.png", bbox_inches="tight", dpi=300)
+# Per-candidate cost annotation
+per_cand = coeff[0]
+ax4.text(
+    0.55, 0.90,
+    f"≈ {per_cand:.1f} ms per candidate\n(ElGamal encrypt + Chaum-Pedersen ZKP)",
+    transform=ax4.transAxes,
+    fontsize=9, fontweight="bold", color="white",
+    bbox=dict(boxstyle="round,pad=0.4", facecolor=PURPLE, alpha=0.85, edgecolor="none"),
+    ha="center", va="top",
+)
+
+ax4.set_xlabel("Number of candidates (C)")
+ax4.set_ylabel("ElGamal + ZKP latency (ms)")
+ax4.set_title("(d) ElGamal+ZKP scalability — O(C)")
+ax4.set_xticks(cs)
+ax4.legend(fontsize=8)
+
+fig.savefig(os.path.join(SCRIPT_DIR, "fig9_e2e_scalability.png"), bbox_inches="tight", dpi=300)
 plt.close(fig)
-print("[+] Saved fig9_e2e_scalability.png")
+print(f"[+] Saved fig9_e2e_scalability.png")
 
-# ── Print summary table ────────────────────────────────────────────────────────
-print("\n% === Table: LRS Sign Latency vs Ring Size ===")
-print("n & Sign (ms) & Verify (ms) & Total Crypto (ms) \\\\")
-for r in ring_sw:
-    print(f"{r['ring_size']} & {r['p6_lrs_sign']['mean']:.1f}±{r['p6_lrs_sign']['sd']:.1f}"
-          f" & {r['p7_lrs_verify']['mean']:.1f}±{r['p7_lrs_verify']['sd']:.1f}"
-          f" & {r['total_crypto_mean']:.1f} \\\\")
+# ── Table image 1: SNARK Latency vs Voter Count ──────────────────────────────
+fig_t1, ax_t1 = plt.subplots(figsize=(14, 4.5))
+ax_t1.axis("off")
 
-print("\n% === Table: ElGamal+ZKP vs Candidate Count ===")
-print("C & Encrypt+ZKP (ms) & Total Client (ms) \\\\")
-for c in cand_sw:
-    print(f"{c['candidates']} & {c['elgamal_zkp']['mean']:.1f}±{c['elgamal_zkp']['sd']:.1f}"
-          f" & {c['total_client_mean']:.1f}±{c['total_client_sd']:.1f} \\\\")
+col_labels_1 = ["Voters", "Face Prove (ms)", "Iris Prove (ms)", "Face Merkle (ms)", "Iris Merkle (ms)", "Speedup"]
+table_data_1 = []
+cell_colors_1 = []
+header_color = "#2C3E50"
+row_even = "#F8F9FA"
+row_odd  = "#FFFFFF"
 
-print("\n% === Table: Fabric TPS vs Concurrency ===")
-print("Concurrency & TPS & Submit Latency (ms) \\\\")
-for t in tps_sw:
-    print(f"{t['concurrency']} & {t['tps']['mean']:.2f}±{t['tps']['sd']:.2f}"
-          f" & {t['submit_latency']['mean']:.0f}±{t['submit_latency']['sd']:.0f} \\\\")
+for idx, r in enumerate(voter_sw):
+    fp = r["face"]["snark_prove"]
+    ip = r["iris"]["snark_prove"]
+    fm = r["face"]["merkle_build"]
+    im = r["iris"]["merkle_build"]
+    speedup = fp["trimmedMean"] / ip["trimmedMean"] if ip["trimmedMean"] > 0 else 0
+    table_data_1.append([
+        str(r["voters"]),
+        f"{fp['trimmedMean']:.1f} ± {fp['trimmedSd']:.1f}",
+        f"{ip['trimmedMean']:.1f} ± {ip['trimmedSd']:.1f}",
+        f"{fm['trimmedMean']:.1f}",
+        f"{im['trimmedMean']:.1f}",
+        f"{speedup:.2f}×",
+    ])
+    bg = row_even if idx % 2 == 0 else row_odd
+    cell_colors_1.append([bg] * 6)
+
+tbl1 = ax_t1.table(
+    cellText=table_data_1,
+    colLabels=col_labels_1,
+    cellColours=cell_colors_1,
+    colColours=[header_color] * 6,
+    cellLoc="center",
+    loc="center",
+)
+tbl1.auto_set_font_size(False)
+tbl1.set_fontsize(9)
+tbl1.scale(1, 1.6)
+
+for (row, col), cell in tbl1.get_celld().items():
+    if row == 0:
+        cell.set_text_props(color="white", fontweight="bold")
+        cell.set_edgecolor("white")
+    else:
+        cell.set_edgecolor("#E0E0E0")
+
+ax_t1.set_title(
+    "Table: ZK-SNARK Proving Time vs. Merkle Tree Size (Voters)\n"
+    f"({meta['iterations']} iterations per config)",
+    fontsize=11, fontweight="bold", pad=20,
+)
+
+t1_path = os.path.join(SCRIPT_DIR, "fig10_scalability_table.png")
+fig_t1.savefig(t1_path, bbox_inches="tight", dpi=300, facecolor="white")
+plt.close(fig_t1)
+print(f"[+] Saved {t1_path}")
+
+# ── Table image 2: ElGamal+ZKP vs Candidate Count ────────────────────────────
+fig_t2, ax_t2 = plt.subplots(figsize=(8, 3.5))
+ax_t2.axis("off")
+
+col_labels_2 = ["Candidates", "Encrypt+ZKP (ms)", "Per-Candidate (ms)"]
+table_data_2 = []
+cell_colors_2 = []
+
+for idx, c in enumerate(cand_sw):
+    eg = c["elgamal_zkp"]
+    per_c = eg["trimmedMean"] / c["candidates"]
+    table_data_2.append([
+        str(c["candidates"]),
+        f"{eg['trimmedMean']:.1f} ± {eg['trimmedSd']:.1f}",
+        f"{per_c:.1f}",
+    ])
+    bg = row_even if idx % 2 == 0 else row_odd
+    cell_colors_2.append([bg] * 3)
+
+tbl2 = ax_t2.table(
+    cellText=table_data_2,
+    colLabels=col_labels_2,
+    cellColours=cell_colors_2,
+    colColours=[header_color] * 3,
+    cellLoc="center",
+    loc="center",
+)
+tbl2.auto_set_font_size(False)
+tbl2.set_fontsize(9)
+tbl2.scale(1, 1.6)
+
+for (row, col), cell in tbl2.get_celld().items():
+    if row == 0:
+        cell.set_text_props(color="white", fontweight="bold")
+        cell.set_edgecolor("white")
+    else:
+        cell.set_edgecolor("#E0E0E0")
+
+ax_t2.set_title(
+    "Table: ElGamal + Vote Validity ZKP vs. Candidate Count\n"
+    f"({meta['iterations']} iterations per config)",
+    fontsize=11, fontweight="bold", pad=20,
+)
+
+t2_path = os.path.join(SCRIPT_DIR, "fig11_elgamal_table.png")
+fig_t2.savefig(t2_path, bbox_inches="tight", dpi=300, facecolor="white")
+plt.close(fig_t2)
+print(f"[+] Saved {t2_path}")
+
