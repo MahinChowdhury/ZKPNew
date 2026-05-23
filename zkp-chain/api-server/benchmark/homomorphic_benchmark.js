@@ -20,9 +20,16 @@ function nowMs() {
 }
 
 function calcStats(arr) {
+  if (arr.length === 0) return { mean: 0, sd: 0, min: 0, max: 0, p95: 0, p99: 0, ciLower: 0, ciUpper: 0 };
   const s = [...arr].sort((a, b) => a - b);
   const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
   const sd = Math.sqrt(arr.reduce((a, v) => a + (v - mean) ** 2, 0) / arr.length);
+  
+  const n = arr.length;
+  const sem = sd / Math.sqrt(n || 1);
+  const ciLower = mean - 1.96 * sem;
+  const ciUpper = mean + 1.96 * sem;
+
   return {
     mean: +mean.toFixed(4),
     sd:   +sd.toFixed(4),
@@ -30,6 +37,8 @@ function calcStats(arr) {
     max:  +s[s.length - 1].toFixed(4),
     p95:  +s[Math.ceil(0.95 * s.length) - 1].toFixed(4),
     p99:  +s[Math.ceil(0.99 * s.length) - 1].toFixed(4),
+    ciLower: +ciLower.toFixed(4),
+    ciUpper: +ciUpper.toFixed(4)
   };
 }
 
@@ -40,7 +49,7 @@ function silent(fn) {
 }
 
 const ITERS = 100;
-const BSGS_N_VALUES = [10, 50, 100, 500, 1000, 5000, 10000];
+const BSGS_N_VALUES = [10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000];
 
 const results = {
   meta: { date: new Date().toISOString(), node: process.version, curve: "secp256k1", iterations: ITERS },
@@ -114,7 +123,8 @@ for (const n of BSGS_N_VALUES) {
     actual_votes: targetVoteCount,
     stats: calcStats(bsgs_times)
   });
-  console.log(`  N=${String(n).padEnd(5)} -> ${calcStats(bsgs_times).mean.toFixed(3)} ms (target vote=${targetVoteCount})`);
+  const stats = calcStats(bsgs_times);
+  console.log(`  N=${String(n).padEnd(8)} -> Mean: ${stats.mean.toFixed(3)} ms (±${stats.sd.toFixed(3)} ms, 95% CI: [${stats.ciLower.toFixed(3)}, ${stats.ciUpper.toFixed(3)}] ms) | target=${targetVoteCount}`);
 }
 
 // 3. ZKP Latency (Disjunctive Chaum-Pedersen)
@@ -161,7 +171,7 @@ console.log(`  ZKP Proof:  ${results.sizes.zkp_proof_json_bytes} bytes (JSON) / 
 
 // 5. Vector Vote Latency vs Candidate Count
 console.log("\n[5/5] Vector Vote Latency vs Candidate Count (N)...");
-const CANDIDATE_COUNTS = [2, 5, 10, 20];
+const CANDIDATE_COUNTS = [2, 5, 10, 20, 30, 50];
 results.vector_latency = [];
 
 for (const nCand of CANDIDATE_COUNTS) {
@@ -202,8 +212,16 @@ for (const nCand of CANDIDATE_COUNTS) {
     homomorphic_add: calcStats(add_vec_times)
   });
   
-  console.log(`  N=${String(nCand).padEnd(2)} candidates -> Encrypt+ZKP: ${calcStats(enc_vec_times).mean.toFixed(3)} ms | Server Add: ${calcStats(add_vec_times).mean.toFixed(3)} ms`);
+  const encStats = calcStats(enc_vec_times);
+  const addStats = calcStats(add_vec_times);
+  console.log(`  N=${String(nCand).padEnd(2)} candidates -> Encrypt+ZKP: ${encStats.mean.toFixed(3)} ms (±${encStats.sd.toFixed(3)} ms, CI: [${encStats.ciLower.toFixed(2)}, ${encStats.ciUpper.toFixed(2)}]) | Server Add: ${addStats.mean.toFixed(3)} ms`);
 }
+
+// Memory profiling
+const peakRss = process.memoryUsage().rss / 1024 / 1024;
+results.meta.peak_rss_mb = +peakRss.toFixed(2);
+console.log(`\n🧠 CLIENT PEAK MEMORY CONSUMPTION PROFILE:`);
+console.log(`  Process Peak Resident Set Size (RSS) RAM : ${peakRss.toFixed(2)} MB\n`);
 
 // Write results
 fs.writeFileSync("homomorphic_results.json", JSON.stringify(results, null, 2));

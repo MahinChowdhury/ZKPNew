@@ -12,6 +12,8 @@
   "dependencies": {
     "fabric-contract-api": "^2.5.0",
     "fabric-shim": "^2.5.0",
-    "tweetnacl": "^1.0.3"
+    "tweetnacl": "^1.0.3",
+    "snarkjs": "^0.7.4",
+    "circomlibjs": "^0.1.7"
   }
 }

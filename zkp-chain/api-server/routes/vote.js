@@ -339,17 +339,19 @@ router.post(
       }
 
       // Submit vote to blockchain with SNARK proof + nullifier
+      // The chaincode performs FULL on-chain Groth16 verification
       const voteResult = await fabricClient.castVote(
         snarkProofResult.proof,
         snarkProofResult.publicSignals,
         nullifier.toString(),
         encryptedVoteVector,
-        ballotId
+        ballotId,
+        mode
       );
 
-      console.log("✅ Vote cast on blockchain");
+      console.log("✅ Vote cast on blockchain (on-chain verified)");
       console.log("Vote ID:", voteResult.voteId);
-      console.log(`=== VOTE SUBMISSION COMPLETE (${mode.toUpperCase()} — ZK-SNARK + Merkle + Nullifier) ===\n`);
+      console.log(`=== VOTE SUBMISSION COMPLETE (${mode.toUpperCase()} — ZK-SNARK + Merkle + Nullifier, ON-CHAIN VERIFIED) ===\n`);
 
       res.json({
         ok: true,
@@ -360,16 +362,18 @@ router.post(
         biometricMode: mode,
         ballotTitle: activeBallot.title,
         timestamp: voteResult.timestamp,
+        onChainVerified: true,
         zkp: {
           snarkProof: true,
           merkleProof: true,
           nullifier: nullifier.toString().slice(0, 20) + "...",
+          onChainVerification: true,
           protocol: mode === "face"
             ? "groth16 + merkle + nullifier (cosine similarity)"
             : "groth16 + merkle + nullifier (hamming distance)",
           curve: "bn128",
         },
-        message: `Vote successfully cast with ${mode.toUpperCase()} ZK-SNARK biometric proof + Merkle anonymous membership + nullifier anti-replay`,
+        message: `Vote successfully cast with ${mode.toUpperCase()} ZK-SNARK biometric proof — on-chain Groth16 verified + Merkle root validated + nullifier anti-replay`,
       });
 
     } catch (err) {

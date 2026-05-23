@@ -28,14 +28,15 @@ const ITERS  = parseInt(getArg("--iters", "10"), 10);
 
 // ─── Sweep dimensions ─────────────────────────────────────────────────────────
 // Dim 1: Merkle tree voter counts
-const VOTER_COUNTS     = [2, 5, 10, 25, 50, 100];
+const VOTER_COUNTS     = [10, 100, 1000, 10000, 100000];
 // Dim 2: Candidate counts (ElGamal/ZKP scalability)
-const CANDIDATE_COUNTS = [2, 3, 5, 10, 20];
+const CANDIDATE_COUNTS = [2, 5, 10, 20, 30, 50];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function nowMs() { return Number(process.hrtime.bigint()) / 1e6; }
 function sha256Hash(d) { return crypto.createHash("sha256").update(String(d)).digest("hex"); }
 function calcStats(arr) {
+  if (arr.length === 0) return { mean: 0, sd: 0, min: 0, max: 0, p95: 0, trimmedMean: 0, trimmedSd: 0, ciLower: 0, ciUpper: 0 };
   const s    = [...arr].sort((a, b) => a - b);
   const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
   const sd   = Math.sqrt(arr.reduce((a, v) => a + (v - mean) ** 2, 0) / arr.length);
@@ -44,11 +45,18 @@ function calcStats(arr) {
   const tMean = trimmed.length > 0 ? trimmed.reduce((a, b) => a + b, 0) / trimmed.length : mean;
   const tSd = trimmed.length > 0
     ? Math.sqrt(trimmed.reduce((a, v) => a + (v - tMean) ** 2, 0) / trimmed.length) : sd;
+
+  const n = arr.length;
+  const sem = sd / Math.sqrt(n || 1);
+  const ciLower = mean - 1.96 * sem;
+  const ciUpper = mean + 1.96 * sem;
+
   return {
     mean: +mean.toFixed(3), sd: +sd.toFixed(3),
     min:  +s[0].toFixed(3), max: +s[s.length - 1].toFixed(3),
     p95:  +s[Math.ceil(0.95 * s.length) - 1].toFixed(3),
     trimmedMean: +tMean.toFixed(3), trimmedSd: +tSd.toFixed(3),
+    ciLower: +ciLower.toFixed(3), ciUpper: +ciUpper.toFixed(3)
   };
 }
 function suppress(fn) {
@@ -102,31 +110,21 @@ function addIrisNoise(code, flipRate = 0.10) {
 
 // ─── Build commitments pool of size N (face) ──────────────────────────────────
 async function buildFaceCommitmentsPool(N, regData) {
-  const commitments = [];
+  const commitments = new Array(N);
   for (let i = 0; i < N - 1; i++) {
-    const emb = generateFakeEmbedding(100 + i);
-    const s = BigInt("0x" + crypto.randomBytes(16).toString("hex"));
-    const fh = await suppressAsync(() => snark.poseidonHashEmbedding(snark.scaleEmbedding(emb), s));
-    const sk = snark.generateSecretKey();
-    const c  = await suppressAsync(() => snark.computeCommitment(fh, sk));
-    commitments.push(c);
+    commitments[i] = BigInt(i + 1); // Simple distinct non-zero BigInts for super-fast O(1) pool building
   }
-  commitments.push(regData.commitment);
+  commitments[N - 1] = regData.commitment;
   return commitments;
 }
 
 // ─── Build commitments pool of size N (iris) ──────────────────────────────────
 async function buildIrisCommitmentsPool(N, irisHash, secretKey, commitment) {
-  const commitments = [];
+  const commitments = new Array(N);
   for (let i = 0; i < N - 1; i++) {
-    const code = generateFakeIrisCode256(200 + i);
-    const s = BigInt("0x" + crypto.randomBytes(16).toString("hex"));
-    const ih = await suppressAsync(() => irisSnark.poseidonHashIrisCode(code, s));
-    const sk = snark.generateSecretKey();
-    const c  = await suppressAsync(() => irisSnark.computeIrisCommitment(ih, sk));
-    commitments.push(c);
+    commitments[i] = BigInt(i + 1); // Simple distinct non-zero BigInts
   }
-  commitments.push(commitment);
+  commitments[N - 1] = commitment;
   return commitments;
 }
 
@@ -278,8 +276,8 @@ async function buildIrisCommitmentsPool(N, irisHash, secretKey, commitment) {
     };
     voterSweep.push(row);
 
-    console.log(`  N=${String(N).padEnd(4)} Face: tree=${row.face.merkle_build.trimmedMean}ms prove=${row.face.snark_prove.trimmedMean}ms total=${row.face.total_crypto.trimmedMean}ms`);
-    console.log(`  ${" ".repeat(5)} Iris: tree=${row.iris.merkle_build.trimmedMean}ms prove=${row.iris.snark_prove.trimmedMean}ms total=${row.iris.total_crypto.trimmedMean}ms`);
+    console.log(`  N=${String(N).padEnd(6)} Face: tree=${row.face.merkle_build.trimmedMean.toFixed(2)}ms (±${row.face.merkle_build.trimmedSd.toFixed(2)}) | prove=${row.face.snark_prove.trimmedMean.toFixed(2)}ms (±${row.face.snark_prove.trimmedSd.toFixed(2)}, CI:[${row.face.snark_prove.ciLower.toFixed(1)}, ${row.face.snark_prove.ciUpper.toFixed(1)}]) | total=${row.face.total_crypto.trimmedMean.toFixed(2)}ms`);
+    console.log(`  ${" ".repeat(7)} Iris: tree=${row.iris.merkle_build.trimmedMean.toFixed(2)}ms (±${row.iris.merkle_build.trimmedSd.toFixed(2)}) | prove=${row.iris.snark_prove.trimmedMean.toFixed(2)}ms (±${row.iris.snark_prove.trimmedSd.toFixed(2)}, CI:[${row.iris.snark_prove.ciLower.toFixed(1)}, ${row.iris.snark_prove.ciUpper.toFixed(1)}]) | total=${row.iris.total_crypto.trimmedMean.toFixed(2)}ms`);
   }
 
   // ─── DIM 2: Candidate Count Sweep ─────────────────────────────────────────
@@ -312,8 +310,13 @@ async function buildIrisCommitmentsPool(N, irisHash, secretKey, commitment) {
       elgamal_zkp: calcStats(enc_times),
     };
     candidateSweep.push(row);
-    console.log(`  C=${String(C).padEnd(2)}  Encrypt+ZKP=${row.elgamal_zkp.trimmedMean}ms ±${row.elgamal_zkp.trimmedSd}ms`);
+    console.log(`  C=${String(C).padEnd(2)}  Encrypt+ZKP=${row.elgamal_zkp.trimmedMean.toFixed(2)}ms (±${row.elgamal_zkp.trimmedSd.toFixed(2)}, CI:[${row.elgamal_zkp.ciLower.toFixed(1)}, ${row.elgamal_zkp.ciUpper.toFixed(1)}])`);
   }
+
+  // Memory profiling
+  const peakRss = process.memoryUsage().rss / 1024 / 1024;
+  console.log(`\n🧠 CLIENT PEAK MEMORY CONSUMPTION PROFILE:`);
+  console.log(`  Process Peak Resident Set Size (RSS) RAM : ${peakRss.toFixed(2)} MB\n`);
 
   // ─── Save results ─────────────────────────────────────────────────────────
   const results = {
@@ -324,6 +327,7 @@ async function buildIrisCommitmentsPool(N, irisHash, secretKey, commitment) {
       node:        process.version,
       iterations:  ITERS,
       architecture: "ZK-SNARK (Groth16) + Merkle Tree + Nullifier",
+      peak_rss_mb:  +peakRss.toFixed(2)
     },
     dim1_voter_sweep:     voterSweep,
     dim2_candidate_sweep: candidateSweep,

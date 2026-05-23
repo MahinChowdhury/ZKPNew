@@ -35,7 +35,7 @@ const WARMUP = 3;
 function nowMs() { return Number(process.hrtime.bigint()) / 1e6; }
 
 function calcStats(arr) {
-  if (!arr.length) return { mean:0, sd:0, min:0, max:0, p95:0, p99:0, trimmedMean:0, trimmedSd:0, raw: arr };
+  if (!arr.length) return { mean:0, sd:0, min:0, max:0, p95:0, p99:0, trimmedMean:0, trimmedSd:0, ciLower:0, ciUpper:0, raw: arr };
   const s = [...arr].sort((a, b) => a - b);
   const mean = arr.reduce((a,b) => a+b, 0) / arr.length;
   const sd   = Math.sqrt(arr.reduce((a,v) => a + (v-mean)**2, 0) / arr.length);
@@ -44,12 +44,19 @@ function calcStats(arr) {
   const tMean = trimmed.length > 0 ? trimmed.reduce((a,b) => a+b, 0) / trimmed.length : mean;
   const tSd   = trimmed.length > 0
     ? Math.sqrt(trimmed.reduce((a,v) => a + (v-tMean)**2, 0) / trimmed.length) : sd;
+
+  const n = arr.length;
+  const sem = sd / Math.sqrt(n || 1);
+  const ciLower = mean - 1.96 * sem;
+  const ciUpper = mean + 1.96 * sem;
+
   return {
     mean: +mean.toFixed(4), sd: +sd.toFixed(4),
     min:  +s[0].toFixed(4), max: +s[s.length-1].toFixed(4),
     p95:  +s[Math.ceil(0.95*s.length)-1].toFixed(4),
     p99:  +s[Math.ceil(0.99*s.length)-1].toFixed(4),
     trimmedMean: +tMean.toFixed(4), trimmedSd: +tSd.toFixed(4),
+    ciLower: +ciLower.toFixed(4), ciUpper: +ciUpper.toFixed(4),
     raw: arr.map(v => +v.toFixed(4)),
   };
 }
@@ -555,6 +562,11 @@ function getR1CSConstraintCount(r1csPath) {
   console.log(`  ${"Proving Key (MB)".padEnd(35)} ${artifactSizes.face.zkey_mb.toFixed(2).padStart(12)} ${artifactSizes.iris.zkey_mb.toFixed(2).padStart(12)} ${(artifactSizes.face.zkey_mb / (artifactSizes.iris.zkey_mb || 1)).toFixed(1).padStart(10)}×`);
   console.log(`  ${"WASM Size (KB)".padEnd(35)} ${artifactSizes.face.wasm_kb.toFixed(1).padStart(12)} ${artifactSizes.iris.wasm_kb.toFixed(1).padStart(12)} ${(artifactSizes.face.wasm_kb / (artifactSizes.iris.wasm_kb || 1)).toFixed(1).padStart(10)}×`);
 
+  // Memory profiling
+  const peakRss = process.memoryUsage().rss / 1024 / 1024;
+  console.log(`\n🧠 CLIENT PEAK MEMORY CONSUMPTION PROFILE:`);
+  console.log(`  Process Peak Resident Set Size (RSS) RAM : ${peakRss.toFixed(2)} MB\n`);
+
   // =========================================================================
   // Save results
   // =========================================================================
@@ -569,6 +581,7 @@ function getR1CSConstraintCount(r1csPath) {
       voters: NUM_VOTERS,
       merkle_depth: 20,
       architecture: "ZK-SNARK (Groth16) + Poseidon Merkle Tree + Nullifier",
+      peak_rss_mb:  +peakRss.toFixed(2)
     },
     // Fig 1 & 3 data
     latency: {

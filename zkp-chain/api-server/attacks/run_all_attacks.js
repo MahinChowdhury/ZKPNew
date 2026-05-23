@@ -32,6 +32,7 @@ const offlineTests = {
   "06_mitm": require("./06_mitm_attack_test"),
   "07_collusion": require("./07_collusion_attack_test"),
   "08_timing": require("./08_timing_attack_test"),
+  "09_prototype_split": require("./09_prototype_split_attack_test"),
 };
 
 const liveTests = {
@@ -182,6 +183,8 @@ function buildAttackMatrix(combinedResults) {
     { id: 28, attack: "Cross-Election Link", layer: "LRS", property: "Unlinkability", cat: "07_collusion", test: "7.3_cross_election_linkability" },
     { id: 29, attack: "Signer Position Timing", layer: "LRS", property: "Side-Channel", cat: "08_timing", test: "8.1_signer_position_timing" },
     { id: 30, attack: "Vote Value Timing", layer: "ElGamal+ZKP", property: "Side-Channel", cat: "08_timing", test: "8.2_vote_value_timing" },
+    { id: 31, attack: "Prototype Split (Legacy)", layer: "API + Client", property: "Integrity", cat: "09_prototype_split", test: "9.1_prototype_split_bypass" },
+    { id: 32, attack: "Hardened Integrated Verification", layer: "Chaincode", property: "Soundness", cat: "09_prototype_split", test: "9.2_hardened_onchain_rejection" },
   ];
 
   for (const m of mappings) {

@@ -6,7 +6,9 @@ class FabricClient {
   constructor() {
     this.gateway = null;
     this.wallet = null;
-    this.contract = null;
+    this.contracts = new Map(); // channelName -> contract
+    this.ccp = null;
+    this.numChannels = 4; // Default partition scale for national workload (multi-channel parallelization)
   }
 
   async connect() {
@@ -23,7 +25,7 @@ class FabricClient {
         'connection-org1.json'
       );
       
-      const ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
+      this.ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
 
       // Create wallet
       const walletPath = path.join(process.cwd(), 'wallet');
@@ -39,18 +41,23 @@ class FabricClient {
 
       // Connect to gateway
       this.gateway = new Gateway();
-      await this.gateway.connect(ccp, {
+      await this.gateway.connect(this.ccp, {
         wallet: this.wallet,
         identity: 'appUser',
         discovery: { enabled: true, asLocalhost: true }
       });
 
-      // Get network and contract
-      const network = await this.gateway.getNetwork('mychannel');
-      this.contract = network.getContract('identity');
+      // Connect default channel for backward compatibility
+      try {
+        const network = await this.gateway.getNetwork('mychannel');
+        const contract = network.getContract('identity');
+        this.contracts.set('mychannel', contract);
+      } catch (err) {
+        console.warn('⚠️ Default mychannel connection failed:', err.message);
+      }
 
-      console.log('✅ Connected to Fabric network (identity contract)');
-      return this.contract;
+      console.log('✅ Connected to Fabric network gateway');
+      return this.contracts.get('mychannel');
     } catch (error) {
       throw error;
     }
@@ -63,18 +70,58 @@ class FabricClient {
     }
   }
 
+  /**
+   * Helper to retrieve or establish a contract connection for a specific channel name.
+   * Seamlessly falls back to default 'mychannel' for backward compatibility on standard environments.
+   */
+  async getContract(channelName) {
+    if (this.contracts.has(channelName)) {
+      return this.contracts.get(channelName);
+    }
+    if (!this.gateway) {
+      throw new Error('FabricClient not connected. Call connect() first.');
+    }
+    try {
+      const network = await this.gateway.getNetwork(channelName);
+      const contract = network.getContract('identity');
+      this.contracts.set(channelName, contract);
+      return contract;
+    } catch (err) {
+      console.warn(`⚠️ Dynamic channel '${channelName}' not reachable: ${err.message}. Falling back to default 'mychannel'.`);
+      const defaultContract = this.contracts.get('mychannel');
+      if (!defaultContract) {
+        throw new Error(`Dynamic channel '${channelName}' and default 'mychannel' are both unavailable.`);
+      }
+      return defaultContract;
+    }
+  }
+
+  /**
+   * Helper to route a transaction to a partition channel based on a routing key (NID hash, Nullifier, etc.).
+   */
+  routeChannel(routingKey) {
+    if (!routingKey) return 'mychannel';
+    let hash = 0;
+    for (let i = 0; i < routingKey.length; i++) {
+      hash = (hash << 5) - hash + routingKey.charCodeAt(i);
+      hash |= 0;
+    }
+    const index = Math.abs(hash) % this.numChannels;
+    return `channel-${index}`;
+  }
+
   // ============================
   // Registration Functions
   // ============================
 
   /**
    * Register a new voter by adding commitment to the global Merkle tree
-   * @param {string} nidHash - Hash of NID (for duplicate check)
-   * @param {string} commitment - Poseidon commitment = Poseidon(faceHash, secretKey)
    */
   async registerUser(nidHash, commitment) {
     try {
-      const result = await this.contract.submitTransaction('register', nidHash, commitment);
+      const channel = this.routeChannel(nidHash);
+      const contract = await this.getContract(channel);
+      const result = await contract.submitTransaction('register', nidHash, commitment);
       return JSON.parse(result.toString());
     } catch (error) {
       throw error;
@@ -82,25 +129,57 @@ class FabricClient {
   }
 
   /**
-   * Get all registered commitments (for building Merkle tree client-side)
-   * @returns {string[]} Array of commitment strings
+   * Get all registered commitments (aggregates across dynamic partition channels for national scale)
    */
   async getCommitments() {
     try {
-      const result = await this.contract.evaluateTransaction('getCommitments');
-      return JSON.parse(result.toString());
+      let commitments = [];
+      for (let i = 0; i < this.numChannels; i++) {
+        const channelName = `channel-${i}`;
+        try {
+          const contract = await this.getContract(channelName);
+          // If we fallback to 'mychannel', prevent duplicate pulls
+          if (contract === this.contracts.get('mychannel') && i > 0) continue;
+          
+          const result = await contract.evaluateTransaction('getCommitments');
+          commitments = commitments.concat(JSON.parse(result.toString()));
+        } catch (err) {
+          if (i === 0) {
+            const defaultContract = await this.getContract('mychannel');
+            const result = await defaultContract.evaluateTransaction('getCommitments');
+            return JSON.parse(result.toString());
+          }
+        }
+      }
+      return commitments;
     } catch (error) {
       throw error;
     }
   }
 
   /**
-   * Get voter count (number of registered face commitments)
+   * Get voter count (aggregates across partition channels)
    */
   async getVoterCount() {
     try {
-      const result = await this.contract.evaluateTransaction('getVoterCount');
-      return parseInt(result.toString());
+      let count = 0;
+      for (let i = 0; i < this.numChannels; i++) {
+        const channelName = `channel-${i}`;
+        try {
+          const contract = await this.getContract(channelName);
+          if (contract === this.contracts.get('mychannel') && i > 0) continue;
+          
+          const result = await contract.evaluateTransaction('getVoterCount');
+          count += parseInt(result.toString());
+        } catch (err) {
+          if (i === 0) {
+            const defaultContract = await this.getContract('mychannel');
+            const result = await defaultContract.evaluateTransaction('getVoterCount');
+            return parseInt(result.toString());
+          }
+        }
+      }
+      return count;
     } catch (error) {
       throw error;
     }
@@ -108,17 +187,16 @@ class FabricClient {
 
   // ============================
   // Iris Registration Functions
-  // (Independent Merkle tree)
   // ============================
 
   /**
-   * Register a new voter via iris biometric (independent iris Merkle tree)
-   * @param {string} nidHash - Hash of NID
-   * @param {string} commitment - Poseidon commitment = Poseidon(irisHash, secretKey)
+   * Register a new voter via iris biometric
    */
   async registerIrisUser(nidHash, commitment) {
     try {
-      const result = await this.contract.submitTransaction('registerIris', nidHash, commitment);
+      const channel = this.routeChannel(nidHash);
+      const contract = await this.getContract(channel);
+      const result = await contract.submitTransaction('registerIris', nidHash, commitment);
       return JSON.parse(result.toString());
     } catch (error) {
       throw error;
@@ -126,13 +204,28 @@ class FabricClient {
   }
 
   /**
-   * Get all registered iris commitments (for building iris Merkle tree)
-   * @returns {string[]} Array of iris commitment strings
+   * Get all registered iris commitments (aggregates across channels)
    */
   async getIrisCommitments() {
     try {
-      const result = await this.contract.evaluateTransaction('getIrisCommitments');
-      return JSON.parse(result.toString());
+      let commitments = [];
+      for (let i = 0; i < this.numChannels; i++) {
+        const channelName = `channel-${i}`;
+        try {
+          const contract = await this.getContract(channelName);
+          if (contract === this.contracts.get('mychannel') && i > 0) continue;
+
+          const result = await contract.evaluateTransaction('getIrisCommitments');
+          commitments = commitments.concat(JSON.parse(result.toString()));
+        } catch (err) {
+          if (i === 0) {
+            const defaultContract = await this.getContract('mychannel');
+            const result = await defaultContract.evaluateTransaction('getIrisCommitments');
+            return JSON.parse(result.toString());
+          }
+        }
+      }
+      return commitments;
     } catch (error) {
       throw error;
     }
@@ -143,8 +236,24 @@ class FabricClient {
    */
   async getIrisVoterCount() {
     try {
-      const result = await this.contract.evaluateTransaction('getIrisVoterCount');
-      return parseInt(result.toString());
+      let count = 0;
+      for (let i = 0; i < this.numChannels; i++) {
+        const channelName = `channel-${i}`;
+        try {
+          const contract = await this.getContract(channelName);
+          if (contract === this.contracts.get('mychannel') && i > 0) continue;
+
+          const result = await contract.evaluateTransaction('getIrisVoterCount');
+          count += parseInt(result.toString());
+        } catch (err) {
+          if (i === 0) {
+            const defaultContract = await this.getContract('mychannel');
+            const result = await defaultContract.evaluateTransaction('getIrisVoterCount');
+            return parseInt(result.toString());
+          }
+        }
+      }
+      return count;
     } catch (error) {
       throw error;
     }
@@ -156,21 +265,19 @@ class FabricClient {
 
   /**
    * Cast a vote with ZK-SNARK proof + nullifier
-   * @param {Object} proof - Groth16 proof object
-   * @param {string[]} publicSignals - Public signals from the circuit
-   * @param {string} nullifier - Nullifier = Poseidon(secretKey, electionId)
-   * @param {Array} encryptedVoteVector - Array of homomorphically encrypted votes (one per candidate)
-   * @param {string} ballotId - The ballot this vote is for
    */
-  async castVote(proof, publicSignals, nullifier, encryptedVoteVector = null, ballotId = '') {
+  async castVote(proof, publicSignals, nullifier, encryptedVoteVector = null, ballotId = '', biometricType = 'face') {
     try {
-      const result = await this.contract.submitTransaction(
+      const channel = this.routeChannel(nullifier);
+      const contract = await this.getContract(channel);
+      const result = await contract.submitTransaction(
         'castVote',
         JSON.stringify(proof),
         JSON.stringify(publicSignals),
         nullifier,
         encryptedVoteVector ? JSON.stringify(encryptedVoteVector) : '',
-        ballotId
+        ballotId,
+        biometricType
       );
       return JSON.parse(result.toString());
     } catch (error) {
@@ -179,13 +286,13 @@ class FabricClient {
   }
 
   /**
-   * Check if a nullifier has been used (double-vote check)
-   * @param {string} nullifier - The nullifier to check
-   * @returns {boolean} true if nullifier already used
+   * Check if a nullifier has been used (double-vote check routed to target channel partition)
    */
   async hasVoted(nullifier) {
     try {
-      const result = await this.contract.evaluateTransaction('hasVoted', nullifier);
+      const channel = this.routeChannel(nullifier);
+      const contract = await this.getContract(channel);
+      const result = await contract.evaluateTransaction('hasVoted', nullifier);
       return result.toString() === 'true';
     } catch (error) {
       throw error;
@@ -193,23 +300,48 @@ class FabricClient {
   }
 
   /**
-   * Get vote results (tallies)
+   * Get vote results (aggregates tallies across channels)
    */
   async getVoteResults(ballotId = '') {
     try {
-      const result = await this.contract.evaluateTransaction('getVoteResults', ballotId);
-      return JSON.parse(result.toString());
+      let totalVotes = 0;
+      let totalVoterCount = 0;
+      for (let i = 0; i < this.numChannels; i++) {
+        const channelName = `channel-${i}`;
+        try {
+          const contract = await this.getContract(channelName);
+          if (contract === this.contracts.get('mychannel') && i > 0) continue;
+
+          const result = await contract.evaluateTransaction('getVoteResults', ballotId);
+          const parsed = JSON.parse(result.toString());
+          totalVotes += parsed.totalVotes || 0;
+          totalVoterCount += parsed.voterCount || 0;
+        } catch (err) {
+          if (i === 0) {
+            const defaultContract = await this.getContract('mychannel');
+            const result = await defaultContract.evaluateTransaction('getVoteResults', ballotId);
+            return JSON.parse(result.toString());
+          }
+        }
+      }
+      return {
+        totalVotes,
+        tallies: {},
+        voterCount: totalVoterCount
+      };
     } catch (error) {
       throw error;
     }
   }
 
   /**
-   * Get a specific vote by ID
+   * Get a specific vote by ID (check target partition)
    */
   async getVote(voteId) {
     try {
-      const result = await this.contract.evaluateTransaction('getVote', voteId);
+      const channel = this.routeChannel(voteId);
+      const contract = await this.getContract(channel);
+      const result = await contract.evaluateTransaction('getVote', voteId);
       return JSON.parse(result.toString());
     } catch (error) {
       throw error;
@@ -217,24 +349,56 @@ class FabricClient {
   }
 
   /**
-   * Get total vote count
+   * Get total vote count (aggregates across channels)
    */
   async getVoteCount(ballotId = '') {
     try {
-      const result = await this.contract.evaluateTransaction('getVoteCount', ballotId);
-      return parseInt(result.toString());
+      let count = 0;
+      for (let i = 0; i < this.numChannels; i++) {
+        const channelName = `channel-${i}`;
+        try {
+          const contract = await this.getContract(channelName);
+          if (contract === this.contracts.get('mychannel') && i > 0) continue;
+
+          const result = await contract.evaluateTransaction('getVoteCount', ballotId);
+          count += parseInt(result.toString());
+        } catch (err) {
+          if (i === 0) {
+            const defaultContract = await this.getContract('mychannel');
+            const result = await defaultContract.evaluateTransaction('getVoteCount', ballotId);
+            return parseInt(result.toString());
+          }
+        }
+      }
+      return count;
     } catch (error) {
       throw error;
     }
   }
 
   /**
-   * Get all votes (for auditing)
+   * Get all votes (aggregates across channels for auditing)
    */
   async getAllVotes(ballotId = '') {
     try {
-      const result = await this.contract.evaluateTransaction('getAllVotes', ballotId);
-      return JSON.parse(result.toString());
+      let allVotes = [];
+      for (let i = 0; i < this.numChannels; i++) {
+        const channelName = `channel-${i}`;
+        try {
+          const contract = await this.getContract(channelName);
+          if (contract === this.contracts.get('mychannel') && i > 0) continue;
+
+          const result = await contract.evaluateTransaction('getAllVotes', ballotId);
+          allVotes = allVotes.concat(JSON.parse(result.toString()));
+        } catch (err) {
+          if (i === 0) {
+            const defaultContract = await this.getContract('mychannel');
+            const result = await defaultContract.evaluateTransaction('getAllVotes', ballotId);
+            return JSON.parse(result.toString());
+          }
+        }
+      }
+      return allVotes;
     } catch (error) {
       throw error;
     }
@@ -244,17 +408,11 @@ class FabricClient {
   // Legacy Compatibility Functions
   // ============================
 
-  /**
-   * Get ring (legacy — returns commitments instead)
-   */
   async getRing() {
     const commitments = await this.getCommitments();
     return commitments.map((c, i) => ({ index: i, commitment: c }));
   }
 
-  /**
-   * Get ring size (legacy — returns voter count)
-   */
   async getRingSize() {
     return await this.getVoterCount();
   }

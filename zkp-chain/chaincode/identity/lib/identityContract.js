@@ -1,8 +1,76 @@
 'use strict';
 
 const { Contract } = require('fabric-contract-api');
+const snarkjs = require('snarkjs');
+const circomlibjs = require('circomlibjs');
+const faceVKey = require('./verification_key.json');
+const irisVKey = require('./iris_verification_key.json');
+
+let _poseidon = null;
+let _F = null;
+
+async function initPoseidon() {
+  if (!_poseidon) {
+    _poseidon = await circomlibjs.buildPoseidon();
+    _F = _poseidon.F;
+  }
+  return { poseidon: _poseidon, F: _F };
+}
+
+async function poseidonHash2(left, right) {
+  const { poseidon, F } = await initPoseidon();
+  const h = poseidon([F.e(left), F.e(right)]);
+  return F.toObject(h);
+}
 
 class IdentityContract extends Contract {
+
+  // Helper: Build sparse Merkle tree root on-chain
+  async buildMerkleTreeOnChain(commitments) {
+    const MERKLE_TREE_LEVELS = 20;
+    
+    // 1. Get zero hashes
+    const zeroHashes = [0n];
+    for (let i = 0; i < MERKLE_TREE_LEVELS; i++) {
+      zeroHashes.push(await poseidonHash2(zeroHashes[i], zeroHashes[i]));
+    }
+    
+    // 2. Layer 0: store commitments as BigInt
+    const layers = [new Map()];
+    for (let i = 0; i < commitments.length; i++) {
+      const val = BigInt(commitments[i]);
+      if (val !== 0n) {
+        layers[0].set(i, val);
+      }
+    }
+    
+    // 3. Build tree bottom-up
+    for (let level = 0; level < MERKLE_TREE_LEVELS; level++) {
+      const nextLayer = new Map();
+      const currentLayer = layers[level];
+      
+      const parentIndices = new Set();
+      for (const idx of currentLayer.keys()) {
+        parentIndices.add(Math.floor(idx / 2));
+      }
+      
+      for (const parentIdx of parentIndices) {
+        const leftIdx = parentIdx * 2;
+        const rightIdx = parentIdx * 2 + 1;
+        const left = currentLayer.has(leftIdx) ? currentLayer.get(leftIdx) : zeroHashes[level];
+        const right = currentLayer.has(rightIdx) ? currentLayer.get(rightIdx) : zeroHashes[level];
+        nextLayer.set(parentIdx, await poseidonHash2(left, right));
+      }
+      
+      layers.push(nextLayer);
+    }
+    
+    const root = layers[MERKLE_TREE_LEVELS].has(0)
+      ? layers[MERKLE_TREE_LEVELS].get(0)
+      : zeroHashes[MERKLE_TREE_LEVELS];
+      
+    return root;
+  }
 
   // Initialize ledger
   async initLedger(ctx) {
@@ -272,11 +340,45 @@ class IdentityContract extends Contract {
   // VOTING FUNCTIONS
   // ============================
 
+  // -------------------------------------------------------
+  // Helper: Verify a ZK-SNARK Groth16 proof on-chain
+  // Selects the correct verification key based on biometricType.
+  //
+  // Public signal layout (set by the circom `main` declaration):
+  //   Face: [valid, faceHash, merkleRoot, nullifier, electionId, threshold_sq_num, threshold_sq_den]
+  //   Iris: [valid, irisHash, merkleRoot, nullifier, electionId, hammingThreshold]
+  //
+  // Shared indices across both circuits:
+  //   0 → valid (circuit output, must be "1")
+  //   1 → biometricHash (faceHash / irisHash)
+  //   2 → merkleRoot
+  //   3 → nullifier
+  //   4 → electionId
+  // -------------------------------------------------------
+  async verifyZkProof(proof, publicSignals, biometricType) {
+    const vkey = biometricType === 'iris' ? irisVKey : faceVKey;
+
+    console.log(`🔐 On-chain Groth16 verification (${biometricType})...`);
+    const startTime = Date.now();
+
+    const isValid = await snarkjs.groth16.verify(vkey, publicSignals, proof);
+
+    const elapsed = Date.now() - startTime;
+    console.log(`   Groth16 result: ${isValid} (${elapsed}ms)`);
+
+    return isValid;
+  }
+
   // Cast a vote with ZK-SNARK proof + nullifier
+  // The chaincode performs FULL on-chain Groth16 verification:
+  //   1. snarkjs.groth16.verify() — cryptographic soundness
+  //   2. Merkle root validation — voter is a registered member
+  //   3. Nullifier consistency — proof nullifier matches submitted nullifier
+  //   4. Output validity — circuit output signal must be 1
   // The chaincode is completely oblivious to the voter's identity.
   // The nullifier prevents double voting without revealing who voted.
-  async castVote(ctx, proofJSON, publicSignalsJSON, nullifier, encryptedVoteJSON, ballotId) {
-    console.log('============= START : Cast Vote ===========');
+  async castVote(ctx, proofJSON, publicSignalsJSON, nullifier, encryptedVoteJSON, ballotId, biometricType) {
+    console.log('============= START : Cast Vote (On-Chain Verification) ===========');
     
     if (!proofJSON || !publicSignalsJSON || !nullifier) {
       throw new Error('Required parameters: proof, publicSignals, nullifier');
@@ -284,8 +386,89 @@ class IdentityContract extends Contract {
 
     const proof = JSON.parse(proofJSON);
     const publicSignals = JSON.parse(publicSignalsJSON);
+    const bioType = biometricType || 'face';
+
+    // =====================================================
+    // STEP 1: Groth16 cryptographic proof verification
+    // =====================================================
+    const proofValid = await this.verifyZkProof(proof, publicSignals, bioType);
+    if (!proofValid) {
+      throw new Error('ZK-SNARK proof verification FAILED — invalid proof');
+    }
+    console.log('✅ Groth16 proof verified on-chain');
+
+    // =====================================================
+    // STEP 2: Validate circuit output (publicSignals[0])
+    //   The circuit output "valid" must be 1, meaning
+    //   the biometric check (cosine/Hamming) passed.
+    // =====================================================
+    if (publicSignals[0] !== '1') {
+      throw new Error('ZK-SNARK output invalid — biometric similarity check failed inside circuit');
+    }
+    console.log('✅ Circuit output valid = 1');
+
+    // =====================================================
+    // STEP 3: Nullifier consistency check
+    //   The nullifier embedded in the proof (publicSignals[3])
+    //   must match the submitted nullifier parameter.
+    // =====================================================
+    if (publicSignals[3] !== nullifier) {
+      throw new Error('Nullifier mismatch — submitted nullifier does not match proof public signal');
+    }
+    console.log('✅ Nullifier matches proof');
+
+    // =====================================================
+    // STEP 4: Merkle root validation
+    //   Rebuild the Merkle tree from on-chain commitments
+    //   and verify the proof's merkleRoot (publicSignals[2])
+    //   matches the current on-chain state.
+    // =====================================================
+    const commitmentsKey = bioType === 'iris' ? 'GLOBAL_IRIS_COMMITMENTS' : 'GLOBAL_COMMITMENTS';
+    const commitmentsBytes = await ctx.stub.getState(commitmentsKey);
     
-    // Parse encrypted vote if provided
+    if (!commitmentsBytes || commitmentsBytes.length === 0) {
+      throw new Error('No registered commitments found on-chain');
+    }
+
+    const store = JSON.parse(commitmentsBytes.toString());
+    const commitmentValues = store.commitments.map(c => c.value);
+
+    // Rebuild sparse Merkle tree root on-chain
+    const onChainRoot = await this.buildMerkleTreeOnChain(commitmentValues);
+    const proofMerkleRoot = BigInt(publicSignals[2]);
+
+    if (onChainRoot !== proofMerkleRoot) {
+      throw new Error(
+        `Merkle root mismatch — proof root ${proofMerkleRoot.toString().slice(0, 20)}... ` +
+        `does not match on-chain root ${onChainRoot.toString().slice(0, 20)}...`
+      );
+    }
+    console.log('✅ Merkle root verified against on-chain commitments');
+
+    // =====================================================
+    // STEP 5: ElectionId presence check
+    //   publicSignals[4] is the electionId — we verify it is
+    //   non-zero (a valid election must have a non-zero ID).
+    // =====================================================
+    const proofElectionId = publicSignals[4];
+    if (!proofElectionId || proofElectionId === '0') {
+      throw new Error('ElectionId in proof is missing or zero');
+    }
+    console.log(`✅ ElectionId present in proof: ${proofElectionId.slice(0, 20)}...`);
+
+    // =====================================================
+    // STEP 6: Double-vote check via nullifier
+    // =====================================================
+    const nullifierKey = `NULLIFIER_${nullifier}`;
+    const existingVote = await ctx.stub.getState(nullifierKey);
+    
+    if (existingVote && existingVote.length > 0) {
+      throw new Error('Double voting detected - this identity has already voted');
+    }
+
+    // =====================================================
+    // Parse encrypted vote (if provided)
+    // =====================================================
     let encryptedVote = null;
     if (encryptedVoteJSON && encryptedVoteJSON.trim() !== '') {
       try {
@@ -298,14 +481,6 @@ class IdentityContract extends Contract {
       console.log('⚠️  Warning: No encrypted vote provided');
     }
 
-    // Check for double voting using nullifier
-    const nullifierKey = `NULLIFIER_${nullifier}`;
-    const existingVote = await ctx.stub.getState(nullifierKey);
-    
-    if (existingVote && existingVote.length > 0) {
-      throw new Error('Double voting detected - this identity has already voted');
-    }
-
     // Use txId as the unique, conflict-free vote identifier
     const txId = ctx.stub.getTxID();
     const voteId = `VOTE_${txId}`;
@@ -314,14 +489,16 @@ class IdentityContract extends Contract {
     const txTimestamp = ctx.stub.getTxTimestamp();
     const timestampStr = new Date(txTimestamp.seconds.low * 1000).toISOString();
 
-    // Create vote record — NO plaintext or hashed candidate names stored!
+    // Create vote record — proof is stored for public auditability
     const vote = {
       voteId,
       ballotId: ballotId || '',
       proof,
       publicSignals,
       nullifier,
+      biometricType: bioType,
       encryptedVote,
+      onChainVerified: true,
       timestamp: timestampStr,
       txId,
       docType: 'vote'
@@ -342,7 +519,9 @@ class IdentityContract extends Contract {
     const eventPayload = {
       voteId,
       ballotId: ballotId || '',
+      biometricType: bioType,
       hasEncryption: encryptedVote !== null,
+      onChainVerified: true,
       timestamp: timestampStr
     };
     
@@ -350,13 +529,16 @@ class IdentityContract extends Contract {
 
     console.log(`Vote cast: ${voteId}`);
     console.log(`Ballot: ${ballotId || 'not specified'}`);
+    console.log(`Biometric: ${bioType}`);
     console.log(`Nullifier: ${nullifier.slice(0, 20)}...`);
+    console.log(`On-chain verified: true`);
     console.log(`Encrypted: ${encryptedVote !== null}`);
-    console.log('============= END : Cast Vote ===========');
+    console.log('============= END : Cast Vote (On-Chain Verification) ===========');
 
     return JSON.stringify({
       voteId,
       ballotId: ballotId || '',
+      onChainVerified: true,
       timestamp: timestampStr
     });
   }
