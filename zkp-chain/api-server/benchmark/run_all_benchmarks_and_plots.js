@@ -92,6 +92,36 @@ function runCommand(command, description) {
     "Security Attack resilience offline suite (including zeroed proof test)"
   );
 
+  // 9. Generate Paper Figures
+  console.log("\n" + "📊" + "━".repeat(78));
+  console.log("  📈 GENERATING ALL PAPER FIGURES...");
+  console.log("━".repeat(80));
+
+  runCommand(
+    "python zkp-chain/api-server/benchmark/e2e_plot.py",
+    "Generating E2E Pipeline Latency plots"
+  );
+  runCommand(
+    "python zkp-chain/api-server/benchmark/e2e_scalability_plot.py",
+    "Generating Voter Tree & Candidate count sweep plots"
+  );
+  runCommand(
+    "python zkp-chain/api-server/benchmark/homomorphic_plot.py",
+    "Generating ElGamal & BSGS discrete log solver latency plots"
+  );
+  runCommand(
+    "python zkp-chain/api-server/benchmark/zksnark_plot.py",
+    "Generating ZK-SNARK constraints, keys, and proof sizes plots"
+  );
+  runCommand(
+    "python zkp-chain/api-server/attacks/attack_plot.py",
+    "Generating Attack Resilience Matrix plot"
+  );
+  runCommand(
+    "python zkp-chain/api-server/compareBenchmarks/plot_results.py",
+    "Generating comparative system performance plots"
+  );
+
   const totalTimeSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
 
   console.log("\n" + "==========================================================================");
@@ -104,6 +134,15 @@ function runCommand(command, description) {
   console.log("     → ROC Curve       : zkp-chain/api-server/benchmark/biometric_roc_curve.png");
   console.log("     → DET Curve       : zkp-chain/api-server/benchmark/biometric_det_curve.png");
   console.log("     → Sweep Curve     : zkp-chain/api-server/benchmark/biometric_threshold_sweep.png");
+  console.log("   - E2E Timing and Scalability Plots: zkp-chain/api-server/benchmark/");
+  console.log("     → E2E Latency     : zkp-chain/api-server/benchmark/fig9_e2e_latency.png");
+  console.log("     → Scalability     : zkp-chain/api-server/benchmark/fig9_e2e_scalability.png");
+  console.log("     → Homomorphic     : zkp-chain/api-server/benchmark/fig8_homomorphic.png");
+  console.log("     → SNARK Proving   : zkp-chain/api-server/benchmark/fig6_simulation.png");
+  console.log("   - Attack Resilience Matrix Plot: zkp-chain/api-server/attacks/");
+  console.log("     → Attack Matrix   : zkp-chain/api-server/attacks/attack_matrix_plot.png");
+  console.log("   - Comparative Evaluation Plots: zkp-chain/api-server/compareBenchmarks/");
+  console.log("     → Comparative     : zkp-chain/api-server/compareBenchmarks/figure3_latency_breakdown.pdf");
   console.log("   - Biometric JSON Metrics: zkp-chain/api-server/benchmark/biometric_accuracy_results.json");
   console.log("   - On-chain vs Off-chain Metrics: zkp-chain/api-server/benchmark/onchain_vs_offchain_results.json");
   console.log("   - Scalability Sweeps: zkp-chain/api-server/benchmark/e2e_scalability_results.json");

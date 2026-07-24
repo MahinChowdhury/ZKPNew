@@ -224,7 +224,12 @@ if (require.main === module) {
     mode = "live-only";
   }
 
-  runAll(mode).catch(console.error);
+  runAll(mode)
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }
 
 module.exports = { runAll };
