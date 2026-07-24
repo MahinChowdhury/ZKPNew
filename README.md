@@ -67,4 +67,38 @@ pip uninstall opencv-python opencv-contrib-python -y
 pip install "opencv-python-headless<4.10.0"
 ```
 
+## Install circom circuits
+
+```
+sudo apt-get update
+sudo apt-get install -y build-essential libgmp-dev nasm curl git
+
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+
+git clone https://github.com/iden3/circom.git
+cd circom
+cargo build --release
+sudo cp target/release/circom /usr/local/bin/
+cd ..
+
+
+npm install -g snarkjs
+
+# Compile Face Circuit
+circom face_auth.circom --r1cs --wasm --sym
+# Compile Iris Circuit
+circom iris_auth.circom --r1cs --wasm --sym
+
+
+chmod +x setup_rapidsnark.sh
+./setup_rapidsnark.sh
+
+chmod +x build_circuit.sh
+./build_circuit.sh
+
+chmod +x build_iris_circuit.sh
+./build_iris_circuit.sh
+
+```
 
