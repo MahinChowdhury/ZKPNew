@@ -98,6 +98,16 @@ git submodule update --init --recursive
 echo "  ✓ Repository cloned"
 
 # ------------------------------------------
+# GCC 11+ / Ubuntu cstdint compatibility patch
+# ------------------------------------------
+echo "🔧 Patching rapidsnark files with <cstdint> for compilation compatibility..."
+sed -i '1s/^/#include <cstdint>\n/' src/binfile_utils.hpp
+sed -i '1s/^/#include <cstdint>\n/' src/binfile_utils.cpp
+sed -i '1s/^/#include <cstdint>\n/' src/zkey_utils.hpp
+sed -i '1s/^/#include <cstdint>\n/' src/zkey_utils.cpp
+echo "  ✓ Compatibility patches applied"
+
+# ------------------------------------------
 # Step 3: Build GMP (required dependency)
 # ------------------------------------------
 echo ""
