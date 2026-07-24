@@ -202,6 +202,7 @@ async function getFaceEmbedding() {
 
     const res = await axios.post("http://localhost:8000/face/get-embedding", form, {
       headers: form.getHeaders(),
+      timeout: 3000,
     });
 
     if (res.data && res.data.embedding) {
@@ -232,6 +233,7 @@ async function getIrisCode() {
 
     const res = await axios.post("http://localhost:8000/iris/get-iriscode", form, {
       headers: form.getHeaders(),
+      timeout: 3000,
     });
 
     if (res.data && res.data.iris_code) {
@@ -763,4 +765,5 @@ async function getIrisCode() {
       console.error("⚠️ Error disconnecting from Fabric network:", e.message);
     }
   }
+  process.exit(0);
 })();

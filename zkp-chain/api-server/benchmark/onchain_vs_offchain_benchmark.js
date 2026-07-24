@@ -237,4 +237,5 @@ const mockPublicSignals = ["1", "12345", "9999", "8888", "7777"];
   const outPath = path.join(__dirname, "onchain_vs_offchain_results.json");
   fs.writeFileSync(outPath, JSON.stringify(results, null, 2));
   console.log(`  ✓ Saved paradigm results to ${outPath}\n`);
+  process.exit(0);
 })();

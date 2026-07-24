@@ -614,4 +614,5 @@ function getR1CSConstraintCount(r1csPath) {
   fs.writeFileSync(outPath, JSON.stringify(results, null, 2));
   console.log(`\n  ✓ Saved ${outPath}`);
   console.log(`  → Next: python benchmark/zksnark_plot.py\n`);
+  process.exit(0);
 })();

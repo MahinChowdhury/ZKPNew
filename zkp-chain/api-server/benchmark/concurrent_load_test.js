@@ -170,4 +170,5 @@ function calcStats(arr) {
   const resultsPath = path.join(__dirname, "concurrent_load_results.json");
   fs.writeFileSync(resultsPath, JSON.stringify(concurrentResults, null, 2));
   console.log(`  ✓ Saved concurrent results to ${resultsPath}\n`);
+  process.exit(0);
 })();

@@ -224,5 +224,7 @@ console.log(`\n🧠 CLIENT PEAK MEMORY CONSUMPTION PROFILE:`);
 console.log(`  Process Peak Resident Set Size (RSS) RAM : ${peakRss.toFixed(2)} MB\n`);
 
 // Write results
-fs.writeFileSync("homomorphic_results.json", JSON.stringify(results, null, 2));
-console.log("\n✓ Saved homomorphic_results.json — next run: python homomorphic_plot.py\n");
+const outPath = path.join(__dirname, "homomorphic_results.json");
+fs.writeFileSync(outPath, JSON.stringify(results, null, 2));
+console.log(`\n✓ Saved ${outPath} — next run: python homomorphic_plot.py\n`);
+process.exit(0);

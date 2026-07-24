@@ -340,4 +340,5 @@ async function buildIrisCommitmentsPool(N, irisHash, secretKey, commitment) {
   console.log(`  ✓ Saved ${outPath}`);
   console.log("  → Run: python benchmark/e2e_scalability_plot.py");
   console.log("=".repeat(70) + "\n");
+  process.exit(0);
 })();
