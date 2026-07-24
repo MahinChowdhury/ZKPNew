@@ -39,14 +39,14 @@ function runCommand(command, description) {
   console.log("  ZKP Voting System — Master Evaluation & Paper Figures Generator");
   console.log("==========================================================================");
   console.log("  This script runs all evaluation suites sequentially. Make sure Node.js");
-  console.log("  and Python (with numpy and matplotlib) are installed.");
+  console.log("  and Python 3 (with numpy and matplotlib) are installed.");
   console.log("==========================================================================\n");
 
   const startTime = Date.now();
 
   // 1. Biometric Accuracy Evaluation & Plotter
   runCommand(
-    "python zkp-chain/model/biometric_accuracy_eval.py",
+    "python3 zkp-chain/model/biometric_accuracy_eval.py",
     "Biometric Accuracy evaluation (LFW & CASIA EER curves, DET & ROC plots)"
   );
 
@@ -98,27 +98,27 @@ function runCommand(command, description) {
   console.log("━".repeat(80));
 
   runCommand(
-    "python zkp-chain/api-server/benchmark/e2e_plot.py",
+    "python3 zkp-chain/api-server/benchmark/e2e_plot.py",
     "Generating E2E Pipeline Latency plots"
   );
   runCommand(
-    "python zkp-chain/api-server/benchmark/e2e_scalability_plot.py",
+    "python3 zkp-chain/api-server/benchmark/e2e_scalability_plot.py",
     "Generating Voter Tree & Candidate count sweep plots"
   );
   runCommand(
-    "python zkp-chain/api-server/benchmark/homomorphic_plot.py",
+    "python3 zkp-chain/api-server/benchmark/homomorphic_plot.py",
     "Generating ElGamal & BSGS discrete log solver latency plots"
   );
   runCommand(
-    "python zkp-chain/api-server/benchmark/zksnark_plot.py",
+    "python3 zkp-chain/api-server/benchmark/zksnark_plot.py",
     "Generating ZK-SNARK constraints, keys, and proof sizes plots"
   );
   runCommand(
-    "python zkp-chain/api-server/attacks/attack_plot.py",
+    "python3 zkp-chain/api-server/attacks/attack_plot.py",
     "Generating Attack Resilience Matrix plot"
   );
   runCommand(
-    "python zkp-chain/api-server/compareBenchmarks/plot_results.py",
+    "python3 zkp-chain/api-server/compareBenchmarks/plot_results.py",
     "Generating comparative system performance plots"
   );
 
