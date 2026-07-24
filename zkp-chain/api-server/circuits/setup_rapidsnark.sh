@@ -113,8 +113,32 @@ echo "  ✓ Compatibility patches applied"
 echo ""
 echo "[3/5] Building GMP (GNU Multiple Precision)..."
 cd "${RAPIDSNARK_DIR}"
-./build_gmp.sh host
-echo "  ✓ GMP built"
+./build_gmp.sh host || true
+echo "  ✓ GMP build script finished"
+
+# Ensure GMP directories exist and symlink system files if build_gmp failed to output them
+mkdir -p depends/gmp/package/lib
+mkdir -p depends/gmp/package/include
+
+if [ ! -f "depends/gmp/package/lib/libgmp.a" ]; then
+    echo "🔧 Local libgmp.a not found. Symlinking system libgmp.a..."
+    if [ -f "/usr/lib/x86_64-linux-gnu/libgmp.a" ]; then
+        ln -sf /usr/lib/x86_64-linux-gnu/libgmp.a depends/gmp/package/lib/libgmp.a
+    elif [ -f "/usr/lib/libgmp.a" ]; then
+        ln -sf /usr/lib/libgmp.a depends/gmp/package/lib/libgmp.a
+    else
+        echo "⚠️  Warning: System libgmp.a static library not found. Build may fail."
+    fi
+fi
+
+if [ ! -f "depends/gmp/package/include/gmp.h" ]; then
+    echo "🔧 Local gmp.h not found. Symlinking system gmp.h..."
+    if [ -f "/usr/include/gmp.h" ]; then
+        ln -sf /usr/include/gmp.h depends/gmp/package/include/gmp.h
+    elif [ -f "/usr/include/x86_64-linux-gnu/gmp.h" ]; then
+        ln -sf /usr/include/x86_64-linux-gnu/gmp.h depends/gmp/package/include/gmp.h
+    fi
+fi
 
 # ------------------------------------------
 # Step 4: Build rapidsnark prover
