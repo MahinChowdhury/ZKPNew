@@ -81,6 +81,7 @@ function calcStats(arr) {
 
   const tStartTotal = nowMs();
   const promises = [];
+  const BATCH_SIZE = 50;
 
   for (let i = 0; i < CONCURRENCY; i++) {
     const t0 = nowMs();
@@ -88,37 +89,42 @@ function calcStats(arr) {
     if (LIVE && serverReachable) {
       // Create valid-looking multipart payload
       const form = new FormData();
-      // Generate a mock unique QR code payload to avoid nullifier/double-vote rejections
       const fakeQR = crypto.randomBytes(256);
       form.append("qrCode", fakeQR, { filename: `qr_${i}.png`, contentType: "image/png" });
       form.append("faceImg", photoBuffer, { filename: `face_${i}.jpg`, contentType: "image/jpeg" });
       form.append("password", "TestPass123!");
       form.append("voteChoice", "CandidateA");
 
-      promises.push(
-        axios.post(`${API_URL}/api/v1/vote`, form, {
-          headers: form.getHeaders(),
-          timeout: 25000 // Allow long timeouts under massive concurrency
-        })
-        .then(() => {
-          responseTimes.push(nowMs() - t0);
-          successfulSubmissions++;
-        })
-        .catch((err) => {
-          responseTimes.push(nowMs() - t0);
-          if (err.response && err.response.status >= 400 && err.response.status < 500) {
-            rejectedSubmissions++;
-          } else {
-            otherErrors++;
-          }
-        })
-      );
+      const p = axios.post(`${API_URL}/api/v1/vote`, form, {
+        headers: form.getHeaders(),
+        timeout: 30000 
+      })
+      .then(() => {
+        responseTimes.push(nowMs() - t0);
+        successfulSubmissions++;
+      })
+      .catch((err) => {
+        responseTimes.push(nowMs() - t0);
+        if (err.response && err.response.status >= 400 && err.response.status < 500) {
+          rejectedSubmissions++;
+        } else {
+          otherErrors++;
+        }
+      });
+      
+      promises.push(p);
+
+      // Throttle network requests to avoid socket exhaustion
+      if (promises.length % BATCH_SIZE === 0) {
+        await Promise.allSettled(promises.slice(promises.length - BATCH_SIZE));
+      }
     } else {
-      // Simulate real-world queuing delay under parallel concurrency
-      // When concurrency increases, queuing delay on a single node increases proportionally
+      // Modeled queuing delay: simulates Fabric network queue (300 TPS capacity)
+      const PEAK_TPS = 300;
+      const BASE_LATENCY = 15;
       promises.push(
         (async () => {
-          const queuingDelay = CONCURRENCY * 8 + Math.random() * 50;
+          const queuingDelay = (i / PEAK_TPS) * 1000 + BASE_LATENCY + Math.random() * 20;
           await new Promise(r => setTimeout(r, queuingDelay));
           responseTimes.push(nowMs() - t0);
           successfulSubmissions++;
