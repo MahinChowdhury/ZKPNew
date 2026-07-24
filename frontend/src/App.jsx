@@ -26,8 +26,8 @@ function App() {
 
   return (
     <div className="container App">
-      <header style={{ marginBottom: '2rem', textAlign: 'center' }}>
-        <h1 style={{ color: 'var(--primary-color)', fontSize: '2.5rem' }}>ZKP Voting System</h1>
+      <header>
+        <h1>ZKP Voting System</h1>
         <p>A secure, decentralized voting platform built on ZK-SNARKs</p>
       </header>
 

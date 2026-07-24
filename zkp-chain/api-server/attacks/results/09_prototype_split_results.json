@@ -1,0 +1,18 @@
+{
+  "category": "Prototype Split & Zeroed Proof Bypass",
+  "timestamp": "2026-07-24T10:19:58.027Z",
+  "tests": {
+    "9.1_legacy_split_bypass": {
+      "payload": "zeroed_proof",
+      "accepted": true,
+      "txId": "tx_phjnkkc",
+      "pass": true
+    },
+    "9.2_hardened_onchain_rejection": {
+      "payload": "zeroed_proof",
+      "accepted": false,
+      "error": "ZK-SNARK proof verification FAILED on-chain — transaction reverted!",
+      "pass": true
+    }
+  }
+}

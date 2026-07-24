@@ -5,7 +5,6 @@ export default function TallyResult() {
   const [ballotId, setBallotId] = useState('');
   const [status, setStatus] = useState({ loading: false, error: null, success: null, data: null });
 
-
   const handleCompute = async () => {
     if (!ballotId.trim()) {
       setStatus({ ...status, error: 'Ballot ID is required.' });
@@ -15,53 +14,80 @@ export default function TallyResult() {
     try {
       const res = await computeTally(ballotId);
       if (res.error) {
-         setStatus({ loading: false, error: res.error, success: null, data: null });
+        setStatus({ loading: false, error: res.error, success: null, data: null });
       } else {
-         setStatus({ loading: false, error: null, success: 'Tally computed successfully!', data: res });
+        setStatus({ loading: false, error: null, success: '✅ Tally computed and decrypted successfully!', data: res });
       }
     } catch (err) {
       setStatus({ loading: false, error: err.message || 'Compute failed.', success: null, data: null });
     }
   };
 
+  const renderResults = (data) => {
+    // Try to render results as a visual tally table
+    const results = data.results || data.tally || data;
+    if (typeof results === 'object' && !Array.isArray(results)) {
+      const entries = Object.entries(results).filter(([k]) => k !== 'ballotId' && k !== 'ok');
+      if (entries.length > 0) {
+        const maxVotes = Math.max(...entries.map(([, v]) => Number(v) || 0), 1);
+        return (
+          <div className="tally-results">
+            <h4>📊 Election Results</h4>
+            {entries.map(([candidate, votes]) => {
+              const pct = Math.round((Number(votes) / maxVotes) * 100);
+              return (
+                <div key={candidate} className="tally-row">
+                  <div className="tally-label">
+                    <span className="tally-candidate">{candidate}</span>
+                    <span className="tally-votes">{votes} votes</span>
+                  </div>
+                  <div className="tally-bar-track">
+                    <div className="tally-bar-fill" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
+    }
+    // Fallback: raw JSON
+    return (
+      <div className="json-output">
+        <h4>Raw Result Data:</h4>
+        <pre>{JSON.stringify(data, null, 2)}</pre>
+      </div>
+    );
+  };
+
   return (
     <div className="card">
-      <h2 style={{ marginBottom: '1.5rem' }}>Tally Result Management</h2>
-      {status.error && (
-        <div style={{ color: 'var(--danger-color)', marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#fef2f2', borderRadius: 'var(--radius-md)' }}>
-          {status.error}
+      <div className="card-header">
+        <div className="card-icon">📊</div>
+        <div>
+          <h2>Tally Results</h2>
+          <p style={{ marginBottom: 0 }}>Decrypt and display homomorphic tally for a ballot</p>
         </div>
-      )}
-      {status.success && (
-        <div style={{ color: 'var(--success-color)', marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#ecfdf5', borderRadius: 'var(--radius-md)' }}>
-          {status.success}
-        </div>
-      )}
-      
-      {status.data && (
-        <div style={{ marginBottom: '1rem', padding: '1rem', backgroundColor: 'var(--bg-color)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', overflowX: 'auto' }}>
-          <h4>Result Data:</h4>
-          <pre style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>
-            {JSON.stringify(status.data, null, 2)}
-          </pre>
-        </div>
-      )}
+      </div>
+
+      {status.error && <div className="alert alert-error">⚠️ {status.error}</div>}
+      {status.success && <div className="alert alert-success">{status.success}</div>}
+
+      {status.data && renderResults(status.data)}
 
       <div className="form-group">
         <label>Ballot ID</label>
-        <input 
-          type="text" 
-          placeholder="e.g. ballot_1774786248124" 
-          value={ballotId} 
-          onChange={e => setBallotId(e.target.value)} 
+        <input
+          type="text"
+          placeholder="e.g. ballot_1774786248124"
+          value={ballotId}
+          onChange={e => setBallotId(e.target.value)}
         />
       </div>
 
-      <div style={{ marginTop: '1rem' }}>
-        <button type="button" onClick={handleCompute} disabled={status.loading} style={{ width: '100%' }}>
-          {status.loading ? 'Processing...' : 'Compute Tally'}
-        </button>
-      </div>
+      <button type="button" onClick={handleCompute} disabled={status.loading} className="btn-full">
+        {status.loading ? <><span className="spinner" /> Decrypting Tally...</> : '🔓 Compute Tally'}
+      </button>
     </div>
   );
 }

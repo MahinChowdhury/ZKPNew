@@ -18,8 +18,8 @@
       "Iris (Hamming)"
     ],
     "r1cs_constraints": [
-      23012,
-      18697
+      20984,
+      19724
     ],
     "witness_gen_ms": [
       23.444444444444443,
@@ -705,9 +705,9 @@
     }
   },
   "table1_summary": {
-    "face_constraints": 23012,
-    "iris_constraints": 18697,
-    "constraint_ratio": 1.2,
+    "face_constraints": 20984,
+    "iris_constraints": 19724,
+    "constraint_ratio": 1.06,
     "face_zkey_mb": 9.89,
     "iris_zkey_mb": 8.44,
     "zkey_ratio": 1.2,

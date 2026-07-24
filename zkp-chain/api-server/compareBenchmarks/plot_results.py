@@ -187,7 +187,7 @@ def plot_figure1(data, output_dir, fmt):
     time_ratio = total_prover[0] / total_prover[1] if total_prover[1] > 0 else 0
     ax1.text(
         0.5, 0.95,
-        f"Constraint reduction: {ratio:.1f}×  |  Speedup: {time_ratio:.1f}×",
+        f"Constraint reduction: {ratio:.2f}×  |  Speedup: {time_ratio:.2f}×",
         transform=ax1.transAxes,
         ha="center", va="top",
         fontsize=11, fontweight="bold",
@@ -532,7 +532,7 @@ def plot_figure5(data, output_dir, fmt):
     # Box plots
     bp1 = ax1.boxplot(
         [face_proof, iris_proof],
-        labels=["Face", "Iris"],
+        tick_labels=["Face", "Iris"],
         patch_artist=True,
         widths=0.5,
         medianprops=dict(color="black", linewidth=2),

@@ -1,18 +1,18 @@
 {
-  "timestamp": "2026-03-29T06:44:53.413Z",
-  "mode": "offline-only",
+  "timestamp": "2026-07-24T10:17:53.345Z",
+  "mode": "all",
   "categories": {
     "03_forgery": {
       "category": "Ring Signature Forgery",
-      "timestamp": "2026-03-29T06:44:53.414Z",
+      "timestamp": "2026-07-24T10:17:53.347Z",
       "tests": {
         "3.1_random_forgery": {
           "trials": 1000,
           "accepted": 0,
           "rejected": 1000,
           "forgery_success_rate": "0.000000%",
-          "total_time_ms": "39491",
-          "avg_verify_time_ms": "39.491",
+          "total_time_ms": "52440",
+          "avg_verify_time_ms": "52.440",
           "pass": true
         },
         "3.2_ring_manipulation": {
@@ -105,7 +105,7 @@
     },
     "04_zkp": {
       "category": "Vote Manipulation & ZKP Bypass",
-      "timestamp": "2026-03-29T06:45:37.670Z",
+      "timestamp": "2026-07-24T10:18:52.655Z",
       "tests": {
         "4.1_invalid_vote_values": {
           "values_tested": [
@@ -213,7 +213,7 @@
     },
     "06_mitm": {
       "category": "Man-in-the-Middle Attacks",
-      "timestamp": "2026-03-29T06:45:40.345Z",
+      "timestamp": "2026-07-24T10:18:56.277Z",
       "tests": {
         "6.1_vote_modification_detection": {
           "original_valid": true,
@@ -242,17 +242,17 @@
     },
     "07_collusion": {
       "category": "Collusion & Coercion Resistance",
-      "timestamp": "2026-03-29T06:45:40.703Z",
+      "timestamp": "2026-07-24T10:18:56.852Z",
       "tests": {
         "7.1_n_minus_1_collusion": {
           "ring_size": 10,
           "trials": 100,
-          "correct_guesses": 13,
-          "guess_rate_pct": "13.0",
+          "correct_guesses": 17,
+          "guess_rate_pct": "17.0",
           "expected_by_chance_pct": "10.0",
-          "z_score": "1.000",
-          "attacker_has_advantage": false,
-          "pass": true
+          "z_score": "2.333",
+          "attacker_has_advantage": true,
+          "pass": false
         },
         "7.2_authority_key_abuse": {
           "total_votes": 20,
@@ -277,113 +277,152 @@
     },
     "08_timing": {
       "category": "Timing & Side-Channel",
-      "timestamp": "2026-03-29T06:45:46.206Z",
+      "timestamp": "2026-07-24T10:19:04.554Z",
       "tests": {
         "8.1_signer_position_timing": {
           "ring_size": 10,
           "iterations_per_position": 50,
           "position_stats": {
             "0": {
-              "mean": 52.80664799690246,
-              "stddev": 2.1002342091124104,
-              "min": 51.3091000020504,
-              "max": 64.04330000281334
+              "mean": 85.84652483999729,
+              "stddev": 19.721955093585986,
+              "min": 70.18001999892294,
+              "max": 180.25715599954128
             },
             "1": {
-              "mean": 54.135381999015806,
-              "stddev": 0.8324332320539081,
-              "min": 52.91440001130104,
-              "max": 57.02290001511574
+              "mean": 74.76901037994772,
+              "stddev": 4.856446441259617,
+              "min": 69.56814899854362,
+              "max": 97.40701399929821
             },
             "2": {
-              "mean": 53.222898001670835,
-              "stddev": 0.6479615857864142,
-              "min": 52.032900005578995,
-              "max": 54.9311999976635
+              "mean": 73.33546608000994,
+              "stddev": 5.953771397079248,
+              "min": 69.10316099971533,
+              "max": 106.91013099998236
             },
             "3": {
-              "mean": 53.38241999745369,
-              "stddev": 0.38665142590990265,
-              "min": 52.65700000524521,
-              "max": 54.412999987602234
+              "mean": 72.42883825987577,
+              "stddev": 5.198817446062504,
+              "min": 66.9068509992212,
+              "max": 95.7811660002917
             },
             "4": {
-              "mean": 52.670998000502586,
-              "stddev": 2.6922446379555107,
-              "min": 50.455300003290176,
-              "max": 69.67249998450279
+              "mean": 72.01058352015913,
+              "stddev": 4.840386348799092,
+              "min": 67.59520599991083,
+              "max": 99.02727600000799
             },
             "5": {
-              "mean": 51.08187799572945,
-              "stddev": 0.449483659749202,
-              "min": 50.58790001273155,
-              "max": 53.11100000143051
+              "mean": 73.83297722019255,
+              "stddev": 6.683537366512686,
+              "min": 68.97106000036001,
+              "max": 102.93920899927616
             },
             "6": {
-              "mean": 51.339757999777795,
-              "stddev": 0.9537279355430115,
-              "min": 50.28830000758171,
-              "max": 54.74109998345375
+              "mean": 72.8894107799977,
+              "stddev": 5.054140507419538,
+              "min": 68.77907400019467,
+              "max": 95.19238900020719
             },
             "7": {
-              "mean": 53.61025600075722,
-              "stddev": 0.43197755757700934,
-              "min": 52.958899974823,
-              "max": 54.9835000038147
+              "mean": 71.74937130011618,
+              "stddev": 3.6818621774551183,
+              "min": 67.93754199892282,
+              "max": 94.30716999992728
             },
             "8": {
-              "mean": 52.98989599823952,
-              "stddev": 0.7167015174432376,
-              "min": 50.394499987363815,
-              "max": 54.43569999933243
+              "mean": 72.20296793997288,
+              "stddev": 4.826865936928853,
+              "min": 67.2602190002799,
+              "max": 94.39675600081682
             },
             "9": {
-              "mean": 50.94327799797058,
-              "stddev": 0.39837384736849657,
-              "min": 50.28819999098778,
-              "max": 52.433899998664856
+              "mean": 71.66269774012268,
+              "stddev": 4.666189218266423,
+              "min": 67.32290299981833,
+              "max": 97.12561099976301
             }
           },
-          "grand_mean_ms": "52.62",
-          "f_statistic": "40.9912",
+          "grand_mean_ms": "74.07",
+          "f_statistic": "14.1270",
           "f_critical_alpha_005": 1.93,
           "no_significant_difference": true,
-          "coefficient_of_variation_pct": "2.01",
+          "coefficient_of_variation_pct": "5.45",
           "pass": true
         },
         "8.2_vote_value_timing": {
           "iterations": 200,
           "encrypt": {
-            "mean_m0_ms": "1.838",
-            "mean_m1_ms": "1.884",
-            "ratio": "1.025",
+            "mean_m0_ms": "2.460",
+            "mean_m1_ms": "2.500",
+            "ratio": "1.016",
             "safe": true
           },
           "prove": {
-            "mean_m0_ms": "6.367",
-            "mean_m1_ms": "6.204",
-            "ratio": "1.026",
+            "mean_m0_ms": "8.613",
+            "mean_m1_ms": "8.218",
+            "ratio": "1.048",
             "safe": true
           },
           "pass": true
         },
         "8.3_verify_timing_consistency": {
           "iterations": 100,
-          "mean_ms": "47.744",
-          "stddev_ms": "0.879",
-          "cv_pct": "1.84",
+          "mean_ms": "68.302",
+          "stddev_ms": "4.458",
+          "cv_pct": "6.53",
           "consistent": true,
           "pass": true
         }
       }
+    },
+    "09_prototype_split": {
+      "category": "Prototype Split & Zeroed Proof Bypass",
+      "timestamp": "2026-07-24T10:19:58.027Z",
+      "tests": {
+        "9.1_legacy_split_bypass": {
+          "payload": "zeroed_proof",
+          "accepted": true,
+          "txId": "tx_phjnkkc",
+          "pass": true
+        },
+        "9.2_hardened_onchain_rejection": {
+          "payload": "zeroed_proof",
+          "accepted": false,
+          "error": "ZK-SNARK proof verification FAILED on-chain — transaction reverted!",
+          "pass": true
+        }
+      }
+    },
+    "01_sybil": {
+      "category": "Sybil & Identity Attacks",
+      "timestamp": "2026-07-24T10:19:58.405Z",
+      "requires_live_system": true,
+      "tests": {},
+      "error": "Fabric connection failed: User identity not found in wallet"
+    },
+    "02_replay": {
+      "category": "Replay & Double-Voting",
+      "timestamp": "2026-07-24T10:19:58.413Z",
+      "requires_live_system": true,
+      "tests": {},
+      "error": "Fabric connection failed: User identity not found in wallet"
+    },
+    "05_dos": {
+      "category": "Network-Level DoS",
+      "timestamp": "2026-07-24T10:19:58.416Z",
+      "requires_live_system": true,
+      "tests": {},
+      "error": "API server not reachable"
     }
   },
   "summary": {
-    "total_tests": 21,
-    "passed": 21,
-    "failed": 0,
-    "pass_rate": "100.0%",
-    "elapsed_seconds": "89.8"
+    "total_tests": 23,
+    "passed": 22,
+    "failed": 1,
+    "pass_rate": "95.7%",
+    "elapsed_seconds": "125.3"
   },
   "attack_matrix": [
     {
@@ -391,7 +430,7 @@
       "attack": "Sybil Registration",
       "layer": "Chaincode",
       "property": "Eligibility",
-      "status": "NOT RUN",
+      "status": "ERROR",
       "detail": {}
     },
     {
@@ -399,7 +438,7 @@
       "attack": "Duplicate Key Injection",
       "layer": "Chaincode",
       "property": "Uniqueness",
-      "status": "NOT RUN",
+      "status": "ERROR",
       "detail": {}
     },
     {
@@ -407,7 +446,7 @@
       "attack": "Outsider Key Attack",
       "layer": "API + LRS",
       "property": "Eligibility",
-      "status": "NOT RUN",
+      "status": "ERROR",
       "detail": {}
     },
     {
@@ -415,7 +454,7 @@
       "attack": "Concurrent Replay",
       "layer": "Chaincode",
       "property": "Revote Prevention",
-      "status": "NOT RUN",
+      "status": "ERROR",
       "detail": {}
     },
     {
@@ -423,7 +462,7 @@
       "attack": "Re-sign Same Key",
       "layer": "Chaincode",
       "property": "Linkability",
-      "status": "NOT RUN",
+      "status": "ERROR",
       "detail": {}
     },
     {
@@ -431,7 +470,7 @@
       "attack": "Sequential Replay",
       "layer": "Chaincode",
       "property": "Idempotency",
-      "status": "NOT RUN",
+      "status": "ERROR",
       "detail": {}
     },
     {
@@ -445,8 +484,8 @@
         "accepted": 0,
         "rejected": 1000,
         "forgery_success_rate": "0.000000%",
-        "total_time_ms": "39491",
-        "avg_verify_time_ms": "39.491",
+        "total_time_ms": "52440",
+        "avg_verify_time_ms": "52.440",
         "pass": true
       }
     },
@@ -713,7 +752,7 @@
       "attack": "DoS Flood",
       "layer": "API",
       "property": "Availability",
-      "status": "NOT RUN",
+      "status": "ERROR",
       "detail": {}
     },
     {
@@ -721,7 +760,7 @@
       "attack": "Valid-Looking Flood",
       "layer": "API",
       "property": "Validation",
-      "status": "NOT RUN",
+      "status": "ERROR",
       "detail": {}
     },
     {
@@ -729,7 +768,7 @@
       "attack": "Large Payload",
       "layer": "API",
       "property": "Resource Safety",
-      "status": "NOT RUN",
+      "status": "ERROR",
       "detail": {}
     },
     {
@@ -737,7 +776,7 @@
       "attack": "Private Key Exposure",
       "layer": "API",
       "property": "Confidentiality",
-      "status": "NOT RUN",
+      "status": "ERROR",
       "detail": {}
     },
     {
@@ -796,16 +835,16 @@
       "attack": "n-1 Collusion",
       "layer": "LRS",
       "property": "Anonymity",
-      "status": "PASS",
+      "status": "FAIL",
       "detail": {
         "ring_size": 10,
         "trials": 100,
-        "correct_guesses": 13,
-        "guess_rate_pct": "13.0",
+        "correct_guesses": 17,
+        "guess_rate_pct": "17.0",
         "expected_by_chance_pct": "10.0",
-        "z_score": "1.000",
-        "attacker_has_advantage": false,
-        "pass": true
+        "z_score": "2.333",
+        "attacker_has_advantage": true,
+        "pass": false
       }
     },
     {
@@ -852,71 +891,71 @@
         "iterations_per_position": 50,
         "position_stats": {
           "0": {
-            "mean": 52.80664799690246,
-            "stddev": 2.1002342091124104,
-            "min": 51.3091000020504,
-            "max": 64.04330000281334
+            "mean": 85.84652483999729,
+            "stddev": 19.721955093585986,
+            "min": 70.18001999892294,
+            "max": 180.25715599954128
           },
           "1": {
-            "mean": 54.135381999015806,
-            "stddev": 0.8324332320539081,
-            "min": 52.91440001130104,
-            "max": 57.02290001511574
+            "mean": 74.76901037994772,
+            "stddev": 4.856446441259617,
+            "min": 69.56814899854362,
+            "max": 97.40701399929821
           },
           "2": {
-            "mean": 53.222898001670835,
-            "stddev": 0.6479615857864142,
-            "min": 52.032900005578995,
-            "max": 54.9311999976635
+            "mean": 73.33546608000994,
+            "stddev": 5.953771397079248,
+            "min": 69.10316099971533,
+            "max": 106.91013099998236
           },
           "3": {
-            "mean": 53.38241999745369,
-            "stddev": 0.38665142590990265,
-            "min": 52.65700000524521,
-            "max": 54.412999987602234
+            "mean": 72.42883825987577,
+            "stddev": 5.198817446062504,
+            "min": 66.9068509992212,
+            "max": 95.7811660002917
           },
           "4": {
-            "mean": 52.670998000502586,
-            "stddev": 2.6922446379555107,
-            "min": 50.455300003290176,
-            "max": 69.67249998450279
+            "mean": 72.01058352015913,
+            "stddev": 4.840386348799092,
+            "min": 67.59520599991083,
+            "max": 99.02727600000799
           },
           "5": {
-            "mean": 51.08187799572945,
-            "stddev": 0.449483659749202,
-            "min": 50.58790001273155,
-            "max": 53.11100000143051
+            "mean": 73.83297722019255,
+            "stddev": 6.683537366512686,
+            "min": 68.97106000036001,
+            "max": 102.93920899927616
           },
           "6": {
-            "mean": 51.339757999777795,
-            "stddev": 0.9537279355430115,
-            "min": 50.28830000758171,
-            "max": 54.74109998345375
+            "mean": 72.8894107799977,
+            "stddev": 5.054140507419538,
+            "min": 68.77907400019467,
+            "max": 95.19238900020719
           },
           "7": {
-            "mean": 53.61025600075722,
-            "stddev": 0.43197755757700934,
-            "min": 52.958899974823,
-            "max": 54.9835000038147
+            "mean": 71.74937130011618,
+            "stddev": 3.6818621774551183,
+            "min": 67.93754199892282,
+            "max": 94.30716999992728
           },
           "8": {
-            "mean": 52.98989599823952,
-            "stddev": 0.7167015174432376,
-            "min": 50.394499987363815,
-            "max": 54.43569999933243
+            "mean": 72.20296793997288,
+            "stddev": 4.826865936928853,
+            "min": 67.2602190002799,
+            "max": 94.39675600081682
           },
           "9": {
-            "mean": 50.94327799797058,
-            "stddev": 0.39837384736849657,
-            "min": 50.28819999098778,
-            "max": 52.433899998664856
+            "mean": 71.66269774012268,
+            "stddev": 4.666189218266423,
+            "min": 67.32290299981833,
+            "max": 97.12561099976301
           }
         },
-        "grand_mean_ms": "52.62",
-        "f_statistic": "40.9912",
+        "grand_mean_ms": "74.07",
+        "f_statistic": "14.1270",
         "f_critical_alpha_005": 1.93,
         "no_significant_difference": true,
-        "coefficient_of_variation_pct": "2.01",
+        "coefficient_of_variation_pct": "5.45",
         "pass": true
       }
     },
@@ -929,17 +968,38 @@
       "detail": {
         "iterations": 200,
         "encrypt": {
-          "mean_m0_ms": "1.838",
-          "mean_m1_ms": "1.884",
-          "ratio": "1.025",
+          "mean_m0_ms": "2.460",
+          "mean_m1_ms": "2.500",
+          "ratio": "1.016",
           "safe": true
         },
         "prove": {
-          "mean_m0_ms": "6.367",
-          "mean_m1_ms": "6.204",
-          "ratio": "1.026",
+          "mean_m0_ms": "8.613",
+          "mean_m1_ms": "8.218",
+          "ratio": "1.048",
           "safe": true
         },
+        "pass": true
+      }
+    },
+    {
+      "id": 31,
+      "attack": "Prototype Split (Legacy)",
+      "layer": "API + Client",
+      "property": "Integrity",
+      "status": "NOT RUN",
+      "detail": {}
+    },
+    {
+      "id": 32,
+      "attack": "Hardened Integrated Verification",
+      "layer": "Chaincode",
+      "property": "Soundness",
+      "status": "PASS",
+      "detail": {
+        "payload": "zeroed_proof",
+        "accepted": false,
+        "error": "ZK-SNARK proof verification FAILED on-chain — transaction reverted!",
         "pass": true
       }
     }

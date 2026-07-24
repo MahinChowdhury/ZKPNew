@@ -1,0 +1,18 @@
+{
+  "meta": {
+    "timestamp": "2026-07-24T10:09:54.353Z",
+    "concurrency": 1000,
+    "live": false,
+    "tps": 297.66,
+    "duration_seconds": 3.36
+  },
+  "latency_stats": {
+    "mean": 1689.94,
+    "sd": 962.37,
+    "ciLower": 1630.29,
+    "ciUpper": 1749.59,
+    "p95": 3189.3,
+    "min": 20.14,
+    "max": 3351.72
+  }
+}
