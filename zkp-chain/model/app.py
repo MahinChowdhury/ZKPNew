@@ -4,7 +4,7 @@ import os
 # CRITICAL SEGFAULT FIXES
 # Must be at the VERY TOP before other imports
 # ============================
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force CPU only
+# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force CPU only (Commented out to allow GPU)
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 import cv2
