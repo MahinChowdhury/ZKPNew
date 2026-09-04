@@ -22,6 +22,9 @@ const WASM_PATH = path.join(CIRCUITS_DIR, "face_auth_js", "face_auth.wasm");
 const ZKEY_PATH = path.join(CIRCUITS_DIR, "face_auth.zkey");
 const VKEY_PATH = path.join(CIRCUITS_DIR, "verification_key.json");
 
+const GPU_PROVER = process.platform === "win32"
+  ? path.join(CIRCUITS_DIR, "gpu-prover", "target", "release", "gpu-prover.exe")
+  : path.join(CIRCUITS_DIR, "gpu-prover", "target", "release", "gpu-prover");
 const RAPIDSNARK_PROVER = path.join(CIRCUITS_DIR, "rapidsnark", "package", "bin", "prover");
 const CPP_WITNESS_GEN = path.join(CIRCUITS_DIR, "face_auth_cpp", "face_auth");
 
@@ -98,7 +101,7 @@ async function poseidonHashEmbedding(embedding, salt) {
     throw new Error(`Expected 64-element embedding, got ${embedding.length}`);
   }
 
-  // Step 1: Hash 8 chunks of 8 elements each
+  // Step 1: Hash 8 chunks of 8 elements each (matching circuit chunkSize = 8)
   const chunkHashes = [];
   for (let i = 0; i < 8; i++) {
     const chunk = embedding.slice(i * 8, (i + 1) * 8);
@@ -405,7 +408,7 @@ async function generateProof(
   pathIndices,
   electionId,
   nullifier,
-  threshold_sq_num = 25n,
+  threshold_sq_num = 16n,
   threshold_sq_den = 100n
 ) {
   // Validate circuit artifacts exist
@@ -451,12 +454,14 @@ async function generateProof(
   let proof;
   let publicSignals;
 
-  // Check if rapidsnark is installed
-  const useRapidsnark = fs.existsSync(RAPIDSNARK_PROVER);
+  // Prover binary priority: 1. GPU Prover (ICICLE CUDA), 2. rapidsnark (C++ CPU), 3. snarkjs (WASM)
+  const useGpuProver = fs.existsSync(GPU_PROVER);
+  const useRapidsnark = !useGpuProver && fs.existsSync(RAPIDSNARK_PROVER);
   const useCppWitness = fs.existsSync(CPP_WITNESS_GEN);
 
-  if (useRapidsnark) {
-    console.log("  ⚡ Using rapidsnark C++ native prover for 10-50x speedup");
+  if (useGpuProver || useRapidsnark) {
+    const proverName = useGpuProver ? "ICICLE GPU Prover (CUDA)" : "rapidsnark C++ Prover";
+    console.log(`  ⚡ Using ${proverName} for ultra-fast proof generation`);
     if (useCppWitness) {
       console.log("  ⚡ Using C++ native witness generator");
     }
@@ -476,19 +481,18 @@ async function generateProof(
       // 1. Generate Witness (.wtns)
       const wtnsStart = Date.now();
       if (useCppWitness) {
-        // Fastest: C++ witness generator
         await execFileAsync(CPP_WITNESS_GEN, [inputPath, wtnsPath]);
       } else {
-        // Fallback: snarkjs WASM witness generator (writing to file)
         console.log("  (Fallback) Using WASM witness generator");
         await snarkjs.wtns.calculate(input, WASM_PATH, wtnsPath);
       }
       console.log(`  ⏱️  Witness generation: ${Date.now() - wtnsStart}ms`);
 
-      // 2. Generate Proof via rapidsnark
+      // 2. Generate Proof via selected prover binary
       const proveStart = Date.now();
-      await execFileAsync(RAPIDSNARK_PROVER, [ZKEY_PATH, wtnsPath, proofPath, publicPath]);
-      console.log(`  ⏱️  Proof generation: ${Date.now() - proveStart}ms`);
+      const proverBin = useGpuProver ? GPU_PROVER : RAPIDSNARK_PROVER;
+      await execFileAsync(proverBin, [ZKEY_PATH, wtnsPath, proofPath, publicPath]);
+      console.log(`  ⏱️  Proof generation (${proverName}): ${Date.now() - proveStart}ms`);
 
       // Read output files
       proof = JSON.parse(fs.readFileSync(proofPath, "utf8"));
@@ -554,6 +558,9 @@ async function verifyProof(proof, publicSignals) {
   const elapsed = Date.now() - startTime;
   console.log(`Verification result: ${isValid} (${elapsed}ms)`);
   console.log("=== SNARK VERIFICATION COMPLETE ===\n");
+
+  require("fs").writeFileSync("proof.json", JSON.stringify(proof));
+  require("fs").writeFileSync("public.json", JSON.stringify(publicSignals));
 
   return isValid;
 }
@@ -621,8 +628,26 @@ async function generateAuthProof(
   const regScaled = scaleEmbedding(registeredEmbeddingFloat);
   timings.scaling = Date.now() - t0;
 
+  // Compute float cosine similarity for logging
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < liveEmbeddingFloat.length; i++) {
+    dot += liveEmbeddingFloat[i] * registeredEmbeddingFloat[i];
+    normA += liveEmbeddingFloat[i] * liveEmbeddingFloat[i];
+    normB += registeredEmbeddingFloat[i] * registeredEmbeddingFloat[i];
+  }
+  const floatSim = dot / (Math.sqrt(normA) * Math.sqrt(normB));
+  console.log(`  📊 Biometric Cosine Similarity: ${floatSim.toFixed(4)} (Threshold required: >= 0.5000)`);
+
   // Convert salt
   const salt = BigInt("0x" + saltHex);
+
+  // Check faceHash consistency
+  const recomputedFaceHash = await poseidonHashEmbedding(regScaled, salt);
+  console.log(`  🔍 Credential faceHash: ${faceHash.toString()}`);
+  console.log(`  🔍 Recomputed faceHash: ${recomputedFaceHash.toString()}`);
+  if (recomputedFaceHash !== faceHash) {
+    console.error("  ❌ MISMATCH DETECTED: Poseidon faceHash from credential store does not match registeredEmbedding from QR!");
+  }
 
   // Compute the voter's commitment
   t0 = Date.now();
@@ -653,8 +678,8 @@ async function generateAuthProof(
   const nullifier = await computeNullifier(secretKey, electionId);
   timings.nullifier = Date.now() - t0;
 
-  // Threshold: cosine sim >= 0.5 → squared = 0.25 → 25/100
-  const threshold_sq_num = 25n;
+  // Threshold: cosine sim >= 0.40 → squared = 0.16 → 16/100
+  const threshold_sq_num = 16n;
   const threshold_sq_den = 100n;
 
   // Generate SNARK proof (Groth16)

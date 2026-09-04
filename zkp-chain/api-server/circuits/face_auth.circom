@@ -179,7 +179,7 @@ template FaceAuth(embeddingSize, treeLevels) {
     // =====================
     // 1. Poseidon hash check: H(embedding || salt) == faceHash
     // =====================
-    // Hash the registered embedding
+    // Hash the registered embedding (8 chunks of 8 elements -> Poseidon(8) then Poseidon(8))
     component embeddingHash = PoseidonHashChunked(embeddingSize, 8);
     for (var i = 0; i < embeddingSize; i++) {
         embeddingHash.in[i] <== registeredEmbedding[i];

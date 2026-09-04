@@ -1,26 +1,60 @@
-fabric-samples/
+# ============================================================
+# BBZKV Git Ignore Configuration
+# ============================================================
 
+# Dependencies
 node_modules/
 **/node_modules/
+**/venv/
+venv/
+env/
+__pycache__/
+*.pyc
 
-dist/
-build/
-.env
+# Embedded Build Repositories (Circom compiler & RapidSNARK source trees)
+zkp-chain/api-server/circuits/circom/
+zkp-chain/api-server/circuits/rapidsnark/
+**/circom/
+**/rapidsnark/
 
-zkp-chain/model/venv
+# Hyperledger Fabric Samples & Runtime Artifacts
+fabric-samples/
+organizations/peerOrganizations/
+organizations/ordererOrganizations/
+channel-artifacts/
+system-genesis-block/
+*.block
 
-# Circom and snarkjs artifacts
+# Wallet, Credentials & Runtime State
+zkp-chain/api-server/wallet/
+zkp-chain/api-server/credentials/
+zkp-chain/api-server/proof.json
+zkp-chain/api-server/public.json
+zkp-chain/chaincode/identity/lib/verification_key.json
+
+# Circom, WASM & ZK Proving Artifacts
 *.r1cs
 *.sym
-*.wasm
+*.wtns
 *.ptau
 *.zkey
-*.wtns
+*_0000.zkey
+*_final.zkey
 *_js/
 *_cpp/
-proof.json
-public.json
-verification_key.json
-rapidsnark/
-zkp-chain/api-server/benchmark/venv/
-**/venv/
+
+# Logs & Environment Variables
+*.log
+server.log
+npm-debug.log*
+yarn-debug.log*
+.env
+.env.local
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+*.Zone.Identifier
+.vscode/
+.idea/
+scratch/

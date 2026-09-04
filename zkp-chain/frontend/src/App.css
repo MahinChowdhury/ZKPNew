@@ -1,0 +1,349 @@
+/* App Layout */
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+/* System Health Top Bar */
+.system-health-bar {
+  background-color: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.65rem 1.5rem;
+}
+
+.health-content {
+  max-width: 860px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.85rem;
+}
+
+.health-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.dot-online {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #10b981;
+}
+
+.dot-offline {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #94a3b8;
+}
+
+.health-metrics {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  color: #64748b;
+}
+
+.metric-item strong {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+/* Page Header */
+.app-header {
+  text-align: center;
+  margin-top: 1.5rem;
+  margin-bottom: 1.75rem;
+}
+
+.app-header h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.25rem;
+}
+
+.app-header p {
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+/* Navigation Tabs */
+.nav-tabs {
+  display: flex;
+  gap: 0.25rem;
+  background-color: #e2e8f0;
+  padding: 0.25rem;
+  border-radius: 8px;
+  margin-bottom: 1.75rem;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.nav-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  box-shadow: none;
+}
+
+.nav-tab:hover {
+  color: #0f172a;
+  background-color: rgba(255, 255, 255, 0.6);
+  box-shadow: none;
+}
+
+.nav-tab.active {
+  background-color: #ffffff;
+  color: #0f172a;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Biometric Mode Selector */
+.biometric-selector {
+  margin-bottom: 1.5rem;
+}
+
+.selector-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
+  margin-bottom: 0.5rem;
+}
+
+.mode-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.mode-card {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  background-color: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.mode-card:hover {
+  border-color: #94a3b8;
+  background-color: #f8fafc;
+}
+
+.mode-card.selected {
+  border-color: #2563eb;
+  background-color: #eff6ff;
+}
+
+.mode-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.mode-desc {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+/* Dropzone & Preview */
+.file-dropzone {
+  position: relative;
+  border: 2px dashed #cbd5e1;
+  border-radius: 6px;
+  padding: 1rem;
+  text-align: center;
+  background-color: #ffffff;
+  transition: border-color 0.15s ease;
+  cursor: pointer;
+}
+
+.file-dropzone:hover {
+  border-color: #3b82f6;
+  background-color: #f8fafc;
+}
+
+.dropzone-text {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.preview-container {
+  margin-top: 0.75rem;
+}
+
+.preview-img {
+  max-width: 140px;
+  max-height: 140px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  object-fit: cover;
+}
+
+/* Active Election Banner */
+.election-banner {
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.banner-tag {
+  font-size: 0.725rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #2563eb;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.25rem;
+}
+
+.election-banner h3 {
+  font-size: 1.1rem;
+  margin-bottom: 0.25rem;
+  color: #0f172a;
+}
+
+.election-banner p {
+  font-size: 0.85rem;
+  margin-bottom: 0;
+  color: #64748b;
+}
+
+/* Candidate Selection Cards */
+.candidate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+
+.candidate-item {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  background-color: #ffffff;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.925rem;
+  color: #0f172a;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.candidate-item:hover {
+  border-color: #94a3b8;
+  background-color: #f8fafc;
+}
+
+.candidate-item.selected {
+  border-color: #2563eb;
+  background-color: #eff6ff;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+/* Verification Receipt */
+.receipt-box {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background-color: #f8fafc;
+  border-radius: 6px;
+  font-size: 0.825rem;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.receipt-box code {
+  font-family: monospace;
+  background-color: #e2e8f0;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+}
+
+/* Tally Results */
+.tally-container {
+  margin-top: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.tally-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.tally-header h4 {
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.tally-row {
+  margin-bottom: 1rem;
+}
+
+.tally-row-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.875rem;
+  margin-bottom: 0.3rem;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.progress-track {
+  height: 8px;
+  background-color: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: #2563eb;
+  border-radius: 999px;
+  transition: width 0.5s ease-out;
+}
+
+/* Candidate Pills */
+.pill-group {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.pill-item {
+  font-size: 0.8rem;
+  background-color: #e2e8f0;
+  color: #334155;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-weight: 500;
+}
