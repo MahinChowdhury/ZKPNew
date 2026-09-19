@@ -1,0 +1,464 @@
+\documentclass[10pt,letterpaper,journal]{IEEEtran}
+\usepackage{cite}
+\usepackage{url}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{pifont}
+\usepackage{amssymb}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{newtxtext}
+\usepackage{enumitem}
+\usepackage{subcaption}
+\usepackage{microtype}
+
+\title{Supplementary Material: Constraint-Efficient Biometric Matching in Zero-Knowledge Circuits: A Comparative Study of Face and Iris Verification for Privacy-Preserving Authentication}
+
+\author{\IEEEauthorblockN{Mahin R. Chowdhury\IEEEauthorrefmark{1}\IEEEmembership{Student Member, IEEE},
+K.~M.~Azharul Hasan\IEEEauthorrefmark{1}\IEEEmembership{Member, IEEE},
+Arpita Das\IEEEauthorrefmark{1}\IEEEmembership{Student Member, IEEE}}
+\IEEEauthorblockA{\IEEEauthorrefmark{1}Department of Computer Science and Engineering,\\
+Khulna University of Engineering \& Technology,\\
+Khulna, Dhaka, Bangladesh\\
+}}
+
+\markboth{Supplementary Material for IEEE Transactions on Information Forensics and Security}{Chowdhury \emph{et al.}: Supplementary Material}
+
+\newcommand{\vect}[1]{\mathbf{#1}}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{assumption}[theorem]{Assumption}
+
+\newcommand{\cmark}{\textcolor{green!60!black}{\ding{51}}}
+\newcommand{\pmark}{\textcolor{orange}{\textbf{$\sim$}}}
+\newcommand{\xmark}{\textcolor{red}{\ding{55}}}
+
+\setlength{\textfloatsep}{4pt plus 1pt minus 1pt}
+\setlength{\floatsep}{3pt plus 1pt minus 1pt}
+\setlength{\intextsep}{4pt plus 1pt minus 1pt}
+\setlength{\dbltextfloatsep}{4pt plus 1pt minus 1pt}
+\setlength{\dblfloatsep}{3pt plus 1pt minus 1pt}
+\setlength{\abovecaptionskip}{2pt plus 0.5pt minus 0.5pt}
+\setlength{\belowcaptionskip}{0pt}
+
+\setlist{nosep,leftmargin=*,topsep=1pt,partopsep=0pt,parsep=0pt,itemsep=1pt}
+
+\AtBeginDocument{
+  \setlength{\abovedisplayskip}{3pt plus 1pt minus 1pt}
+  \setlength{\belowdisplayskip}{3pt plus 1pt minus 1pt}
+  \setlength{\abovedisplayshortskip}{1pt plus 0.5pt}
+  \setlength{\belowdisplayshortskip}{1pt plus 0.5pt}
+}
+
+\begin{document}
+
+\maketitle
+
+\setcounter{figure}{4}
+\setcounter{table}{5}
+\setcounter{equation}{18}
+
+\appendices
+
+\section{Reproducibility Appendix}
+\label{sec:supp-reproducibility}
+
+\subsection{Benchmarking Environment and Hardware Specification}
+To ensure complete empirical reproducibility of all experimental results reported in Section~VI of the main manuscript, all benchmarks were executed on an isolated workstation running 64-bit Ubuntu 22.04.3 LTS (Linux kernel 5.15.0-88-generic):
+\begin{itemize}[leftmargin=*,noitemsep]
+  \item \textbf{Processor:} AMD Ryzen 5 5600 CPU @ 3.50\,GHz base clock (6 physical cores, 12 execution threads, up to 4.40\,GHz boost, 32\,MB L3 cache) with AVX2 SIMD extensions.
+  \item \textbf{GPU \& Acceleration:} NVIDIA GeForce RTX 3050 GPU (8\,GB GDDR6 VRAM, CUDA compute capability 8.6) supporting GPU-accelerated cryptographic operations.
+  \item \textbf{Memory \& Storage:} 16\,GB dual-channel DDR4-3200 RAM; 1\,TB NVMe PCIe SSD hosting the Hyperledger Fabric ledger state database.
+  \item \textbf{Software Stack:} Circom v2.1.6 (Rust-based circuit compiler), \texttt{snarkjs} v0.7.0 (BN254 curve backend), Node.js v20.18.0 / v18.17.0 LTS, Go v1.20.7, Python 3.10.12 (NumPy 1.24.3, SciPy 1.10.1, Matplotlib 3.7.1), and Hyperledger Fabric v2.5.4 with Raft consensus.
+\end{itemize}
+
+\subsection{Artifact Sources and Data Files}
+All benchmark tables and plots are directly generated from deterministic JSON log files:
+\begin{itemize}[leftmargin=*,noitemsep]
+  \item \path{compareBenchmarks/benchmark_results.json}: Contains circuit compilation statistics, R1CS non-linear constraint counts, total wire allocations, proving key and verification key file sizes, and witness computation latencies across both biometric channels.
+  \item \path{benchmark/e2e_results.json}: Logs micro-benchmarks for all eight individual execution phases (P1 through P8) across 100 sequential runs per biometric modality, recording means, standard deviations, and 95\% confidence intervals.
+  \item \path{benchmark/homomorphic_results.json}: Measures discrete ElGamal ciphertext homomorphic aggregation latency and Baby-Step Giant-Step (BSGS) discrete logarithm recovery time for candidate tally recovery across electorate sizes from $N = 10$ to $N = 10^6$.
+  \item \path{benchmark/e2e_scalability_results.json}: Records client proving time, witness generation, and on-chain verification latencies across five orders of electorate magnitude ($N \in \{10, 10^2, 10^3, 10^4, 10^5\}$) under fixed Sparse Merkle Tree depth $L=20$.
+  \item \path{benchmark/attack_benchmark_results.json}: Contains empirical replay and double-voting test logs for 500 sequential submissions and 100 concurrent submissions under multi-version concurrency control (MVCC).
+\end{itemize}
+Execution is orchestrated via \path{node zkp-chain/api-server/benchmark/run_all_benchmarks_and_plots.js}. Dedicated scripts (\path{zksnark_plot.py}, \path{e2e_plot.py}, \path{homomorphic_plot.py}, \path{e2e_scalability_plot.py}, \path{biometric_accuracy_eval.py}) render publication-quality PDF plots.
+
+\subsection{Supplementary Experimental Dimensions}
+Fig.~\ref{fig:supp-snark-perf} (encompassing Fig.~\ref{fig:supp-artifacts-nullifier}) presents four supplementary evaluation dimensions:
+
+\begin{figure*}[t]
+    \centering
+    \begin{subfigure}[b]{0.24\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/fig_snark_latency.pdf}
+        \caption{Prove/verify latency.}
+        \label{fig:supp-snark-latency}
+    \end{subfigure}\hfill
+    \begin{subfigure}[b]{0.24\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/fig_snark_breakdown.pdf}
+        \caption{Phase breakdown.}
+        \label{fig:supp-snark-breakdown}
+    \end{subfigure}\hfill
+    \begin{subfigure}[b]{0.24\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/fig_artifact_sizes.pdf}
+        \caption{Artifact sizes.}
+        \label{fig:supp-artifact-sizes}
+    \end{subfigure}\hfill
+    \begin{subfigure}[b]{0.24\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/fig_nullifier_accuracy.pdf}
+        \caption{Nullifier detection.}
+        \label{fig:supp-nullifier-accuracy}
+    \end{subfigure}
+    \vspace{-2pt}
+    \caption{Supplementary benchmark suite: (a)~ZK-SNARK proving and verification latency across face and iris modalities; (b)~cryptographic phase latency decomposition; (c)~proving key and verification key memory footprints; and (d)~nullifier collision/double-voting detection accuracy across 100 trials.}
+    \label{fig:supp-snark-perf}
+    \label{fig:supp-artifacts-nullifier}
+\end{figure*}
+
+Fig.~\ref{fig:supp-snark-latency} confirms witness calculation and proving account for $>90\%$ of client compute, while pairing checks require 14.4\,ms. Fig.~\ref{fig:supp-snark-breakdown} details the microsecond-level phase decomposition. Fig.~\ref{fig:supp-artifact-sizes} compares key sizes: proving keys require 9.89\,MB (face) and 8.44\,MB (iris), while verification keys require 4 field elements ($<2$\,KB) and proofs remain fixed at 128 bytes. Fig.~\ref{fig:supp-nullifier-accuracy} confirms 100\% rejection of duplicate/forged nullifiers across 100 trial batches.
+
+\section{Circuit Architecture Details}
+\label{sec:supp-circuit-details}
+
+\subsection{Circuit Signals and Interfaces}
+\label{sec:supp-signals}
+Table~\ref{tab:circuit-signals} details the complete public and private signal interfaces for the \texttt{FaceAuth} and \texttt{IrisAuth} ZK-SNARK authentication circuits. Public signals are exposed on-chain to the smart contract verifier, while private signals remain confined to the client witness vector.
+
+\begin{table}[t]
+\caption{Circuit Signal Specification for \texttt{FaceAuth} and \texttt{IrisAuth}}
+\label{tab:circuit-signals}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.04}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}llllp{3.2cm}@{}}
+\toprule
+\textbf{Signal Name} & \textbf{Vis.} & \textbf{Type} & \textbf{Mode} & \textbf{Functional Description} \\
+\midrule
+\texttt{faceHash}        & Public  & $\mathbb{F}_p$ & Face & Hash commitment $h_i^{(\text{face})} = \mathcal{H}_2(\mathcal{H}_{\text{chunked}}, s_i)$ \\
+\texttt{irisHash}        & Public  & $\mathbb{F}_p$ & Iris & Hash commitment $h_i^{(\text{iris})} = \mathcal{H}_2(\mathcal{H}_{\text{packed}}, s_i)$ \\
+\texttt{merkleRoot}      & Public  & $\mathbb{F}_p$ & Both & Current SMT root digest $R$ \\
+\texttt{nullifier}       & Public  & $\mathbb{F}_p$ & Both & Epoch nullifier $\nu = \mathcal{H}_2(sk_i, \mathcal{E}_{\text{id}})$ \\
+\texttt{electionId}      & Public  & $\mathbb{F}_p$ & Both & Unique electoral identifier $\mathcal{E}_{\text{id}}$ \\
+\texttt{thresh\_sq\_num}   & Public  & $\mathbb{F}_p$ & Face & Squared cosine numerator constant ($25$) \\
+\texttt{thresh\_sq\_den}   & Public  & $\mathbb{F}_p$ & Face & Squared cosine denominator constant ($100$) \\
+\texttt{hammingThresh}   & Public  & $\mathbb{F}_p$ & Iris & Maximum allowable Hamming distance ($123$) \\
+\midrule
+\texttt{embedding[64]}   & Private & $\mathbb{F}_p^{64}$ & Face & Live feature embedding quantized by $\sigma=10^6$ \\
+\texttt{regEmbedding[64]}& Private & $\mathbb{F}_p^{64}$ & Face & Enrolled template embedding quantized by $\sigma$ \\
+\texttt{irisCodeLive[256]}& Private & $\{0,1\}^{256}$ & Iris & Live extracted 256-bit iris code \\
+\texttt{irisCodeReg[256]} & Private & $\{0,1\}^{256}$ & Iris & Registered enrolled 256-bit iris code \\
+\texttt{salt}            & Private & $\mathbb{F}_p$ & Both & Secret blinding salt $s_i \in_R \mathbb{F}_p$ \\
+\texttt{secretKey}       & Private & $\mathbb{F}_p$ & Both & Voter identity private key $sk_i \in \mathbb{F}_p$ \\
+\texttt{pathElements[20]}& Private & $\mathbb{F}_p^{20}$ & Both & Sparse Merkle Tree sibling digests \\
+\texttt{pathIndices[20]} & Private & $\{0,1\}^{20}$ & Both & Left/right branch direction selector bits \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\subsection{Constraint Complexity Breakdown}
+\label{sec:supp-constraints}
+Table~\ref{tab:constraints} reports the R1CS non-linear constraint counts, linear combinations, and allocated wire counts for each modular sub-circuit.
+
+\begin{table}[t]
+\caption{R1CS Constraint Breakdown Across Authentication Sub-Circuits}
+\label{tab:constraints}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.04}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}llrrp{2.6cm}@{}}
+\toprule
+\textbf{Functional Sub-Circuit} & \textbf{Modality} & \textbf{R1CS Non-Linear} & \textbf{Total Wires} & \textbf{Arithmetic Purpose} \\
+\midrule
+\texttt{PoseidonHashChunked}   & Face & 2,740 & 8,240 & 8 sequential 8-to-1 hashes \\
+\texttt{PoseidonSaltBinding}   & Face & 260   & 780   & Salt binding $h_i = \mathcal{H}_2(\mathcal{H}_{\text{ck}}, s_i)$ \\
+\texttt{PoseidonHashPacked}    & Iris & 1,480 & 4,460 & 4 packed 64-bit chunk hashes \\
+\texttt{Bits2Num} Unpacking    & Iris & 256   & 512   & Scalar-to-binary bit expansion \\
+\texttt{BinaryCheck} ($x(1-x)$)& Iris & 512   & 1,024 & Enforces Boolean bit domain \\
+\texttt{SquaredCosineSimilarity}& Face & 6,484 & 19,452& Dot product, norms, comparison \\
+\texttt{HammingDistance}       & Iris & 5,976 & 17,928& XOR accumulation and threshold \\
+\texttt{IdentityCommitment}    & Both & 260   & 780   & 2-to-1 Poseidon commitment $C_i$ \\
+\texttt{SparseMerkleTree(20)}  & Both & 10,940& 32,820& 20-level sibling conditional hashing \\
+\texttt{NullifierDerivation}   & Both & 300   & 900   & PRF evaluation $\nu = \mathcal{H}_2(sk,\mathcal{E}_{\text{id}})$ \\
+\midrule
+\textbf{Total Sub-Circuit}     & Face & \textbf{9,484} & \textbf{28,472} & Biometric verification sub-module \\
+\textbf{Total Sub-Circuit}     & Iris & \textbf{8,224} & \textbf{24,400} & Biometric verification sub-module \\
+\midrule
+\textbf{Complete Authentication}& Face & \textbf{20,984}& \textbf{62,972} & Complete voting zk-SNARK \\
+\textbf{Complete Authentication}& Iris & \textbf{19,724}& \textbf{59,172} & Complete voting zk-SNARK \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\subsection{Fixed-Point Quantization and Range Arithmetic}
+Face feature embeddings are represented as normalized 64-dimensional float vectors $\mathbf{v} \in \mathbb{R}^{64}$ with $\|\mathbf{v}\|_2 = 1$. To evaluate cosine similarity within finite field $\mathbb{F}_p$ without floating-point arithmetic, each component is scaled by fixed-point factor $\sigma = 10^6$ and converted to an integer: $a_k = \lfloor \sigma \cdot v_k \rceil \pmod{p}$.
+Inside the circuit, the cosine similarity condition $\cos\theta = \frac{\langle \mathbf{a}, \mathbf{b} \rangle}{\|\mathbf{a}\| \|\mathbf{b}\|} \geq \tau$ is algebraically cross-multiplied and squared to eliminate division and square roots:
+\begin{equation}
+  \langle \mathbf{a}, \mathbf{b} \rangle^2 \cdot \tau_{\mathsf{den}} \;\geq\; \tau_{\mathsf{num}} \cdot \|\mathbf{a}\|^2 \cdot \|\mathbf{b}\|^2. \label{eq:cosine-constraint}
+\end{equation}
+Setting $\tau_{\mathsf{num}} = 25$ and $\tau_{\mathsf{den}} = 100$ enforces $\cos\theta \geq 0.50$. For $\sigma = 10^6$ and dimension $d=64$, the maximum squared product $\|\mathbf{a}\|^2 \cdot \|\mathbf{b}\|^2 \approx 4.1 \times 10^{27}$, which requires approximately 92 bits of dynamic range. This is comfortably below the 254-bit prime modulus of the BN254 curve ($p \approx 2.188 \times 10^{77}$), mathematically precluding modular overflow.
+For the iris channel, 256-bit Hamming distance is evaluated linearly via XOR accumulation:
+\begin{equation}
+  \mathsf{HD} = \sum_{j=0}^{255}(a_j + b_j - 2a_jb_j) < \tau_{\mathsf{Hamming}} = 123. \label{eq:hd}
+\end{equation}
+
+\section{Universal Composability Security Proofs}
+\label{sec:supp-security-proofs}
+
+This section provides formal simulator constructions, game transitions, cryptographic reductions, and proofs for all theorems, lemmas, corollaries, and propositions stated in Section~V of the main manuscript.
+
+\begin{assumption}[Poseidon Hash Security]
+\label{asm:poseidon}
+The Poseidon hash family over $\mathbb{F}_p$ satisfies collision resistance (CR), preimage resistance (Pre), and pseudorandomness when keyed with a uniform secret input in the Algebraic Group Model (AGM):
+\begin{align}
+  \mathbf{Adv}^{\mathsf{CR}}_{\mathsf{Pos}}(\lambda) &= \Pr\bigl[(\mathbf{x},\mathbf{x}') \leftarrow \mathcal{A}(1^\lambda) : \notag \\
+  &\qquad \mathbf{x} \neq \mathbf{x}' \land H(\mathbf{x}) = H(\mathbf{x}')\bigr] \leq \mathsf{negl}(\lambda), \label{eq:adv-cr-pos} \\
+  \mathbf{Adv}^{\mathsf{Pre}}_{\mathsf{Pos}}(\lambda) &= \Pr\left[\mathbf{x}' \leftarrow \mathcal{A}(1^\lambda, y) : H(\mathbf{x}') = y\right] \leq \mathsf{negl}(\lambda). \label{eq:adv-pre-pos}
+\end{align}
+\end{assumption}
+
+\subsection{Part A: Full Proof of Theorem V.2 (Main UC Realization)}
+\label{sec:supp-proof-main-uc}
+
+\begin{proof}
+We construct an ideal-world simulator $\mathcal{S}$ such that no PPT environment $\mathcal{Z}$ can distinguish whether it interacts with real adversary $\mathcal{A}$ running protocol $\pi_{\mathsf{BBZKV}}$ or with $\mathcal{S}$ interacting with ideal functionality $\mathcal{F}_{\mathsf{BBZKV}}$ through five hybrid games:
+
+\textbf{Hybrid $\mathcal{H}_0$:} Real protocol execution: $\Pr[\mathcal{H}_0 = 1] = \Pr[\mathcal{Z}^{\pi_{\mathsf{BBZKV}}, \mathcal{A}}(1^\lambda) = 1]$.
+
+\textbf{Hybrid $\mathcal{H}_1$ (Simulated Proofs):} For honest voters, $\mathcal{S}$ uses the Groth16 trapdoor $\tau = (\alpha, \beta, \delta, x)$ extracted during setup to simulate zero-knowledge proofs $\Pi_i \leftarrow \mathsf{Sim}_{\mathsf{Groth16}}(\mathsf{vk}, \tau, \mathbf{x}_i)$. For ballot validity proofs, $\mathcal{S}$ uses the Fiat--Shamir $\Sigma$-OR simulator to generate accepting transcripts $\pi_j^{\mathsf{val}}$ without plaintext choices. By perfect ZK of Groth16 and statistical ZK of Chaum--Pedersen $\Sigma$-OR:
+\begin{equation}
+  |\Pr[\mathcal{H}_0 = 1] - \Pr[\mathcal{H}_1 = 1]| \leq \mathbf{Adv}_{\mathsf{CP}}^{\mathsf{ZK}}(\lambda).
+\end{equation}
+
+\textbf{Hybrid $\mathcal{H}_2$ (Dummy Encryptions):} $\mathcal{S}$ replaces honest voters' ElGamal ciphertexts $\mathbf{c}_i = \mathsf{Enc}_{pk_{\mathcal{TA}}}(\mathbf{v}_i; \mathbf{r}_i)$ with encryptions of zero: $\mathbf{c}_i' = \mathsf{Enc}_{pk_{\mathcal{TA}}}(\mathbf{0}; \mathbf{r}_i')$. Distinguishing $\mathcal{H}_1$ from $\mathcal{H}_2$ reduces to DDH over $\mathtt{secp256k1}$ across $m$ candidate options and $N$ voters:
+\begin{equation}
+\begin{aligned}
+  |\Pr[\mathcal{H}_1 = 1] - \Pr[\mathcal{H}_2 = 1]|
+  &\leq m \cdot \mathbf{Adv}_{\mathsf{secp256k1}}^{\mathsf{DDH}}(\lambda).
+\end{aligned}
+\end{equation}
+
+\textbf{Hybrid $\mathcal{H}_3$ (Witness Extraction):} When a corrupted voter submits ballot $(\Pi^\ast, \nu^\ast, \mathbf{c}^\ast)$, $\mathcal{S}$ runs Groth16 extractor $\mathcal{E}$ to obtain witness $w^\ast = (sk^\ast, s^\ast, \mathbf{e}^\ast, \mathrm{path}^\ast)$. If $\Pi^\ast$ accepts but extraction fails or yields un-enrolled leaf $C^\ast \notin \mathcal{T}$, $\mathcal{S}$ aborts. By Groth16 knowledge soundness under $q$-SDH in the GGM and Poseidon collision resistance (Lemma~\ref{lem:supp-merkle-binding}):
+\begin{equation}
+  |\Pr[\mathcal{H}_2 = 1] - \Pr[\mathcal{H}_3 = 1]| \leq \varepsilon_{\mathsf{Groth16}}(\lambda) + \mathbf{Adv}_{\mathsf{Pos}}^{\mathsf{CR}}(\lambda).
+\end{equation}
+
+\textbf{Hybrid $\mathcal{H}_4$ (Ideal Functionality Interaction):} $\mathcal{S}$ forwards extracted choices $\mathbf{v}^\ast$ to $\mathcal{F}_{\mathsf{vote}}$ and programs tally decryption to match $\mathcal{F}_{\mathsf{tally}}$. Coerced ballots are neutralized in $\mathcal{F}_{\mathsf{ODF}}$. Distinguishing advantage arises only if an unregistered trait matches within $\delta$ ($\mathsf{FAR}_\delta$) or a hash preimage is inverted:
+\begin{equation}
+  |\Pr[\mathcal{H}_3 = 1] - \Pr[\mathcal{H}_4 = 1]| \leq \mathbf{Adv}_{\mathsf{Pos}}^{\mathsf{Pre}}(\lambda) + \mathbf{Adv}_{\mathsf{secp256k1}}^{\mathsf{DLog}}(\lambda) + \mathsf{FAR}_\delta.
+\end{equation}
+
+Summing distinguishing gaps via triangle inequality over $\mathcal{H}_0 \dots \mathcal{H}_4$ yields Theorem~V.2:
+\begin{align}
+  \mathbf{Adv}_{\mathcal{Z}}(\lambda) &\leq \varepsilon_{\mathsf{Groth16}}(\lambda) + m \cdot \mathbf{Adv}_{\mathsf{secp256k1}}^{\mathsf{DDH}}(\lambda) + \mathbf{Adv}_{\mathsf{Pos}}^{\mathsf{CR}}(\lambda) \notag \\
+  &\quad + \mathbf{Adv}_{\mathsf{Pos}}^{\mathsf{Pre}}(\lambda) + \mathbf{Adv}_{\mathsf{secp256k1}}^{\mathsf{DLog}}(\lambda) + \mathbf{Adv}_{\mathsf{CP}}^{\mathsf{ZK}}(\lambda) + \mathsf{FAR}_\delta. \label{eq:supp-main-uc-bound}
+\end{align}
+\end{proof}
+
+\subsection{Part B: Full Proof of Lemma V.5 (Merkle-Tree Binding)}
+\label{sec:supp-proof-merkle-binding}
+
+\begin{lemma}[Merkle-Tree Binding under Collision Resistance]
+\label{lem:supp-merkle-binding}
+Let $\mathcal{T}$ be a Poseidon Sparse Merkle Tree of fixed depth $L=20$ with publicly committed root $R$ over enrolled leaf set $\mathcal{L} = \{C_1,\ldots,C_m\}$. Let $\mathcal{B}$ be a PPT adversary that outputs an authentication path $(C^\ast, \{(\sigma_\ell, d_\ell)\}_{\ell=0}^{L-1})$ verifying to root $R$ such that $C^\ast \notin \mathcal{L}$. Then $\Pr[\mathcal{B}\text{ succeeds}] \leq \mathbf{Adv}^{\mathsf{CR}}_{\mathsf{Pos}}(\lambda)$.
+\end{lemma}
+
+\begin{proof}
+Let $\mathcal{R}$ be a reduction algorithm given access to a collision finding oracle for $\mathrm{Poseidon}_2$. Verification computes path $u_0 = C^\ast$, $u_{\ell+1} = \mathrm{Poseidon}_2(u_\ell, \sigma_\ell)$ (or reversed according to direction bit $d_\ell$), terminating at $u_L = R$.
+Because $C^\ast \notin \mathcal{L}$, leaf value $u_0$ differs from all enrolled leaves, but terminal root $u_L = R$ matches committed root $R$.
+Reduction $\mathcal{R}$ deterministically inspects the $L$-step path from $\ell = 0$ to $L$. There exists a unique minimal divergence level $\ell^\ast \in \{0, \dots, L-1\}$ where parent digests match but inputs differ:
+\begin{equation}
+  (\mathrm{left}_{\ell^\ast}, \mathrm{right}_{\ell^\ast}) \neq (\mathrm{left}'_{\ell^\ast}, \mathrm{right}'_{\ell^\ast}) \quad\text{with}\quad u_{\ell^\ast+1} = u'_{\ell^\ast+1}.
+\end{equation}
+Because tree depth $L=20$ is fixed, $\mathcal{R}$ deterministically locates this collision index $\ell^\ast$ in $\mathcal{O}(L)$ time with probability exactly 1 without guessing. Hence, $\Pr[\mathcal{B}\text{ succeeds}] \leq \mathbf{Adv}^{\mathsf{CR}}_{\mathsf{Pos}}(\lambda)$, which is strictly tight.
+\end{proof}
+
+\subsection{Part C: Proof of Corollary V.6 (Eligibility Soundness)}
+\label{sec:supp-proof-eligibility}
+
+\begin{proof}
+Eligibility soundness requires that no adversary $\mathcal{A}$ can cause an honest verifier to accept a ballot unless $\mathcal{A}$ controls an identity legally provisioned in $\mathcal{V}_{\mathsf{reg}}$.
+By Groth16 knowledge soundness, extractor $\mathcal{E}$ returns witness $w = (sk, s, \mathbf{e}_{\mathrm{reg}}, \mathrm{path})$ satisfying $R_{\mathsf{zk}}(\mathbf{x}, w) = 1$ for accepted proof $\Pi^\ast$.
+An adversary $\mathcal{A} \notin \mathcal{V}_{\mathsf{reg}}$ can succeed only if at least one of four mutually exclusive failure events occurs:
+\begin{enumerate}[leftmargin=*,noitemsep]
+  \item \textbf{Event $E_1$ (SNARK Forgery):} $\mathcal{A}$ produces an accepting proof $\Pi^\ast$ without satisfying witness $w$. Under $q$-SDH in the GGM, $\Pr[E_1] \leq \varepsilon_{\mathsf{Groth16}}(\lambda) \in \mathsf{negl}(\lambda)$.
+  \item \textbf{Event $E_2$ (Hash Preimage Inversion):} $\mathcal{A}$ satisfies $h_{\mathsf{bio}} = \mathcal{H}_2(\mathcal{H}(\mathbf{e}_{\mathrm{reg}}), s)$ for an unregistered trait. Under Poseidon preimage resistance, $\Pr[E_2] \leq \mathbf{Adv}_{\mathsf{Pos}}^{\mathsf{Pre}}(\lambda) \in \mathsf{negl}(\lambda)$.
+  \item \textbf{Event $E_3$ (Merkle Bypass):} $\mathcal{A}$ provides an inclusion path for un-enrolled leaf $C^\ast \notin \mathcal{T}$ that evaluates to root $R$. By Lemma~\ref{lem:supp-merkle-binding}, $\Pr[E_3] \leq \mathbf{Adv}_{\mathsf{Pos}}^{\mathsf{CR}}(\lambda) \in \mathsf{negl}(\lambda)$.
+  \item \textbf{Event $E_4$ (Biometric Impostor Match):} $\mathcal{A}$ presents a biometric sample $\mathbf{e}_{\mathrm{live}}$ such that $\mathrm{dist}(\mathbf{e}_{\mathrm{live}}, \mathbf{e}_{\mathrm{reg}}) \leq \delta$. The probability of an impostor matching enrolled template $\mathbf{e}_{\mathrm{reg}}$ within distance $\delta$ is bounded by false accept rate $\mathsf{FAR}_\delta$.
+\end{enumerate}
+Taking the union bound over all four events:
+\begin{equation}
+\label{eq:eligibility-bound}
+  \Pr[\mathcal{A} \notin \mathcal{V}_{\mathsf{reg}} \text{ accepted}] \leq \sum_{i=1}^4 \Pr[E_i] \leq \mathsf{FAR}_\delta + \mathsf{negl}(\lambda).\qedhere
+\end{equation}
+\end{proof}
+
+\begin{remark}[Biometric Slack and Approximate UC Calibration]
+\label{rem:far}
+Following the established treatment of metric extractors and fuzzy commitments in the UC framework~\cite{JuelsWattenberg1999,Dodis2004,Canetti2001}, biometric identity verification cannot achieve perfect cryptographic simulation due to sensor noise. In our $(\delta, \mathsf{FAR}_\delta)$ formulation, $\mathsf{FAR}_{256} = 0.047\%$ for iris ($\tau_{\mathsf{Hamming}} = 123$) on CASIA-Iris-Thousand and $\mathsf{FAR}_{\mathsf{face}} = 0.050\%$ for face ($\tau=0.50$) on LFW, strictly bounding adversarial bypass advantage to $0.050\% + \mathsf{negl}(\lambda)$.
+\end{remark}
+
+\subsection{Part D: Proof of Corollary V.8 (Anti-Replay)}
+\label{sec:supp-proof-antireplay}
+
+\begin{proof}
+Anti-replay is enforced across two complementary architectural layers:
+\begin{enumerate}[leftmargin=*,noitemsep]
+  \item \textbf{Cryptographic Uniqueness:} The epoch nullifier is deterministically derived as:
+  \begin{equation}
+    \nu = \mathrm{Poseidon}_2(sk_i, \mathcal{E}_{\mathrm{id}}).
+    \label{eq:nullifier}
+  \end{equation}
+  By the pseudorandomness and collision resistance of Poseidon, generating two distinct nullifiers $\nu \neq \nu'$ for the same secret key $sk_i$ within election $\mathcal{E}_{\mathrm{id}}$ requires finding a hash collision, bounded by $\mathbf{Adv}_{\mathsf{Pos}}^{\mathsf{CR}}(\lambda) \leq \mathsf{negl}(\lambda)$.
+  \item \textbf{Consensus-Level MVCC Enforcement:} The Hyperledger Fabric chaincode enforces atomic read-before-write validation:
+  \begin{equation*}
+  \begin{aligned}
+    \mathtt{key} &:= \text{"NULLIFIER\_"} \parallel \nu; \\
+    \mathbf{if} \; \mathtt{getState}(\mathtt{key}) &\neq \mathtt{nil} \; \mathbf{then} \; \mathtt{ABORT};
+  \end{aligned}
+  \end{equation*}
+  Fabric Raft consensus establishes a total order on transactions before committing to state. Any duplicate transaction submitted concurrently is detected during block validation, triggering a Multi-Version Concurrency Control (MVCC) conflict ($0\%$ commit rate)~\cite{Androulaki2018}.
+\end{enumerate}
+Empirically, across 500 sequential replays of an accepted credential, exactly 1 was accepted and 499 were aborted (0.2\% commit rate, matching theoretical minimum $1/500$) with mean execution latency $0.129$\,ms. In a 100-voter concurrent race condition, 1 transaction committed and 99 aborted via MVCC in $1.53$\,ms.
+
+\textbf{Reconciling Anti-Replay with One-Person-One-Vote:}
+Under the Deniable Duress Protocol, a coerced voter casts both a duress ballot (nullifier $\nu_i^{\mathsf{dur}} = \mathcal{H}_2(sk_i^{\mathsf{dur}}, \mathcal{E}_{\mathsf{id}})$) and an authentic ballot (nullifier $\nu_i = \mathcal{H}_2(sk_i, \mathcal{E}_{\mathsf{id}})$). Because $sk_i^{\mathsf{dur}} \neq sk_i$, both nullifiers are distinct and accepted by consensus. However, during tallying, Oblivious Duress Filtering $\mathcal{F}_{\mathsf{ODF}}$ assigns an indicator bit $b_j = 0$ to the duress ciphertext, homomorphically scaling it to $\tilde{E}(\mathbf{v}_j) = E(\mathbf{0})$. Thus, the coerced ballot has zero effective weight in the decrypted tally $\mathbf{T} = \sum \mathbf{v}_j$, strictly preserving the one-person-one-vote invariant.
+\end{proof}
+
+\subsection{Part E: Proof of Corollary V.9 (Voter Anonymity / Unlinkability)}
+\label{sec:supp-proof-anonymity}
+
+\begin{proof}
+Voter anonymity is formalized via indistinguishability experiment $\mathsf{Exp}_{\mathcal{A}}^{\mathsf{anon}}(1^\lambda)$:
+challenger registers $N$ honest voters with credentials $(sk_i, s_i, \mathbf{e}_i)$ into Merkle tree $\mathcal{T}$, generates voting transaction $(\Pi_b, \nu_b, \mathbf{c}_b)$ for candidate $\mathcal{V}_b$ ($b \in \{0,1\}$), and gives it to $\mathcal{A}$. $\mathcal{A}$ outputs guess $b'$. Unlinkability holds because:
+(i)~Groth16 perfect zero-knowledge simulates proof $\Pi_b$ using public inputs, revealing zero witness bits;
+(ii)~ElGamal IND-CPA security hides choices in $\mathbf{c}_b$;
+(iii)~Commitment $C_b = \mathcal{H}_2(h_b, sk_b)$ and nullifier $\nu_b = \mathcal{H}_2(sk_b, \mathcal{E}_{\mathrm{id}})$ are independent Poseidon outputs; linking $C_b$ to $\nu_b$ requires inverting $sk_b$ ($\le \mathbf{Adv}_{\mathsf{Pos}}^{\mathsf{Pre}}(\lambda)$).
+Leaf positions in depth-20 SMT ($2^{20} \approx 1.04 \times 10^6$ slots, accommodating $2^{19} = 524{,}288$ voters under dual registration~\cite{Gurkan2020}) are pseudorandomly distributed via $sk$ hashing. Thus:
+\begin{equation}
+\label{eq:supp-anonymity-bound}
+\begin{aligned}
+  \Pr\left[\mathsf{Exp}_{\mathcal{A}}^{\mathsf{anon}}(1^\lambda) = 1\right]
+  &\leq \frac{1}{|\mathcal{V}_{\mathrm{reg}}|} + |\mathcal{V}_{\mathrm{reg}}| \cdot \mathbf{Adv}_{\mathsf{Pos}}^{\mathsf{Pre}}(\lambda) \\
+  &\leq \frac{1}{|\mathcal{V}_{\mathrm{reg}}|} + \mathsf{negl}(\lambda).
+\end{aligned}
+\end{equation}
+\end{proof}
+
+\subsection{Part F: Proof of Corollary V.10 (Ballot Secrecy)}
+\label{sec:supp-proof-secrecy}
+
+\begin{proof}
+Ballot secrecy guarantees that no PPT adversary $\mathcal{A}$ can extract voting vector $\mathbf{v}_i$ from on-chain transactions prior to tally publication.
+Each ballot component is encrypted under trustee public key $h = xG$ as:
+\begin{equation}
+  E(v_k; r_k) = (r_k G, \, v_k G + r_k h).
+  \label{eq:elgamal}
+\end{equation}
+Distinguishing an encryption of choice $v_0$ from $v_1$ reduces to Decisional Diffie--Hellman (DDH) over $\mathtt{secp256k1}$~\cite{elgamal1985public}. Given DDH challenge $(G, A=xG, B=rG, C)$, reduction $\mathcal{B}$ sets $pk = A$, samples bit $b \in \{0,1\}$, and constructs challenge $\mathbf{c}^* = (B, C + v_b G)$.
+If $C = xrG$, $\mathbf{c}^*$ is a valid encryption of $v_b$; if $C$ is uniform, $\mathbf{c}^*$ is statistically independent of $v_b$.
+Accompanying non-interactive Chaum--Pedersen $\Sigma$-OR proofs~\cite{ChaumPedersen1992} are simulated via Fiat--Shamir~\cite{fiat1987how} without knowing $v_k$ or $r_k$.
+Assuming the $n$ trustees use Feldman's Verifiable Secret Sharing (VSS)~\cite{Feldman1987} with threshold $t > n/3$, no corrupt subset of $< t$ trustees can reconstruct private key $x$.
+Therefore:
+\begin{equation}
+\begin{aligned}
+  |\Pr[\mathcal{A}\text{ breaks secrecy}] - 1/2|
+  &\leq m \cdot \mathbf{Adv}_{\mathsf{secp256k1}}^{\mathsf{DDH}}(\lambda) \\
+  &\leq \mathsf{negl}(\lambda).
+\end{aligned}
+\end{equation}
+\end{proof}
+
+\subsection{Part G: Proof of Proposition V.11 (Universal Verifiability)}
+\label{sec:supp-proof-verifiability}
+
+\begin{proof}
+Universal verifiability requires that any passive observer $\mathcal{O}$ can verify that all cast ballots are valid and that the published tally $\mathbf{T}$ matches the honest sum of accepted votes. Verification decomposes into three public algorithms:
+\begin{enumerate}[leftmargin=*,noitemsep]
+  \item \textbf{Individual Verifiability ($V_{\mathsf{ind}}$):} Each voter checks that their transaction $(\Pi_i, \nu_i, \mathbf{c}_i)$ is recorded on ledger $\mathcal{L}$ under nullifier $\nu_i$. By Fabric Raft consensus safety, committed transactions are immutable and globally ordered.
+  \item \textbf{Universal Ballot Verifiability ($V_{\mathsf{univ}}$):} Any auditor $\mathcal{O}$ downloads all $M$ transactions on $\mathcal{L}$ and verifies:
+  (i)~Groth16 pairing equation for proof $\Pi_j = (\pi_A, \pi_B, \pi_C)$ via verification key $\mathsf{vk}$:
+  \begin{equation}
+    \label{eq:groth16-verify}
+  \begin{aligned}
+    e(\pi_A, \pi_B) &= e(\alpha, \beta) \cdot e(\pi_C, \delta) \\
+    &\quad \cdot e\left(a_0 L_0 + \sum_{k=1}^4 a_k L_k, \, \gamma\right);
+  \end{aligned}
+  \end{equation}
+  (ii)~Chaum--Pedersen $\Sigma$-OR validity proofs certifying $v_{j,k} \in \{0,1\}$ and $\sum v_{j,k} = 1$; and
+  (iii)~Nullifier uniqueness: $\forall j \neq j', \; \nu_j \neq \nu_{j'}$.
+  \item \textbf{Tally Verifiability ($V_{\mathsf{tally}}$):} Homomorphic aggregation sums ciphertexts component-wise:
+  \begin{equation}
+  \begin{aligned}
+    \hat{\mathbf{C}}_k &= \bigoplus_{j=1}^M \mathbf{c}_{j,k} \\
+    &= \left(\left(\sum_{j=1}^M r_{j,k}\right)G, \; T_k G + \left(\sum_{j=1}^M r_{j,k}\right)h\right).
+  \end{aligned}
+  \end{equation}
+  Trustees decrypt $\hat{\mathbf{C}}_k$ and provide discrete logarithm proofs certifying that $T_k G = c_{2,k} - x c_{1,k}$. $\mathcal{O}$ recovers $T_k$ via BSGS discrete log solving and verifies the proof.
+\end{enumerate}
+\end{proof}
+
+\subsection{Part H: Formal Proof of Proposition V.12 and Proposition V.13 (Coercion Resistance \& Deniable Duress)}
+\label{sec:supp-proof-coercion}
+
+\begin{proposition}[Impossibility of JCJ Deniability under Observed Biometrics]
+\label{prop:supp-coercion}
+Let $\Pi_{\mathsf{bio}}$ be an electronic voting protocol requiring in-circuit metric check $\mathrm{dist}(\mathbf{e}_{\mathsf{live}}, \mathbf{e}_{\mathsf{reg}}) \leq \delta$ with false accept rate $\mathsf{FAR}_\delta$. If an active coercer $\mathcal{A}_{\mathsf{coer}}$ physically observes trait presentation at the capture device, no PPT voter $\mathcal{V}$ can achieve information-theoretic receipt-freeness or unobservable fake-credential simulation, except with probability at most $\mathsf{FAR}_\delta$.
+\end{proposition}
+
+\begin{proof}
+In classical receipt-freeness models such as JCJ~\cite{Juels2005} and Civitas~\cite{Civitas2008}, voters achieve coercion resistance by acquiring a dummy or simulated credential $c_{\mathsf{fake}}$ from the registration authority. Under coercion, $\mathcal{V}$ generates a ballot using $c_{\mathsf{fake}}$, which appears completely legitimate to $\mathcal{A}_{\mathsf{coer}}$ but is silently rejected during tallying.
+
+Now consider physical biometric authentication where an in-person coercer $\mathcal{A}_{\mathsf{coer}}$ directly oversees the voter at capture device $S$. The sensor extracts live biometric feature vector $\mathbf{e}_{\mathsf{live}}$. To generate an accepted zero-knowledge proof $\Pi$, the prover must satisfy relation $R_{\mathsf{zk}}$, which enforces $\mathrm{dist}(\mathbf{e}_{\mathsf{live}}, \mathbf{e}_{\mathsf{reg}}) \leq \delta$ and Merkle tree inclusion for leaf $C = \mathcal{H}_2(h_{\mathsf{bio}}, sk)$.
+By Groth16 computational knowledge soundness, an extractor $\mathcal{E}$ extracts witness $w = (\mathbf{e}_{\mathsf{live}}, \mathbf{e}_{\mathsf{reg}}, s, sk, \mathrm{path})$.
+If $\mathcal{V}$ attempts to substitute a fake template $\mathbf{e}_{\mathsf{fake}}$ un-enrolled in $\mathcal{T}$, Merkle path verification fails with probability $1 - \mathbf{Adv}_{\mathsf{Pos}}^{\mathsf{CR}}(\lambda)$ (Lemma~\ref{lem:supp-merkle-binding}).
+If $\mathcal{V}$ attempts to present a fake live trait at sensor $S$, physical presentation attack detection (PAD) detects the presentation divergence, or coercer $\mathcal{A}_{\mathsf{coer}}$ directly observes the physical trait mismatch.
+The probability that an unobserved biometric trait drawn from an impostor distribution $\mathcal{D}_{\mathsf{imp}}$ independently matches the enrolled template within distance $\delta$ is $\Pr_{\mathbf{e}' \sim \mathcal{D}_{\mathsf{imp}}}\left[\mathrm{dist}(\mathbf{e}', \mathbf{e}_{\mathsf{reg}}) \leq \delta\right] = \mathsf{FAR}_\delta$.
+Hence, $\Pr[\mathcal{V}\text{ simulates unobservable fake credential}] \leq \mathsf{FAR}_\delta + \mathsf{negl}(\lambda)$. Physical trait non-transferability and unobservable fake credential simulation are in fundamental conflict under observed capture.
+\end{proof}
+
+\begin{proposition}[Computational Receipt-Freeness of Deniable Duress Protocol]
+\label{prop:duress-receipt-freeness}
+Under Groth16 zero-knowledge, exponential ElGamal IND-CPA security, and Poseidon pseudorandomness in the AGM, the Deniable Duress Protocol guarantees computational receipt-freeness against any remote PPT coercer $\mathcal{A}_{\mathsf{coer}}$. Furthermore, Oblivious Duress Filtering $\mathcal{F}_{\mathsf{ODF}}$ inside threshold MPC ensures zero leakage to trustees, $\mathcal{RA}$, or external auditors, preserving identical ledger transaction volume and authentic candidate tallies.
+\end{proposition}
+
+\begin{proof}
+In receipt-freeness experiment $\mathsf{Exp}_{\mathcal{A}_{\mathsf{coer}}}^{\mathsf{rf}}(1^\lambda)$, $\mathcal{A}_{\mathsf{coer}}$ demands vote $\mathbf{v}'$ and execution randomness $(sk, \mathbf{r})$. Security is established across four structural guarantees:
+\begin{enumerate}[leftmargin=*,noitemsep]
+  \item \textbf{Universal Dual Enrollment:} Every voter uniformly enrolls primary commitment $C_i = \mathcal{H}_2(h_i, sk_i)$ and auxiliary duress commitment $C_i^{\mathsf{dur}} = \mathcal{H}_2(h_i^{\mathsf{dur}}, sk_i^{\mathsf{dur}})$ into SMT $\mathcal{T}$ at pseudorandom positions, depositing encrypted cancellation token $\psi_i^{\mathsf{dur}} = \mathsf{Enc}_{pk_{\mathcal{TA}}}(sk_i^{\mathsf{dur}})$ into private registry $\mathcal{R}_{\mathsf{dur}}$. 100\% uniform enrollment ensures identical registration distribution, leaking zero coercion signal to $\mathcal{RA}$.
+  \item \textbf{Coercer Indistinguishability:} Under coercion, $\mathcal{V}_i$ uses auxiliary credential $(sk_i^{\mathsf{dur}}, s_i^{\mathsf{dur}}, \mathbf{e}_i^{\mathsf{dur}})$ to generate valid proof $\Pi^{\mathsf{dur}}$, nullifier $\nu^{\mathsf{dur}} = \mathcal{H}_2(sk_i^{\mathsf{dur}}, \mathcal{E}_{\mathrm{id}})$, and coerced ciphertext $E(\mathbf{v}'; \mathbf{r}')$. $\mathcal{V}_i$ surrenders $(sk_i^{\mathsf{dur}}, \mathbf{r}')$ to $\mathcal{A}_{\mathsf{coer}}$. $\mathcal{A}_{\mathsf{coer}}$ verifies on-chain validity, nullifier derivation, and ciphertext randomness. By Poseidon pseudorandomness and Groth16 perfect ZK, duress transcripts are indistinguishable from primary transcripts.
+  \item \textbf{Oblivious Duress Filtering ($\mathcal{F}_{\mathsf{ODF}}$):} Threshold trustees execute an MPC protocol without reconstructing private keys:
+  (i)~Trustees evaluate Poseidon homomorphically under $[sk_{\mathcal{TA}}]$ using Beaver triples to compute $[\nu_i^{\mathsf{dur}}] = \mathsf{Enc}_{pk_{\mathcal{TA}}}(\mathcal{H}_2(sk_i^{\mathsf{dur}}, \mathcal{E}_{\mathrm{id}}))$;
+  (ii)~For each ballot $j \in [M]$ on ledger $\mathcal{L}$ with nullifier $\nu_j$, the MPC privately evaluates equality testing $\mathsf{EQ}(\nu_j, [\nu_i^{\mathsf{dur}}])$ using constant-round threshold comparison~\cite{Damgard2006,Lipmaa2013} and computes encrypted indicator bit:
+  \begin{equation}
+    [b_j] = \prod_{i=1}^N \left(1 - \mathsf{EQ}(\nu_j, [\nu_i^{\mathsf{dur}}])\right) \in \{[0], [1]\};
+  \end{equation}
+  (iii)~Trustees accumulate masked ballots into master aggregate ciphertext:
+  \begin{equation}
+    \mathbf{C}_{\mathsf{agg}} = \sum_{j=1}^M [b_j] \cdot \mathbf{c}_j + E(\mathbf{0}; \mathbf{r}'_j);
+  \end{equation}
+  (iv)~Trustees jointly decrypt only $\mathbf{C}_{\mathsf{agg}}$. Duress ballots ($b_j = 0$) scale to $E(\mathbf{0})$ and are neutralized. Individual $[b_j]$ and $[\nu_i^{\mathsf{dur}}]$ are never revealed, guaranteeing zero leakage to trustees.
+  \item \textbf{Zero Turnout Discrepancy:} Coerced ballots remain on-chain, preserving transaction count $M$. The voter casts their genuine ballot under primary secret key $sk_i$ at an unobserved time. Total candidate tallies reflect authentic choices without revealing coercion occurrence. Distinguishing advantage of $\mathcal{A}_{\mathsf{coer}}$ is bounded by $\mathsf{negl}(\lambda)$.
+\end{enumerate}
+\end{proof}
+
+\bibliographystyle{IEEEtran}
+\bibliography{References}
+
+\end{document}

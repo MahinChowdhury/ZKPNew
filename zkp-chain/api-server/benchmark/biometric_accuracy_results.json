@@ -1,0 +1,62 @@
+{
+  "face": {
+    "raw_128d": {
+      "eer": 0.00247,
+      "th": 0.519
+    },
+    "pca_64d": {
+      "eer": 0.01605,
+      "th": 0.52,
+      "far_op": 0.0294,
+      "frr_op": 0.00895
+    },
+    "sopq_64d": {
+      "eer": 0.00443,
+      "th": 0.517,
+      "far_op": 0.01015,
+      "frr_op": 0.00225
+    },
+    "celeba_64d": {
+      "eer": 0.00765,
+      "th": 0.519
+    },
+    "recovery_pct": 85.6,
+    "demographic_fairness": {
+      "male_eer": 0.0111,
+      "female_eer": 0.0121,
+      "delta_eer": 0.001
+    },
+    "pad_resilience": {
+      "apcer_without_binding": 0.032,
+      "apcer_with_salt_binding": 0.0015,
+      "bpcer": 0.01
+    }
+  },
+  "iris": {
+    "full_2048": {
+      "eer": 0.00025,
+      "th": 0.417
+    },
+    "strided_256": {
+      "eer": 0.01472,
+      "th": 0.428,
+      "far_op": 0.33355,
+      "frr_op": 0.0005
+    },
+    "gbsm_256": {
+      "eer": 0.00232,
+      "th": 0.42,
+      "far_op": 0.32125,
+      "frr_op": 0.0
+    },
+    "interval_256": {
+      "eer": 0.00277,
+      "th": 0.418
+    },
+    "recovery_pct": 85.7,
+    "pad_resilience": {
+      "contact_lens_apcer_raw": 0.024,
+      "contact_lens_apcer_protected": 0.0008
+    }
+  }
+}

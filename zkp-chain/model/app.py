@@ -351,10 +351,15 @@ def compare_iris_codes(code_a, mask_a, code_b, mask_b, n_shifts=8):
 
 
 # ============================
-# FASTAPI LIFESPAN
+# MODEL INITIALIZATION
 # ============================
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+def init_models():
+    """
+    Load all models needed by the face/iris pipelines. Factored out of the
+    FastAPI lifespan hook so standalone scripts (e.g. batch accuracy
+    evaluation over a real dataset) can reuse the exact same pipeline the
+    live server uses, instead of re-implementing it.
+    """
     global pca_model, mp_detector, log_gabor_bank
 
     print("⏳ Initializing models...")
@@ -374,6 +379,14 @@ async def lifespan(app: FastAPI):
     # Iris filter bank (pure numpy, fast)
     log_gabor_bank = build_log_gabor_bank()
     print(f"✓ Log-Gabor filter bank built ({len(log_gabor_bank)} filters, C-contiguous)")
+
+
+# ============================
+# FASTAPI LIFESPAN
+# ============================
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_models()
 
     # Warm up the iris pipeline on a synthetic image so OpenCV's internal
     # JIT plans (HoughCircles, inpaint, morphologyEx) and numpy's FFT
@@ -427,8 +440,13 @@ def detect_face_from_bytes(img_bytes: bytes, margin=20):
 # ============================
 # FACE EMBEDDING (internal)
 # ============================
-def get_face_embedding_from_bytes(img_bytes: bytes):
-    """Crop → FaceNet embedding → PCA 64D → L2 normalise."""
+def get_raw_embedding_from_bytes(img_bytes: bytes):
+    """Crop → FaceNet embedding → L2 normalise. Raw 128-D, no reduction.
+
+    Factored out of get_face_embedding_from_bytes so batch evaluation code
+    (and any alternative reduction, e.g. SOPQ) can reuse the exact same
+    detection/FaceNet pipeline the live server uses instead of duplicating it.
+    """
     face_img, conf = detect_face_from_bytes(img_bytes)
 
     temp_path = "/tmp/f_crop.jpg"
@@ -446,6 +464,12 @@ def get_face_embedding_from_bytes(img_bytes: bytes):
 
     embedding_128d = np.array(emb_obj[0]["embedding"])
     embedding_128d = embedding_128d / np.linalg.norm(embedding_128d)
+    return embedding_128d, conf
+
+
+def get_face_embedding_from_bytes(img_bytes: bytes):
+    """Crop → FaceNet embedding → PCA 64D → L2 normalise."""
+    embedding_128d, conf = get_raw_embedding_from_bytes(img_bytes)
     embedding_64d  = pca_model.transform(embedding_128d.reshape(1, -1))[0]
     embedding_64d  = embedding_64d  / np.linalg.norm(embedding_64d)
 

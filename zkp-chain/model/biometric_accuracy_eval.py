@@ -1,245 +1,476 @@
 #!/usr/bin/env python3
 """
 ===================================================================
- Biometric Accuracy Evaluation & Plotter (July 2026)
+ Biometric Accuracy Evaluation — Real Dataset Harness
 ===================================================================
+Computes FAR/FRR/EER for the face (raw-128D / PCA-64D / SOPQ-64D) and iris
+(full IrisCode / uniform-stride-256 / GBSM-256) pipelines by running actual
+images through the same detection + FaceNet + Log-Gabor code in app.py.
 
-Sweeps decision thresholds on Face and Iris modalities to calculate
-False Acceptance Rate (FAR), False Rejection Rate (FRR), and
-Equal Error Rate (EER) under:
-  - Face: FaceNet 128D vs. PCA-reduced 64D + Integer Quantized
-  - Iris: Full IrisCode vs. 256-bit Downsampled IrisCode
+This intentionally does NOT fall back to synthetic/simulated distributions.
+If a dataset path is missing or a split can't be scored, the script raises
+instead of guessing — a prior version of this file used
+`random.gauss(mu, sigma, ...)` with hand-picked parameters to *simulate*
+plausible-looking LFW/CASIA statistics, and those simulated numbers ended up
+quoted in the paper as if they were measured. Do not reintroduce that.
 
-Generates publication-ready figures: ROC, DET, and Threshold sweeps.
+Expected dataset layout:
+  --lfw-root DIR         DIR/<identity_name>/<image>.jpg   (LFW-deepfunneled style)
+  --celeba-root DIR      same ImageFolder style, used only for cross-dataset face eval
+  --casia-thousand-root DIR   DIR/<subject_id>/<L_or_R>/<image>.jpg (or .bmp)
+  --casia-interval-root DIR   same style, used only for cross-dataset iris eval
+
+Run from this directory (so relative model paths in app.py resolve), e.g.:
+  python biometric_accuracy_eval.py \
+      --lfw-root /data/lfw-deepfunneled \
+      --celeba-root /data/celeba_by_identity \
+      --casia-thousand-root /data/CASIA-Iris-Thousand \
+      --casia-interval-root /data/CASIA-Iris-Interval
+
+Demographic-parity and presentation-attack numbers are only computed if you
+pass --face-attributes-csv / --pad-spoof-dir; otherwise those sections are
+marked SKIPPED in the output rather than fabricated.
 """
 
-import os
+import argparse
 import json
+import os
+import random
+import sys
+from collections import defaultdict
+
 import numpy as np
 
-# Try importing matplotlib for plotting, fallback gracefully if not installed
-try:
-    import matplotlib
-    matplotlib.use('Agg') # Headless backend
-    import matplotlib.pyplot as plt
-    PLOTTING_AVAILABLE = True
-except ImportError:
-    PLOTTING_AVAILABLE = False
-    print("⚠️ Warning: matplotlib is not installed. Plotting ROC/DET curves will be skipped.")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import app as pipeline  # noqa: E402  (reuses the live server's real pipeline)
+import sopq as sopq_mod  # noqa: E402
+import gbsm as gbsm_mod  # noqa: E402
 
-# Config
-NUM_PAIRS = 50000  # Large population size for publication-grade precision
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "..", "api-server", "benchmark")
-os.makedirs(RESULTS_DIR, exist_ok=True)
+IMG_EXTS = (".jpg", ".jpeg", ".png", ".bmp")
+SEED = 42
 
-# -----------------------------------------------------------------
-# 1. SIMULATE EMBEDDING COMPARISONS BASED ON LFW & CASIA STATS
-# -----------------------------------------------------------------
-np.random.seed(42)  # For reproducibility
 
-# --- Face: Cosine Similarity Distributions ---
-# Genuine 128D: Mean similarity = 0.74, SD = 0.08
-genuine_face_128 = np.random.normal(0.74, 0.08, NUM_PAIRS)
-# Impostor 128D: Mean similarity = 0.35, SD = 0.06
-impostor_face_128 = np.random.normal(0.35, 0.06, NUM_PAIRS)
+# ------------------------------------------------------------------
+# Dataset scanning
+# ------------------------------------------------------------------
+def scan_identity_folders(root):
+    """root/<identity>/<image> -> {identity: [filepaths]}"""
+    identities = defaultdict(list)
+    for identity in sorted(os.listdir(root)):
+        idir = os.path.join(root, identity)
+        if not os.path.isdir(idir):
+            continue
+        for fname in sorted(os.listdir(idir)):
+            if fname.lower().endswith(IMG_EXTS):
+                identities[identity].append(os.path.join(idir, fname))
+    if not identities:
+        raise FileNotFoundError(f"No identity subfolders with images found under {root}")
+    return identities
 
-# PCA 64D + Quantization introduces minor distortion/information loss
-# Genuine 64D: Mean similarity = 0.71, SD = 0.088
-genuine_face_64 = np.random.normal(0.71, 0.088, NUM_PAIRS)
-# Impostor 64D: Mean similarity = 0.37, SD = 0.068
-impostor_face_64 = np.random.normal(0.37, 0.068, NUM_PAIRS)
 
-# Clip similarities between -1.0 and 1.0
-genuine_face_128 = np.clip(genuine_face_128, -1.0, 1.0)
-impostor_face_128 = np.clip(impostor_face_128, -1.0, 1.0)
-genuine_face_64 = np.clip(genuine_face_64, -1.0, 1.0)
-impostor_face_64 = np.clip(impostor_face_64, -1.0, 1.0)
+def scan_iris_subject_folders(root):
+    """root/<subject_id>/<L_or_R>/<image> -> {"subject_eye": [filepaths]}"""
+    subjects = defaultdict(list)
+    for subject in sorted(os.listdir(root)):
+        sdir = os.path.join(root, subject)
+        if not os.path.isdir(sdir):
+            continue
+        for eye in sorted(os.listdir(sdir)):
+            edir = os.path.join(sdir, eye)
+            if not os.path.isdir(edir):
+                continue
+            key = f"{subject}_{eye}"
+            for fname in sorted(os.listdir(edir)):
+                if fname.lower().endswith(IMG_EXTS):
+                    subjects[key].append(os.path.join(edir, fname))
+    if not subjects:
+        raise FileNotFoundError(
+            f"No <subject>/<L|R>/<image> structure found under {root}"
+        )
+    return subjects
 
-# --- Iris: Hamming Distance (HD) Distributions ---
-# Genuine Full: Mean HD = 0.28, SD = 0.04
-genuine_iris_full = np.random.normal(0.28, 0.04, NUM_PAIRS)
-# Impostor Full: Mean HD = 0.49, SD = 0.02
-impostor_iris_full = np.random.normal(0.49, 0.02, NUM_PAIRS)
 
-# Downsampled 256-bit IrisCode: slightly higher variance
-# Genuine 256: Mean HD = 0.32, SD = 0.05
-genuine_iris_256 = np.random.normal(0.32, 0.05, NUM_PAIRS)
-# Impostor 256: Mean HD = 0.49, SD = 0.028
-impostor_iris_256 = np.random.normal(0.49, 0.028, NUM_PAIRS)
+def split_identities(identities: dict, train_frac=0.6, seed=SEED):
+    keys = list(identities.keys())
+    rng = random.Random(seed)
+    rng.shuffle(keys)
+    cut = int(len(keys) * train_frac)
+    train_keys, test_keys = keys[:cut], keys[cut:]
+    return {k: identities[k] for k in train_keys}, {k: identities[k] for k in test_keys}
 
-# Clip HDs between 0.0 and 1.0
-genuine_iris_full = np.clip(genuine_iris_full, 0.0, 1.0)
-impostor_iris_full = np.clip(impostor_iris_full, 0.0, 1.0)
-genuine_iris_256 = np.clip(genuine_iris_256, 0.0, 1.0)
-impostor_iris_256 = np.clip(impostor_iris_256, 0.0, 1.0)
 
-# -----------------------------------------------------------------
-# 2. ACCURACY & EER COMPUTATION UTILITIES
-# -----------------------------------------------------------------
-def evaluate_modality_cosine(genuine_scores, impostor_scores, thresholds):
-    """Calculates FAR, FRR, and EER for Cosine Similarity (higher = match)."""
-    far = []
-    frr = []
-    for t in thresholds:
-        far.append(np.sum(impostor_scores >= t) / len(impostor_scores))
-        frr.append(np.sum(genuine_scores < t) / len(genuine_scores))
-    
-    far = np.array(far)
-    frr = np.array(frr)
-    
-    # EER is point where FAR = FRR
-    idx = np.argmin(np.abs(far - frr))
-    eer = (far[idx] + frr[idx]) / 2.0
-    eer_threshold = thresholds[idx]
-    
-    return far, frr, eer, eer_threshold
+# ------------------------------------------------------------------
+# Pair generation
+# ------------------------------------------------------------------
+def make_pairs(identities: dict, max_pairs=6000, seed=SEED, max_per_identity=50):
+    """Returns (genuine_pairs, impostor_pairs) as lists of (path_a, path_b).
 
-def evaluate_modality_hamming(genuine_scores, impostor_scores, thresholds):
-    """Calculates FAR, FRR, and EER for Hamming Distance (lower = match)."""
-    far = []
-    frr = []
-    for t in thresholds:
-        far.append(np.sum(impostor_scores <= t) / len(impostor_scores))
-        frr.append(np.sum(genuine_scores > t) / len(genuine_scores))
-    
-    far = np.array(far)
-    frr = np.array(frr)
-    
-    idx = np.argmin(np.abs(far - frr))
-    eer = (far[idx] + frr[idx]) / 2.0
-    eer_threshold = thresholds[idx]
-    
-    return far, frr, eer, eer_threshold
+    Identities with many images (e.g. LFW's most-photographed people) are
+    capped per-identity before shuffling, so one identity with hundreds of
+    images can't dominate the pool or blow up combinatorially.
+    """
+    rng = random.Random(seed)
+    genuine = []
 
-# Sweep thresholds
-thresholds_face = np.linspace(-0.2, 1.2, 1000)
-thresholds_iris = np.linspace(-0.1, 1.1, 1000)
+    multi = {k: v for k, v in identities.items() if len(v) >= 2}
+    for imgs in multi.values():
+        if len(imgs) <= 10:
+            combos = [(imgs[i], imgs[j]) for i in range(len(imgs)) for j in range(i + 1, len(imgs))]
+        else:
+            combos = [tuple(rng.sample(imgs, 2)) for _ in range(max_per_identity)]
+        genuine.extend(combos)
+    rng.shuffle(genuine)
+    genuine = genuine[:max_pairs]
 
-# Evaluate Face models
-far_f128, frr_f128, eer_f128, th_f128 = evaluate_modality_cosine(genuine_face_128, impostor_face_128, thresholds_face)
-far_f64, frr_f64, eer_f64, th_f64 = evaluate_modality_cosine(genuine_face_64, impostor_face_64, thresholds_face)
+    keys = list(identities.keys())
+    if len(keys) < 2:
+        raise ValueError("Need >=2 identities to build impostor pairs")
+    attempts = 0
+    target = len(genuine) if genuine else max_pairs
+    while len(impostor) < target and attempts < target * 20:
+        attempts += 1
+        a, b = rng.sample(keys, 2)
+        impostor.append((rng.choice(identities[a]), rng.choice(identities[b])))
 
-# Evaluate Iris models
-far_i_full, frr_i_full, eer_i_full, th_i_full = evaluate_modality_hamming(genuine_iris_full, impostor_iris_full, thresholds_iris)
-far_i_256, frr_i_256, eer_i_256, th_i_256 = evaluate_modality_hamming(genuine_iris_256, impostor_iris_256, thresholds_iris)
+    if not genuine:
+        raise ValueError("No identity in this dataset has >=2 images — cannot form genuine pairs")
+    return genuine, impostor
 
-# Get metrics at standard operational thresholds
-# Face Operational Threshold = 0.50
-idx_f64_op = np.argmin(np.abs(thresholds_face - 0.50))
-far_f64_op = far_f64[idx_f64_op]
-frr_f64_op = frr_f64[idx_f64_op]
 
-# Iris Operational Threshold = 0.478 (matches code)
-idx_i256_op = np.argmin(np.abs(thresholds_iris - 0.478))
-far_i256_op = far_i_256[idx_i256_op]
-frr_i256_op = frr_i_256[idx_i256_op]
+# ------------------------------------------------------------------
+# EER / FAR / FRR (unchanged math, now fed real scores)
+# ------------------------------------------------------------------
+def eval_cosine(genuine, impostor, steps=500, t_min=0.0, t_max=1.0):
+    best_diff, best_eer, best_th = 999.0, 0.0, 0.5
+    n_g, n_i = len(genuine), len(impostor)
+    for s in range(steps + 1):
+        t = t_min + (t_max - t_min) * (s / steps)
+        far = sum(1 for x in impostor if x >= t) / n_i
+        frr = sum(1 for x in genuine if x < t) / n_g
+        diff = abs(far - frr)
+        if diff < best_diff:
+            best_diff, best_eer, best_th = diff, (far + frr) / 2.0, t
+    return best_eer, best_th
 
-# -----------------------------------------------------------------
-# 3. PRINT REPORT TO CONSOLE
-# -----------------------------------------------------------------
-print("\n" + "━"*90)
-print("  👁️‍🗨️  Biometric Pipeline Accuracy Profile — LFW & CASIA Datasets Evaluation (July 2026)")
-print("━"*90)
-print(f"  Face (FaceNet 128D)      -> EER: {(eer_f128*100):.3f}% at Threshold: {th_f128:.3f}")
-print(f"  Face (PCA 64D Quantized) -> EER: {(eer_f64*100):.3f}% at Threshold: {th_f64:.3f} | Op FAR (τ=0.5): {(far_f64_op*100):.3f}%")
-print("  " + "─"*86)
-print(f"  Iris (Full IrisCode)     -> EER: {(eer_i_full*100):.3f}% at Threshold: {th_i_full:.3f}")
-print(f"  Iris (Downsampled 256b)  -> EER: {(eer_i_256*100):.3f}% at Threshold: {th_i_256:.3f} | Op FAR (τ=0.478): {(far_i256_op*100):.4f}%")
-print("━"*90 + "\n")
 
-# Save results to JSON
-results = {
-    "face_128d": {
-        "eer": float(eer_f128),
-        "eer_threshold": float(th_f128)
-    },
-    "face_64d_pca_quantized": {
-        "eer": float(eer_f64),
-        "eer_threshold": float(th_f64),
-        "operational_far_at_05": float(far_f64_op),
-        "operational_frr_at_05": float(frr_f64_op)
-    },
-    "iris_full": {
-        "eer": float(eer_i_full),
-        "eer_threshold": float(th_i_full)
-    },
-    "iris_256b_downsampled": {
-        "eer": float(eer_i_256),
-        "eer_threshold": float(th_i_256),
-        "operational_far_at_0478": float(far_i256_op),
-        "operational_frr_at_0478": float(frr_i256_op)
+def eval_hamming(genuine, impostor, steps=500, t_min=0.0, t_max=0.6):
+    best_diff, best_eer, best_th = 999.0, 0.0, 0.4
+    n_g, n_i = len(genuine), len(impostor)
+    for s in range(steps + 1):
+        t = t_min + (t_max - t_min) * (s / steps)
+        far = sum(1 for x in impostor if x <= t) / n_i
+        frr = sum(1 for x in genuine if x > t) / n_g
+        diff = abs(far - frr)
+        if diff < best_diff:
+            best_diff, best_eer, best_th = diff, (far + frr) / 2.0, t
+    return best_eer, best_th
+
+
+def get_rates_cosine(genuine, impostor, t):
+    return (sum(1 for x in impostor if x >= t) / len(impostor),
+            sum(1 for x in genuine if x < t) / len(genuine))
+
+
+def get_rates_hamming(genuine, impostor, t):
+    return (sum(1 for x in impostor if x <= t) / len(impostor),
+            sum(1 for x in genuine if x > t) / len(genuine))
+
+
+# ------------------------------------------------------------------
+# Face evaluation
+# ------------------------------------------------------------------
+def embed_all_faces(paths):
+    """path -> (raw128, conf). Skips images with no detected face."""
+    out = {}
+    for i, p in enumerate(paths):
+        try:
+            with open(p, "rb") as f:
+                raw128, conf = pipeline.get_raw_embedding_from_bytes(f.read())
+            out[p] = raw128
+        except Exception as e:
+            print(f"  ⚠ skip {p}: {e}")
+        if (i + 1) % 200 == 0:
+            print(f"  ...embedded {i + 1}/{len(paths)}")
+    return out
+
+
+def cosine_scores(pairs, embeddings):
+    scores = []
+    for a, b in pairs:
+        if a in embeddings and b in embeddings:
+            scores.append(float(np.dot(embeddings[a], embeddings[b])))
+    return scores
+
+
+def run_face_eval(args):
+    print("=" * 85)
+    print("FACE — loading dataset and computing FaceNet embeddings (this hits the real pipeline)")
+    identities = scan_identity_folders(args.lfw_root)
+    train_ids, test_ids = split_identities(identities, train_frac=args.train_frac)
+
+    train_paths = [p for imgs in train_ids.values() for p in imgs]
+    test_paths = [p for imgs in test_ids.values() for p in imgs]
+    print(f"  {len(identities)} identities total -> {len(train_ids)} train / {len(test_ids)} test")
+
+    print("Embedding train split (for fitting SOPQ)...")
+    train_emb = embed_all_faces(train_paths)
+    print("Embedding test split (for measuring EER)...")
+    test_emb = embed_all_faces(test_paths)
+
+    # Fit SOPQ strictly on train identities
+    train_labels_flat, train_vecs = [], []
+    for ident, paths in train_ids.items():
+        for p in paths:
+            if p in train_emb:
+                train_vecs.append(train_emb[p])
+                train_labels_flat.append(ident)
+    W = sopq_mod.fit_sopq(np.array(train_vecs), np.array(train_labels_flat), out_dim=64)
+
+    def to_pca64(v):
+        reduced = pipeline.pca_model.transform(v.reshape(1, -1))[0]
+        return reduced / np.linalg.norm(reduced)
+
+    pca64 = {p: to_pca64(v) for p, v in test_emb.items()}
+    sopq64 = {p: sopq_mod.apply_sopq(W, v) for p, v in test_emb.items()}
+
+    genuine_pairs, impostor_pairs = make_pairs(test_ids, max_pairs=args.max_pairs)
+    print(f"  {len(genuine_pairs)} genuine / {len(impostor_pairs)} impostor face pairs")
+
+    g128, i128 = cosine_scores(genuine_pairs, test_emb), cosine_scores(impostor_pairs, test_emb)
+    g_pca, i_pca = cosine_scores(genuine_pairs, pca64), cosine_scores(impostor_pairs, pca64)
+    g_sopq, i_sopq = cosine_scores(genuine_pairs, sopq64), cosine_scores(impostor_pairs, sopq64)
+
+    eer128, th128 = eval_cosine(g128, i128)
+    eer_pca, th_pca = eval_cosine(g_pca, i_pca)
+    eer_sopq, th_sopq = eval_cosine(g_sopq, i_sopq)
+    far_pca_op, frr_pca_op = get_rates_cosine(g_pca, i_pca, 0.50)
+    far_sopq_op, frr_sopq_op = get_rates_cosine(g_sopq, i_sopq, 0.50)
+
+    denom = (eer_pca - eer128)
+    recovery = ((eer_pca - eer_sopq) / denom * 100) if abs(denom) > 1e-9 else float("nan")
+
+    result = {
+        "raw_128d": {"eer": round(eer128, 5), "th": round(th128, 3),
+                     "n_genuine": len(g128), "n_impostor": len(i128)},
+        "pca_64d": {"eer": round(eer_pca, 5), "th": round(th_pca, 3),
+                    "far_op": round(far_pca_op, 5), "frr_op": round(frr_pca_op, 5)},
+        "sopq_64d": {"eer": round(eer_sopq, 5), "th": round(th_sopq, 3),
+                     "far_op": round(far_sopq_op, 5), "frr_op": round(frr_sopq_op, 5)},
+        "recovery_pct": round(recovery, 1) if recovery == recovery else None,
+        "source": "measured",
     }
-}
 
-json_path = os.path.join(RESULTS_DIR, "biometric_accuracy_results.json")
-with open(json_path, "w") as f:
-    json.dump(results, f, indent=2)
-print(f"✓ Saved biometric accuracy metrics to {json_path}")
+    if args.celeba_root:
+        print("Cross-dataset (CelebA): applying LFW-trained SOPQ without retraining...")
+        celeba_ids = scan_identity_folders(args.celeba_root)
+        celeba_emb = embed_all_faces([p for imgs in celeba_ids.values() for p in imgs])
+        celeba_sopq = {p: sopq_mod.apply_sopq(W, v) for p, v in celeba_emb.items()}
+        g_pairs, i_pairs = make_pairs(celeba_ids, max_pairs=args.max_pairs)
+        eer_celeba, th_celeba = eval_cosine(
+            cosine_scores(g_pairs, celeba_sopq), cosine_scores(i_pairs, celeba_sopq)
+        )
+        result["celeba_64d_sopq"] = {"eer": round(eer_celeba, 5), "th": round(th_celeba, 3),
+                                      "source": "measured"}
+    else:
+        result["celeba_64d_sopq"] = {"status": "SKIPPED — pass --celeba-root to measure this"}
 
-# -----------------------------------------------------------------
-# 4. PLOT DET, ROC & SWEEP CURVES (IF MATPLOTLIB PRESENT)
-# -----------------------------------------------------------------
-if PLOTTING_AVAILABLE:
-    # Plot 1: Threshold Sweep (FAR/FRR vs Threshold)
-    plt.figure(figsize=(10, 5))
-    
-    plt.subplot(1, 2, 1)
-    plt.plot(thresholds_face, far_f64 * 100, label="FAR (PCA 64D)", color="red", lw=2)
-    plt.plot(thresholds_face, frr_f64 * 100, label="FRR (PCA 64D)", color="blue", lw=2, linestyle="--")
-    plt.axvline(th_f64, color="gray", linestyle=":", label=f"EER ({eer_f64*100:.2f}%)")
-    plt.title("Face Modality (PCA 64D) Threshold Sweep")
-    plt.xlabel("Cosine Similarity Threshold")
-    plt.ylabel("Error Rate (%)")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    
-    plt.subplot(1, 2, 2)
-    plt.plot(thresholds_iris, far_i_256 * 100, label="FAR (256b)", color="red", lw=2)
-    plt.plot(thresholds_iris, frr_i_256 * 100, label="FRR (256b)", color="blue", lw=2, linestyle="--")
-    plt.axvline(th_i_256, color="gray", linestyle=":", label=f"EER ({eer_i_256*100:.2f}%)")
-    plt.title("Iris Modality (256b) Threshold Sweep")
-    plt.xlabel("Hamming Distance Threshold")
-    plt.ylabel("Error Rate (%)")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(RESULTS_DIR, "biometric_threshold_sweep.png"), dpi=300)
-    plt.close()
+    result["demographic_fairness"] = (
+        {"status": "SKIPPED — pass --face-attributes-csv to measure this"}
+        if not args.face_attributes_csv else {"status": "NOT_IMPLEMENTED_YET"}
+    )
+    result["pad_resilience"] = (
+        {"status": "SKIPPED — pass --pad-spoof-dir to measure this"}
+        if not args.pad_spoof_dir else {"status": "NOT_IMPLEMENTED_YET"}
+    )
+    return result, W
 
-    # Plot 2: ROC Curve (True Positive Rate vs False Positive Rate)
-    # TPR = 1 - FRR; FPR = FAR
-    plt.figure(figsize=(8, 6))
-    plt.plot(far_f128, 1 - frr_f128, label=f"Face (FaceNet 128D, EER: {eer_f128*100:.2f}%)", color="darkblue", lw=2)
-    plt.plot(far_f64, 1 - frr_f64, label=f"Face (PCA 64D Quantized, EER: {eer_f64*100:.2f}%)", color="cyan", lw=2, linestyle="--")
-    plt.plot(far_i_full, 1 - frr_i_full, label=f"Iris (Full IrisCode, EER: {eer_i_full*100:.2f}%)", color="darkgreen", lw=2)
-    plt.plot(far_i_256, 1 - frr_i_256, label=f"Iris (Downsampled 256b, EER: {eer_i_256*100:.2f}%)", color="green", lw=2, linestyle="--")
-    plt.plot([0, 1], [0, 1], color="gray", linestyle=":")
-    plt.title("Receiver Operating Characteristic (ROC) Curves")
-    plt.xlabel("False Positive Rate (FPR) / FAR")
-    plt.ylabel("True Positive Rate (TPR) / 1-FRR")
-    plt.legend(loc="lower right")
-    plt.grid(True, alpha=0.3)
-    plt.savefig(os.path.join(RESULTS_DIR, "biometric_roc_curve.png"), dpi=300)
-    plt.close()
 
-    # Plot 3: DET Curve (FRR vs FAR on Logarithmic axes)
-    plt.figure(figsize=(8, 6))
-    # We clip FAR/FRR to avoid log(0)
-    clip_val = 1e-6
-    plt.loglog(np.clip(far_f128, clip_val, 1), np.clip(frr_f128, clip_val, 1), label=f"Face (FaceNet 128D, EER: {eer_f128*100:.2f}%)", color="darkblue", lw=2)
-    plt.loglog(np.clip(far_f64, clip_val, 1), np.clip(frr_f64, clip_val, 1), label=f"Face (PCA 64D Quantized, EER: {eer_f64*100:.2f}%)", color="cyan", lw=2, linestyle="--")
-    plt.loglog(np.clip(far_i_full, clip_val, 1), np.clip(frr_i_full, clip_val, 1), label=f"Iris (Full IrisCode, EER: {eer_i_full*100:.2f}%)", color="darkgreen", lw=2)
-    plt.loglog(np.clip(far_i_256, clip_val, 1), np.clip(frr_i_256, clip_val, 1), label=f"Iris (Downsampled 256b, EER: {eer_i_256*100:.2f}%)", color="green", lw=2, linestyle="--")
-    plt.title("Detection Error Tradeoff (DET) Curves")
-    plt.xlabel("False Match Rate (FMR) / FAR")
-    plt.ylabel("False Non-Match Rate (FNMR) / FRR")
-    plt.legend(loc="upper right")
-    plt.grid(True, which="both", alpha=0.3)
-    plt.savefig(os.path.join(RESULTS_DIR, "biometric_det_curve.png"), dpi=300)
-    plt.close()
-    
-    print("✓ Successfully generated biometric accuracy plots:")
-    print(f"  → ROC Curve       : {os.path.join(RESULTS_DIR, 'biometric_roc_curve.png')}")
-    print(f"  → DET Curve       : {os.path.join(RESULTS_DIR, 'biometric_det_curve.png')}")
-    print(f"  → Threshold Sweep : {os.path.join(RESULTS_DIR, 'biometric_threshold_sweep.png')}\n")
+# ------------------------------------------------------------------
+# Iris evaluation
+# ------------------------------------------------------------------
+def extract_all_iris(paths):
+    out = {}
+    for i, p in enumerate(paths):
+        try:
+            with open(p, "rb") as f:
+                code, mask, quality = pipeline.get_iris_code_from_bytes(f.read())
+            out[p] = (code, mask)
+        except Exception as e:
+            print(f"  ⚠ skip {p}: {e}")
+        if (i + 1) % 200 == 0:
+            print(f"  ...extracted {i + 1}/{len(paths)}")
+    return out
+
+
+def masked_hamming(code_a, mask_a, code_b, mask_b):
+    joint = mask_a & mask_b
+    n_valid = int(joint.sum())
+    if n_valid < 1:
+        return 1.0
+    return float((code_a ^ code_b)[joint == 1].sum()) / n_valid
+
+
+def roll_flat(flat, width, shift):
+    grid = flat.reshape(-1, width)
+    return np.roll(grid, shift, axis=1).ravel()
+
+
+def best_rotation_hd(code_a, mask_a, code_b, mask_b, width, n_shifts=8):
+    best_hd, best_shift = 1.0, 0
+    for shift in range(-n_shifts, n_shifts + 1):
+        rb = roll_flat(code_b, width, shift)
+        rm = roll_flat(mask_b, width, shift)
+        hd = masked_hamming(code_a, mask_a, rb, rm)
+        if hd < best_hd:
+            best_hd, best_shift = hd, shift
+    return best_hd, best_shift
+
+
+def run_iris_eval(args):
+    print("=" * 85)
+    print("IRIS — loading dataset and extracting IrisCodes (this hits the real pipeline)")
+    subjects = scan_iris_subject_folders(args.casia_thousand_root)
+    train_subj, test_subj = split_identities(subjects, train_frac=args.train_frac)
+
+    train_paths = [p for imgs in train_subj.values() for p in imgs]
+    test_paths = [p for imgs in test_subj.values() for p in imgs]
+    print(f"  {len(subjects)} subject-eyes total -> {len(train_subj)} train / {len(test_subj)} test")
+
+    print("Extracting train split (for fitting GBSM salience)...")
+    train_codes = extract_all_iris(train_paths)
+    print("Extracting test split (for measuring EER)...")
+    test_codes = extract_all_iris(test_paths)
+
+    code_len = next(iter(train_codes.values()))[0].shape[0]
+
+    train_labels, codes_arr, masks_arr = [], [], []
+    for ident, paths in train_subj.items():
+        for p in paths:
+            if p in train_codes:
+                c, m = train_codes[p]
+                codes_arr.append(c)
+                masks_arr.append(m)
+                train_labels.append(ident)
+    salience = gbsm_mod.compute_bit_salience(np.array(codes_arr), np.array(masks_arr),
+                                              np.array(train_labels))
+    gbsm_idx = gbsm_mod.select_top_bits(salience, d=256)
+    stride_idx = gbsm_mod.stride_baseline(code_len, d=256)
+
+    genuine_pairs, impostor_pairs = make_pairs(test_subj, max_pairs=args.max_pairs)
+    print(f"  {len(genuine_pairs)} genuine / {len(impostor_pairs)} impostor iris pairs")
+
+    def score_pairs(pairs):
+        full, stride, gbsm = [], [], []
+        for a, b in pairs:
+            if a not in test_codes or b not in test_codes:
+                continue
+            ca, ma = test_codes[a]
+            cb, mb = test_codes[b]
+            hd_full, shift = best_rotation_hd(ca, ma, cb, mb, pipeline.NORM_WIDTH)
+            cb_r = roll_flat(cb, pipeline.NORM_WIDTH, shift)
+            mb_r = roll_flat(mb, pipeline.NORM_WIDTH, shift)
+            full.append(hd_full)
+            stride.append(masked_hamming(ca[stride_idx], ma[stride_idx], cb_r[stride_idx], mb_r[stride_idx]))
+            gbsm.append(masked_hamming(ca[gbsm_idx], ma[gbsm_idx], cb_r[gbsm_idx], mb_r[gbsm_idx]))
+        return full, stride, gbsm
+
+    g_full, g_stride, g_gbsm = score_pairs(genuine_pairs)
+    i_full, i_stride, i_gbsm = score_pairs(impostor_pairs)
+
+    eer_full, th_full = eval_hamming(g_full, i_full)
+    eer_stride, th_stride = eval_hamming(g_stride, i_stride)
+    eer_gbsm, th_gbsm = eval_hamming(g_gbsm, i_gbsm)
+    far_stride_op, frr_stride_op = get_rates_hamming(g_stride, i_stride, 0.478)
+    far_gbsm_op, frr_gbsm_op = get_rates_hamming(g_gbsm, i_gbsm, 0.478)
+
+    denom = (eer_stride - eer_full)
+    recovery = ((eer_stride - eer_gbsm) / denom * 100) if abs(denom) > 1e-9 else float("nan")
+
+    result = {
+        "code_length": int(code_len),
+        "full": {"eer": round(eer_full, 5), "th": round(th_full, 3),
+                 "n_genuine": len(g_full), "n_impostor": len(i_full)},
+        "strided_256": {"eer": round(eer_stride, 5), "th": round(th_stride, 3),
+                         "far_op": round(far_stride_op, 5), "frr_op": round(frr_stride_op, 5)},
+        "gbsm_256": {"eer": round(eer_gbsm, 5), "th": round(th_gbsm, 3),
+                     "far_op": round(far_gbsm_op, 5), "frr_op": round(frr_gbsm_op, 5)},
+        "recovery_pct": round(recovery, 1) if recovery == recovery else None,
+        "source": "measured",
+    }
+
+    if args.casia_interval_root:
+        print("Cross-dataset (CASIA-Interval): applying Thousand-trained GBSM mask without refitting...")
+        interval_subj = scan_iris_subject_folders(args.casia_interval_root)
+        interval_codes = extract_all_iris([p for imgs in interval_subj.values() for p in imgs])
+        g_pairs, i_pairs = make_pairs(interval_subj, max_pairs=args.max_pairs)
+
+        def score_gbsm_only(pairs):
+            # Rotation search must run on the FULL rectangular code (the roll
+            # is a circular shift along the theta axis of the (filter, row,
+            # col) grid); the GBSM-selected 256 bits are scattered indices
+            # into that grid and can't be reshaped/rolled on their own.
+            scores = []
+            for a, b in pairs:
+                if a not in interval_codes or b not in interval_codes:
+                    continue
+                ca, ma = interval_codes[a]
+                cb, mb = interval_codes[b]
+                _, shift = best_rotation_hd(ca, ma, cb, mb, pipeline.NORM_WIDTH, n_shifts=4)
+                cb_r = roll_flat(cb, pipeline.NORM_WIDTH, shift)
+                mb_r = roll_flat(mb, pipeline.NORM_WIDTH, shift)
+                scores.append(masked_hamming(ca[gbsm_idx], ma[gbsm_idx], cb_r[gbsm_idx], mb_r[gbsm_idx]))
+            return scores
+
+        eer_interval, th_interval = eval_hamming(score_gbsm_only(g_pairs), score_gbsm_only(i_pairs))
+        result["interval_256_gbsm"] = {"eer": round(eer_interval, 5), "th": round(th_interval, 3),
+                                        "source": "measured"}
+    else:
+        result["interval_256_gbsm"] = {"status": "SKIPPED — pass --casia-interval-root to measure this"}
+
+    result["pad_resilience"] = (
+        {"status": "SKIPPED — pass --pad-spoof-dir to measure this"}
+        if not args.pad_spoof_dir else {"status": "NOT_IMPLEMENTED_YET"}
+    )
+    return result
+
+
+# ------------------------------------------------------------------
+# Main
+# ------------------------------------------------------------------
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--lfw-root", help="root/<identity>/<image> face dataset")
+    ap.add_argument("--celeba-root", help="same layout, cross-dataset face eval only")
+    ap.add_argument("--casia-thousand-root", help="root/<subject>/<L|R>/<image> iris dataset")
+    ap.add_argument("--casia-interval-root", help="same layout, cross-dataset iris eval only")
+    ap.add_argument("--face-attributes-csv", help="optional filename->gender/ethnicity metadata")
+    ap.add_argument("--pad-spoof-dir", help="optional spoof/replay image set for PAD metrics")
+    ap.add_argument("--train-frac", type=float, default=0.6)
+    ap.add_argument("--max-pairs", type=int, default=6000)
+    ap.add_argument("--out", default=os.path.join(RESULTS_DIR, "biometric_accuracy_results.json"))
+    args = ap.parse_args()
+
+    if not args.lfw_root and not args.casia_thousand_root:
+        ap.error("Provide at least --lfw-root or --casia-thousand-root — there is no synthetic "
+                  "fallback in this script anymore.")
+
+    print("Initializing real pipeline models (FaceNet / MediaPipe / Log-Gabor bank)...")
+    pipeline.init_models()
+
+    results = {}
+    if args.lfw_root:
+        results["face"], _ = run_face_eval(args)
+    if args.casia_thousand_root:
+        results["iris"] = run_iris_eval(args)
+
+    os.makedirs(os.path.dirname(args.out), exist_ok=True)
+    with open(args.out, "w") as f:
+        json.dump(results, f, indent=2)
+    print("=" * 85)
+    print(f"Wrote real, measured results to {args.out}")
+    print(json.dumps(results, indent=2))
+
+
+if __name__ == "__main__":
+    main()

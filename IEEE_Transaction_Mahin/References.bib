@@ -1,0 +1,726 @@
+% =============================================================
+%  BIOVOTE — references.bib  (reviewed & corrected)
+%
+%  CHANGES FROM ORIGINAL:
+%  [FIX-1]  Karakosta2026 → year corrected to 2025 (arXiv 2603.xxxxx
+%           cannot be 2026; verify actual submission date and update)
+%  [FIX-2]  Jozwik2025 arXiv:2507.09453 — flagged as very recent;
+%           expand comparison in related work before submission
+%  [FIX-3]  Duplicate Civitas2008 entry removed
+%  [FIX-4]  JuelsSudan2006 key renamed to JuelsWattenberg1999
+%           (correct author/year)
+%  [NEW-1]  BlakleySecretSharing1979 added (Shamir/Blakley for
+%           threshold crypto background)
+%  [NEW-2]  Shamir1979 added (t-of-n secret sharing — needed when
+%           citing threshold ElGamal)
+%  [NEW-3]  Boneh2020 added (PLONK/transparent setup survey —
+%           needed in forward-path paragraph)
+%  [NEW-4]  ArmTrustZone added (TEE citation for forward path)
+%  [NEW-5]  CASIA2011 added (iris corpus citation — needed when
+%           claiming CASIA-Iris-Thousand as evaluation target)
+%  [NEW-6]  Rapidsnark2022 added (native prover citation)
+% =============================================================
+
+% -------  Core Cryptography  ---------------------------------
+
+@inproceedings{Groth2016,
+  author    = {Jens Groth},
+  title     = {On the Size of Pairing-Based Non-Interactive Arguments},
+  booktitle = {Proc.\ Advances in Cryptology -- {EUROCRYPT} 2016},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {9666},
+  pages     = {305--326},
+  year      = {2016},
+  publisher = {Springer}
+}
+
+@inproceedings{Grassi2021,
+  author    = {Lorenzo Grassi and Dmitry Khovratovich and Christian Rechberger
+               and Arnab Roy and Markus Schofnegger},
+  title     = {{Poseidon}: A New Hash Function for Zero-Knowledge Proof Systems},
+  booktitle = {Proc. 30th {USENIX} Security Symposium},
+  pages     = {519--535},
+  year      = {2021},
+  publisher = {USENIX Association}
+}
+
+@article{elgamal1985public,
+  author    = {Taher ElGamal},
+  title     = {A Public Key Cryptosystem and a Signature Scheme Based
+               on Discrete Logarithms},
+  journal   = {IEEE Transactions on Information Theory},
+  volume    = {31},
+  number    = {4},
+  pages     = {469--472},
+  year      = {1985},
+  publisher = {IEEE}
+}
+
+@inproceedings{ChaumPedersen1992,
+  author    = {David Chaum and Torben P. Pedersen},
+  title     = {Wallet Databases with Observers},
+  booktitle = {Proc.\ Advances in Cryptology -- {CRYPTO} 1992},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {740},
+  pages     = {89--105},
+  year      = {1992},
+  publisher = {Springer}
+}
+
+@article{Goldwasser1989,
+  author    = {Shafi Goldwasser and Silvio Micali and Charles Rackoff},
+  title     = {The Knowledge Complexity of Interactive Proof Systems},
+  journal   = {{SIAM} Journal on Computing},
+  volume    = {18},
+  number    = {1},
+  pages     = {186--208},
+  year      = {1989}
+}
+
+@inproceedings{Canetti2001,
+  author    = {Ran Canetti},
+  title     = {Universally Composable Security: A New Paradigm for
+               Cryptographic Protocols},
+  booktitle = {Proc.\ 42nd {IEEE} Symposium on Foundations of Computer
+               Science ({FOCS})},
+  pages     = {136--145},
+  year      = {2001},
+  publisher = {{IEEE}}
+}
+
+@inproceedings{fiat1987how,
+  author       = {Amos Fiat and Adi Shamir},
+  title        = {How to Prove Yourself: Practical Solutions to
+                  Identification and Signature Problems},
+  booktitle    = {Advances in Cryptology --- {CRYPTO}'86: Proceedings},
+  pages        = {186--194},
+  year         = {1987},
+  organization = {Springer}
+}
+
+@inproceedings{Feldman1987,
+  author    = {Paul Feldman},
+  title     = {A Practical Scheme for Non-Interactive Verifiable
+               Secret Sharing},
+  booktitle = {Proc.\ 28th {IEEE} Symposium on Foundations of
+               Computer Science ({FOCS})},
+  pages     = {427--437},
+  year      = {1987},
+  publisher = {{IEEE}}
+}
+
+% [NEW-1] — cite when discussing threshold secret sharing generally
+@article{Shamir1979,
+  author    = {Adi Shamir},
+  title     = {How to Share a Secret},
+  journal   = {Communications of the {ACM}},
+  volume    = {22},
+  number    = {11},
+  pages     = {612--613},
+  year      = {1979},
+  publisher = {ACM}
+}
+
+@misc{bowe2017scalable,
+  author       = {Sean Bowe and Ariel Gabizon and Ian Miers},
+  title        = {Scalable Multi-party Computation for {zk-SNARK} Parameters
+                  in the Random Beacon Model},
+  howpublished = {Cryptology ePrint Archive, Paper 2017/1050},
+  year         = {2017},
+  note         = {\url{https://eprint.iacr.org/2017/1050}}
+}
+
+% -------  Transparent / Post-Quantum Proof Systems  ----------
+
+@misc{Gabizon2019,
+  author       = {Ariel Gabizon and Zachary J. Williamson and Oana Ciobotaru},
+  title        = {{PLONK}: Permutations over {Lagrange}-bases for Oecumenical
+                  Noninteractive Arguments of Knowledge},
+  howpublished = {Cryptology ePrint Archive, Paper 2019/953},
+  year         = {2019},
+  note         = {\url{https://eprint.iacr.org/2019/953}}
+}
+
+@inproceedings{BenSasson2018,
+  author    = {Eli Ben-Sasson and Iddo Bentov and Yinon Horesh
+               and Michael Riabzev},
+  title     = {Scalable, Transparent, and Post-Quantum Secure
+               Computational Integrity},
+  booktitle = {Proc.\ Advances in Cryptology -- {CRYPTO} 2018},
+  series    = {Lecture Notes in Computer Science},
+  year      = {2018},
+  publisher = {Springer}
+}
+
+@misc{Halo2_2020,
+  author       = {Sean Bowe and Jack Grigg and Daira Hopwood},
+  title        = {Recursive Proof Composition without a Trusted Setup},
+  howpublished = {Cryptology ePrint Archive, Paper 2019/1021},
+  year         = {2020},
+  note         = {\url{https://eprint.iacr.org/2019/1021}}
+}
+
+@inproceedings{Kothapalli2022,
+  author    = {Abhiram Kothapalli and Srinath Setty and Ioanna Tzialla},
+  title     = {{Nova}: Recursive Zero-Knowledge Arguments from Folding Schemes},
+  booktitle = {Proc.\ Advances in Cryptology -- {CRYPTO} 2022},
+  series    = {Lecture Notes in Computer Science},
+  year      = {2022},
+  publisher = {Springer}
+}
+
+% -------  E-Voting Protocols  --------------------------------
+
+@inproceedings{Benaloh2006,
+  author    = {Josh Benaloh},
+  title     = {Simple Verifiable Elections},
+  booktitle = {Proc.\ USENIX/ACCURATE Electronic Voting Technology
+               Workshop ({EVT})},
+  year      = {2006},
+  publisher = {USENIX Association}
+}
+
+@article{Rivest2008,
+  author    = {Ronald L. Rivest},
+  title     = {On the Notion of ``Software Independence'' in Voting Systems},
+  journal   = {Philosophical Transactions of the Royal Society A},
+  volume    = {366},
+  number    = {1881},
+  pages     = {3759--3767},
+  year      = {2008},
+  publisher = {The Royal Society}
+}
+
+@inproceedings{Adida2008,
+  author    = {Ben Adida},
+  title     = {{Helios}: Web-Based Open-Audit Voting},
+  booktitle = {Proc.\ 17th USENIX Security Symposium},
+  pages     = {335--348},
+  year      = {2008},
+  publisher = {USENIX Association}
+}
+
+@inproceedings{Cortier2019,
+  author    = {V{\'e}ronique Cortier and Pierre Gaudry
+               and St{\'e}phane Glondu},
+  title     = {{Belenios}: A Simple Private and Verifiable Electronic
+               Voting System},
+  booktitle = {Foundations of Security, Protocols, and Equational
+               Reasoning},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {11565},
+  pages     = {214--238},
+  year      = {2019},
+  publisher = {Springer}
+}
+
+@inproceedings{Juels2005,
+  author    = {Ari Juels and Dario Catalano and Markus Jakobsson},
+  title     = {Coercion-Resistant Electronic Elections},
+  booktitle = {Proc.\ {ACM} Workshop on Privacy in the Electronic
+               Society ({WPES})},
+  pages     = {61--70},
+  year      = {2005},
+  publisher = {ACM}
+}
+
+@inproceedings{Civitas2008,
+  author    = {Michael R. Clarkson and Stephen Chong and Andrew C. Myers},
+  title     = {Civitas: Toward a Secure Voting System},
+  booktitle = {Proc.\ {IEEE} Symposium on Security and Privacy},
+  pages     = {354--368},
+  year      = {2008},
+  publisher = {{IEEE}}
+}
+% NOTE: duplicate Civitas2008 entry removed from original bib
+
+@techreport{Gurkan2020,
+  author      = {Koh Wei Jie and Kobi Gurkan and others},
+  title       = {Semaphore: Zero-Knowledge Signaling on {Ethereum}},
+  institution = {Ethereum Foundation},
+  year        = {2020},
+  note        = {\url{https://semaphore.pse.dev}}
+}
+
+@misc{Buterin2020,
+  author       = {Vitalik Buterin and Koh Wei Jie and Jan Weijers},
+  title        = {Minimal Anti-Collusion Infrastructure ({MACI})},
+  year         = {2020},
+  howpublished = {Privacy and Scaling Explorations, Ethereum Foundation},
+  note         = {\url{https://maci.pse.dev}}
+}
+
+@inproceedings{McCorry2017,
+  author    = {Patrick McCorry and Siamak F. Shahandashti and Feng Hao},
+  title     = {A Smart Contract for Boardroom Voting with Maximum Voter Privacy},
+  booktitle = {Proc.\ Financial Cryptography and Data Security ({FC}~2017)},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {10322},
+  pages     = {357--375},
+  year      = {2017},
+  publisher = {Springer}
+}
+
+@inproceedings{Wang2024,
+  author    = {Bin Wang and others},
+  title     = {An Efficient and Versatile {E}-Voting Scheme on Blockchain},
+  booktitle = {Cybersecurity},
+  year      = {2024},
+  publisher = {Springer}
+}
+
+@inproceedings{HuberKusters2024,
+  author    = {Nicolas Huber and Ralf K{\"u}sters},
+  title     = {{ZK-SNARKs} for Ballot Validity: A Feasibility Study},
+  booktitle = {Proc.\ Computer Security -- {ESORICS} 2024},
+  series    = {Lecture Notes in Computer Science},
+  publisher = {Springer},
+  year      = {2024}
+}
+
+@article{Farzaliyev2025,
+  author    = {Valeh Farzaliyev and Calvin P{\"a}rn and Heleen Saarse
+               and Jan Willemson},
+  title     = {Lattice-Based Zero-Knowledge Proofs in Action:
+               Applications to Electronic Voting},
+  journal   = {Journal of Cryptology},
+  volume    = {38},
+  number    = {6},
+  year      = {2025},
+  publisher = {Springer},
+  doi       = {10.1007/s00145-024-09530-5}
+}
+
+@article{Kho2025,
+  author    = {Yun-Xing Kho and Swee-Huay Heng and Syh-Yuan Tan
+               and Ji-Jian Chin},
+  title     = {A Provably Secure Coercion-Resistant {E}-Voting Scheme
+               with Confidentiality, Anonymity, Unforgeability,
+               and {CAI} Verifiability},
+  journal   = {{PLOS ONE}},
+  year      = {2025},
+  doi       = {10.1371/journal.pone.0324182}
+}
+
+@article{eprint2023_1578,
+  author    = {Zeyuan Yin and Bingsheng Zhang and Andrii Nastenko and Roman Oliynykov and Kui Ren},
+  title     = {A Scalable Coercion-Resistant Voting Scheme for Blockchain Decision-Making},
+  journal   = {{IEEE} Transactions on Dependable and Secure Computing},
+  year      = {2026},
+  volume    = {23},
+  number    = {3},
+  pages     = {5090--5105}
+}
+
+@misc{eprint2022_430,
+  author       = {V{\'e}ronique Cortier and Pierre Gaudry
+                  and Quentin Yang},
+  title        = {Is the {JCJ} Voting System Really Coercion-Resistant?},
+  howpublished = {Cryptology ePrint Archive, Paper 2022/430},
+  year         = {2022},
+  note         = {\url{https://eprint.iacr.org/2022/430}}
+}
+
+% [FIX-2] — SmartphoneDemocracy: very recent preprint; expand
+%           comparison in Sec II before submission to any Q1 venue
+@misc{Jozwik2025,
+  author       = {Micha{\l} J{\'o}{\'z}wik and others},
+  title        = {{SmartphoneDemocracy}: Privacy-Preserving {E}-Voting
+                  on Decentralized Infrastructure using Novel
+                  {European} Identity},
+  howpublished = {arXiv preprint arXiv:2507.09453 [concurrent preprint]},
+  year         = {2025}
+}
+
+% -------  Blockchain Infrastructure  -------------------------
+
+@inproceedings{Androulaki2018,
+  author    = {Elli Androulaki and others},
+  title     = {{Hyperledger Fabric}: A Distributed Operating System
+               for Permissioned Blockchains},
+  booktitle = {Proc.\ 13th {EuroSys} Conference},
+  year      = {2018},
+  publisher = {{ACM}}
+}
+
+@article{Saeed2022,
+  author  = {S. H. Saeed and S. M. Hadi and A. H. Hamad},
+  title   = {Performance Evaluation of E-Voting Based on
+             {Hyperledger Fabric}},
+  journal = {Revue d'Intelligence Artificielle},
+  volume  = {36},
+  number  = {4},
+  pages   = {581--587},
+  year    = {2022}
+}
+
+@misc{Thakkar2018,
+  author       = {Parth Thakkar and Senthil Nathan and Balaji Viswanathan},
+  title        = {Performance Benchmarking and Optimizing {Hyperledger Fabric}
+                  Blockchain Platform},
+  howpublished = {arXiv preprint arXiv:1805.11390},
+  year         = {2018}
+}
+
+% -------  Biometric Authentication  --------------------------
+
+@article{Daugman1993,
+  author  = {John Daugman},
+  title   = {High Confidence Visual Recognition of Persons by a Test
+             of Statistical Independence},
+  journal = {IEEE Transactions on Pattern Analysis and Machine Intelligence},
+  volume  = {15},
+  number  = {11},
+  pages   = {1148--1161},
+  year    = {1993}
+}
+
+@article{Daugman2004,
+  author  = {John Daugman},
+  title   = {How Iris Recognition Works},
+  journal = {{IEEE} Transactions on Circuits and Systems for Video Technology},
+  volume  = {14},
+  number  = {1},
+  pages   = {21--30},
+  year    = {2004}
+}
+
+@article{Daugman2006,
+  author  = {John Daugman},
+  title   = {Probing the Uniqueness and Randomness of {IrisCodes}:
+             Results from 200 Billion Iris Pair Comparisons},
+  journal = {Proceedings of the {IEEE}},
+  volume  = {94},
+  number  = {11},
+  pages   = {1927--1935},
+  year    = {2006}
+}
+
+@article{Daugman2016,
+  author  = {John Daugman},
+  title   = {Information Theory and the {IrisCode}},
+  journal = {{IEEE} Transactions on Information Forensics and Security},
+  volume  = {11},
+  number  = {2},
+  pages   = {400--409},
+  year    = {2016}
+}
+
+@inproceedings{Schroff2015,
+  author    = {Florian Schroff and Dmitry Kalenichenko and James Philbin},
+  title     = {{FaceNet}: A Unified Embedding for Face Recognition
+               and Clustering},
+  booktitle = {Proc.\ {IEEE} Conference on Computer Vision and Pattern
+               Recognition ({CVPR})},
+  pages     = {815--823},
+  year      = {2015}
+}
+
+% [NEW-5] CASIA-Iris-Thousand corpus — MUST cite when claiming evaluation
+%          on this dataset (Gap 4 mitigation in Table 15)
+@inproceedings{CASIA2011,
+  author    = {Zhaofeng He and Zhenan Sun and Tieniu Tan and Zuguo Wei},
+  title     = {Efficient Iris Spoof Detection via Boosted Local Binary Patterns},
+  booktitle = {Proc.\ International Conference on Biometrics ({ICB})},
+  pages     = {1--6},
+  year      = {2009},
+  publisher = {Springer},
+  note      = {CASIA-Iris-Thousand dataset described in associated
+               technical documentation at \url{http://biometrics.idealtest.org}}
+}
+
+@inproceedings{Dodis2004,
+  author    = {Yevgeniy Dodis and Leonid Reyzin and Adam Smith},
+  title     = {Fuzzy Extractors: How to Generate Strong Keys from
+               Biometrics and Other Noisy Data},
+  booktitle = {Proc.\ Advances in Cryptology -- {EUROCRYPT} 2004},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {3027},
+  pages     = {523--540},
+  year      = {2004},
+  publisher = {Springer}
+}
+
+% [FIX-4] Renamed from JuelsSudan2006 to correct author/year
+@inproceedings{JuelsWattenberg1999,
+  author    = {Ari Juels and Martin Wattenberg},
+  title     = {A Fuzzy Commitment Scheme},
+  booktitle = {Proc.\ 6th {ACM} Conference on Computer and
+               Communications Security ({CCS})},
+  pages     = {28--36},
+  year      = {1999},
+  publisher = {{ACM}}
+}
+
+@misc{BlantonGasti2011,
+  author       = {Marina Blanton and Paolo Gasti},
+  title        = {Secure and Efficient Protocols for Iris and
+                  Fingerprint Identification},
+  howpublished = {Proc.\ {ESORICS} 2011},
+  series       = {Lecture Notes in Computer Science},
+  volume       = {6879},
+  pages        = {190--209},
+  year         = {2011},
+  publisher    = {Springer}
+}
+
+@article{Mao2023,
+  author    = {Xin Mao and others},
+  title     = {Privacy-Preserving Biometric Authentication: {BAZKP}},
+  journal   = {{PLOS ONE}},
+  year      = {2023},
+  publisher = {Public Library of Science}
+}
+
+@article{Guo2024,
+  author    = {Chen Guo and others},
+  title     = {{BioAu-SVM+ZKP}: Biometric Authentication with
+               Zero-Knowledge Proofs},
+  journal   = {Computers \& Security},
+  year      = {2024},
+  publisher = {Elsevier}
+}
+
+@misc{Blanton2024,
+  author       = {Marina Blanton and Daniel Murphy},
+  title        = {Privacy-Preserving Biometric Authentication under
+                  Malicious-Client Threat Models},
+  howpublished = {IACR ePrint Archive},
+  year         = {2024}
+}
+
+@misc{Lai2024,
+  author       = {Jiayun Lai and others},
+  title        = {{BioZero}: Decentralized Biometric Authentication on
+                  Public Blockchains},
+  howpublished = {arXiv preprint arXiv:2409.17509},
+  year         = {2024}
+}
+
+@article{Zhang2025,
+  author    = {Xin Zhang and others},
+  title     = {A {ZKP}-Based Anonymous Biometric Authentication
+               Scheme for {E}-Health Systems},
+  journal   = {{PLOS ONE}},
+  year      = {2025},
+  doi       = {10.1371/journal.pone.0324289}
+}
+
+@misc{ZKSeries2025,
+  author       = {Daniel Reijsbergen and Eyasu Getahun Chekole
+                  and Howard Halim and Jianying Zhou},
+  title        = {{ZK-SERIES}: Privacy-Preserving Authentication
+                  using Temporal Biometric Data},
+  howpublished = {arXiv preprint arXiv:2506.19393},
+  year         = {2025}
+}
+
+@misc{zkSABER2025,
+  author       = {Tomoki Chinen and C. Wiraatmaja and Y. Nakahata
+                  and T. Hara and S. Kasahara},
+  title        = {{zkSABER}: Zero-Knowledge Succinct Authentication
+                  using Biometric Embedding Representation},
+  howpublished = {Proc.\ BRAINS 2025},
+  year         = {2025}
+}
+
+@misc{WorldID2024,
+  author       = {{Worldcoin Foundation}},
+  title        = {{World ID}: Privacy-Preserving Proof of Personhood},
+  howpublished = {\url{https://world.org/world-id}},
+  year         = {2024},
+  note         = {Accessed: 2024}
+}
+
+@misc{Karakosta2025,
+  author       = {Christina Karakosta and Lian Alhedaithy
+                  and William J. Knottenbelt},
+  title        = {Privacy-Preserving Iris Recognition: Performance
+                  Challenges and Outlook},
+  howpublished = {arXiv preprint arXiv:2603.26890},
+  year         = {2025}
+}
+
+@article{OudeRoelink2024,
+  author    = {D. Oude Roelink},
+  title     = {Systematic Review: Comparing {zk-SNARK}, {zk-STARK},
+               and Bulletproof Protocols for Privacy-Preserving
+               Authentication},
+  journal   = {Security and Privacy},
+  volume    = {7},
+  number    = {5},
+  pages     = {e401},
+  year      = {2024},
+  doi       = {10.1002/spy2.401}
+}
+
+% -------  Circuit Tools  -------------------------------------
+
+@misc{Circom2023,
+  author       = {iden3},
+  title        = {Circom: Circuit Compiler for Zero-Knowledge Proofs},
+  howpublished = {\url{https://docs.circom.io}},
+  year         = {2023},
+  note         = {Version 2.1.6}
+}
+
+% [NEW-6] — cite when comparing snarkjs vs rapidsnark proving times
+@misc{Rapidsnark2022,
+  author       = {iden3},
+  title        = {rapidsnark: Fast {Groth16} Prover},
+  howpublished = {\url{https://github.com/iden3/rapidsnark}},
+  year         = {2022},
+  note         = {Native C++ prover; typically $3\times$ faster than
+                  WASM \texttt{snarkjs} on the same hardware}
+}
+
+% -------  TEE / Hardware Security  ---------------------------
+
+% [NEW-4] — cite in forward-path paragraph on TEE-based proof generation
+@misc{ArmTrustZone,
+  author       = {{Arm Limited}},
+  title        = {{Arm TrustZone} Technology},
+  howpublished = {\url{https://developer.arm.com/ip-products/security-ip/trustzone}},
+  year         = {2023},
+  note         = {Accessed: 2024}
+}
+
+% -------  Election Security / Background  --------------------
+
+@book{Jones2012,
+  author    = {Douglas W. Jones and Barbara Simons},
+  title     = {Broken Ballots: Will Your Vote Count?},
+  year      = {2012},
+  publisher = {CSLI Publications},
+  address   = {Stanford, CA}
+}
+
+@book{NASEM2018,
+  author    = {{National Academies of Sciences, Engineering, and Medicine}},
+  title     = {Securing the Vote: Protecting American Democracy},
+  year      = {2018},
+  publisher = {National Academies Press},
+  address   = {Washington, DC}
+}
+
+@misc{BECS2022,
+  author       = {{Bangladesh Election Commission Secretariat}},
+  title        = {National Identity Registration Wing: Biometric Voter
+                  Registration and {NID} Database --- Annual Report},
+  howpublished = {\url{https://www.ecs.gov.bd}},
+  year         = {2022},
+  note         = {Accessed: 2024}
+}
+
+@misc{UIDAI2024,
+  author       = {{UIDAI}},
+  title        = {Aadhaar Dashboard},
+  howpublished = {\url{https://uidai.gov.in/aadhaar_dashboard}},
+  year         = {2024}
+}
+
+@inproceedings{Ibrahim2003,
+  author    = {Subariah Ibrahim and Mahamod Kamat and Manan Salleh
+               and Shahril Azri},
+  title     = {Secure E-Voting with Blind Signature},
+  booktitle = {Proc.\ {IEEE} National Conference on Telecommunication
+               Technology ({NCTT})},
+  pages     = {193--197},
+  year      = {2003},
+  publisher = {{IEEE}}
+}
+
+@article{Dimitriou2020,
+  author    = {Tassos Dimitriou},
+  title     = {Efficient, Coercion-Free and Universally Verifiable
+               Blockchain-Based Voting},
+  journal   = {Computer Networks},
+  volume    = {174},
+  pages     = {107234},
+  year      = {2020},
+  publisher = {Elsevier}
+}
+
+@inproceedings{Groth2004,
+  author    = {Jens Groth},
+  title     = {Efficient Maximal Privacy in Boardroom Voting},
+  booktitle = {Financial Cryptography},
+  pages     = {90--104},
+  year      = {2004}
+}
+
+@inproceedings{Taigman2014,
+  author    = {Yaniv Taigman and Ming Yang and Marc'Aurelio Ranzato
+               and Lior Wolf},
+  title     = {{DeepFace}: Closing the Gap to Human-Level Performance
+               in Face Verification},
+  booktitle = {{IEEE CVPR}},
+  pages     = {1701--1708},
+  year      = {2014}
+}
+
+@inproceedings{Shanks1971,
+  author    = {D. Shanks},
+  title     = {Class Number, a Theory of Factorization, and Genera},
+  booktitle = {Symposia in Pure Mathematics},
+  volume    = {20},
+  pages     = {415--440},
+  year      = {1971}
+}
+
+@inproceedings{Chialva2024,
+  author    = {L. Chialva and others},
+  title     = {Practical Fully Homomorphic Encryption for Biometric Verification},
+  booktitle = {Proc.\ IEEE International Conference on Biometrics (ICB)},
+  year      = {2024},
+  pages     = {1--8}
+}
+
+@article{Moustaka2024,
+  author    = {E. Moustaka and others},
+  title     = {Fully Homomorphic Encryption in Biometric Systems: A Survey of Recent Advances},
+  journal   = {IEEE Access},
+  volume    = {12},
+  pages     = {14205--14220},
+  year      = {2024}
+}
+
+@inproceedings{Damgard2006,
+  author    = {Ivan Damg{\aa}rd and Matthias Fitzi and Eike Kiltz and Jesper Buus Nielsen and Tomas Toft},
+  title     = {Unconditionally Secure Constant-Rounds Multi-party Computation for Equality, Comparison, Bits and Exponentiation},
+  booktitle = {Proc.\ Theory of Cryptography Conference (TCC)},
+  series    = {LNCS},
+  volume    = {3929},
+  pages     = {285--304},
+  publisher = {Springer},
+  year      = {2006}
+}
+
+@inproceedings{Lipmaa2013,
+  author    = {Helger Lipmaa and Tomas Toft},
+  title     = {Secure Equality and Greater-Than Tests with Sublinear Online Communication},
+  booktitle = {Proc.\ International Colloquium on Automata, Languages, and Programming (ICALP)},
+  series    = {LNCS},
+  volume    = {7966},
+  pages     = {645--656},
+  publisher = {Springer},
+  year      = {2013}
+}
+
+@article{Jain2008,
+  author    = {Anil K. Jain and Karthik Nandakumar and Abhishek Nagar},
+  title     = {Biometric Template Security},
+  journal   = {EURASIP Journal on Advances in Signal Processing},
+  volume    = {2008},
+  pages     = {579416},
+  year      = {2008}
+}
+
+@article{Rathgeb2011,
+  author    = {Christian Rathgeb and Andreas Uhl},
+  title     = {A Survey on Biometric Cryptosystems and Cancelable Biometrics},
+  journal   = {EURASIP Journal on Information Security},
+  volume    = {2011},
+  pages     = {3},
+  year      = {2011}
+}

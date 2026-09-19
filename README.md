@@ -175,9 +175,9 @@ If you use this codebase or paper in your research, please cite:
 
 ```bibtex
 @article{chowdhury2026bbzkv,
-  title={Biometric-Bound Zero-Knowledge Voting: A Comparative Analysis of Face and Iris Identity in an End-to-End Verifiable Decentralized Architecture},
-  author={Chowdhury, Mahin R. and Das, Arpita and Hasan, K. M. Azharul},
-  journal={IEEE Transactions on Information Forensics and Security},
+  title={Composable Security for Biometric-Bound Zero-Knowledge Voting: A Decentralized Architecture with Face and Iris Case Studies},
+  author={Chowdhury, Mahin R. and Hasan, K. M. Azharul and Das, Arpita},
+  journal={IEEE Transactions on Dependable and Secure Computing},
   year={2026}
 }
 ```
