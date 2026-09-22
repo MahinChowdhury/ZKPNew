@@ -1,62 +1,79 @@
 {
   "face": {
     "raw_128d": {
-      "eer": 0.00247,
-      "th": 0.519
+      "eer": 0.04775,
+      "th": 0.39,
+      "n_genuine": 6000,
+      "n_impostor": 6000
     },
     "pca_64d": {
-      "eer": 0.01605,
-      "th": 0.52,
-      "far_op": 0.0294,
-      "frr_op": 0.00895
+      "eer": 0.04817,
+      "th": 0.362,
+      "far_op": 0.00533,
+      "frr_op": 0.149
     },
     "sopq_64d": {
-      "eer": 0.00443,
-      "th": 0.517,
-      "far_op": 0.01015,
-      "frr_op": 0.00225
+      "eer": 0.04692,
+      "th": 0.388,
+      "far_op": 0.00817,
+      "frr_op": 0.1265
     },
-    "celeba_64d": {
-      "eer": 0.00765,
-      "th": 0.519
+    "recovery_pct": 300.0,
+    "source": "measured",
+    "celeba_64d_sopq": {
+      "eer": 0.07949,
+      "th": 0.31,
+      "source": "measured"
     },
-    "recovery_pct": 85.6,
     "demographic_fairness": {
-      "male_eer": 0.0111,
-      "female_eer": 0.0121,
-      "delta_eer": 0.001
+      "male": {
+        "eer": 0.08211,
+        "th": 0.344,
+        "n_identities": 878,
+        "n_genuine": 5990,
+        "n_impostor": 5994
+      },
+      "female": {
+        "eer": 0.10493,
+        "th": 0.35,
+        "n_identities": 1122,
+        "n_genuine": 5999,
+        "n_impostor": 6000
+      },
+      "eer_gap_pp": 2.28,
+      "source": "measured"
     },
     "pad_resilience": {
-      "apcer_without_binding": 0.032,
-      "apcer_with_salt_binding": 0.0015,
-      "bpcer": 0.01
+      "status": "SKIPPED \u2014 pass --pad-spoof-dir to measure this"
     }
   },
   "iris": {
-    "full_2048": {
-      "eer": 0.00025,
-      "th": 0.417
+    "code_length": 196608,
+    "full": {
+      "eer": 0.46292,
+      "th": 0.479,
+      "n_genuine": 6000,
+      "n_impostor": 6000
     },
     "strided_256": {
-      "eer": 0.01472,
-      "th": 0.428,
-      "far_op": 0.33355,
-      "frr_op": 0.0005
+      "eer": 0.48092,
+      "th": 0.481,
+      "far_op": 0.457,
+      "frr_op": 0.50033
     },
     "gbsm_256": {
-      "eer": 0.00232,
-      "th": 0.42,
-      "far_op": 0.32125,
-      "frr_op": 0.0
+      "eer": 0.48675,
+      "th": 0.48,
+      "far_op": 0.48483,
+      "frr_op": 0.489
     },
-    "interval_256": {
-      "eer": 0.00277,
-      "th": 0.418
+    "recovery_pct": -32.4,
+    "source": "measured",
+    "interval_256_gbsm": {
+      "status": "SKIPPED \u2014 pass --casia-interval-root to measure this"
     },
-    "recovery_pct": 85.7,
     "pad_resilience": {
-      "contact_lens_apcer_raw": 0.024,
-      "contact_lens_apcer_protected": 0.0008
+      "status": "SKIPPED \u2014 pass --pad-spoof-dir to measure this"
     }
   }
 }

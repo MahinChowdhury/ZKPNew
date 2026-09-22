@@ -58,3 +58,20 @@ Thumbs.db
 .vscode/
 .idea/
 scratch/
+.claude/
+**/.claude/
+
+# Biometric Datasets & Evaluation Caches (multi-GB, never commit)
+zkp-chain/Datasets/
+zkp-chain/model/.eval_cache/
+**/.eval_cache/
+
+# IEEE Paper — LaTeX Build Artifacts (keep the .tex sources and final .pdf)
+**/*.aux
+**/*.bbl
+**/*.blg
+**/*.fls
+**/*.fdb_latexmk
+**/*.synctex.gz
+**/*.out
+**/*.toc

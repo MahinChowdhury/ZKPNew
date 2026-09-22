@@ -15,14 +15,14 @@
 \usepackage{subcaption}
 \usepackage{microtype}
 
-\title{Supplementary Material: Constraint-Efficient Biometric Matching in Zero-Knowledge Circuits: A Comparative Study of Face and Iris Verification for Privacy-Preserving Authentication}
+\title{Supplementary Material: Toward Composable Zero-Knowledge Biometric Voting: Constraint-Efficient Encodings and Deniable Duress Resistance}
 
 \author{\IEEEauthorblockN{Mahin R. Chowdhury\IEEEauthorrefmark{1}\IEEEmembership{Student Member, IEEE},
 K.~M.~Azharul Hasan\IEEEauthorrefmark{1}\IEEEmembership{Member, IEEE},
 Arpita Das\IEEEauthorrefmark{1}\IEEEmembership{Student Member, IEEE}}
 \IEEEauthorblockA{\IEEEauthorrefmark{1}Department of Computer Science and Engineering,\\
 Khulna University of Engineering \& Technology,\\
-Khulna, Dhaka, Bangladesh\\
+Khulna-9203, Bangladesh\\
 }}
 
 \markboth{Supplementary Material for IEEE Transactions on Information Forensics and Security}{Chowdhury \emph{et al.}: Supplementary Material}
@@ -218,6 +218,43 @@ For the iris channel, 256-bit Hamming distance is evaluated linearly via XOR acc
   \mathsf{HD} = \sum_{j=0}^{255}(a_j + b_j - 2a_jb_j) < \tau_{\mathsf{Hamming}} = 123. \label{eq:hd}
 \end{equation}
 
+\subsection{Euclidean-Baseline Full-Circuit Gate Derivation}
+\label{sec:supp-euclidean-derivation}
+
+\begin{table}[h]
+\centering
+\caption{Representative Euclidean-Distance Baseline vs.\ SOPQ, Re-Measured Under an Identical Toolchain (full table for the main manuscript's Euclidean-baseline comparison)}
+\label{tab:supp-euclidean-baseline}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.15}
+\resizebox{\columnwidth}{!}{%
+{\footnotesize
+\begin{tabular}{lccc}
+\hline\hline
+\textbf{Configuration} & \textbf{EER (\%)} & \textbf{\shortstack{Distance-Comparator\\Non-Linear Gates}} & \textbf{\shortstack{Full-Circuit\\Non-Linear Gates (Est.)}} \\
+\hline
+Euclidean, raw 128-D & 4.75 & 257 & $\approx$12,958 \\
+Euclidean, PCA-64D & 4.83 & 193 & $\approx$9,447 \\
+SOPQ-64D (proposed) & \textbf{4.69} & 325 & \textbf{9,579} \\
+\hline\hline
+\end{tabular}%
+}%
+}
+\end{table}
+
+The main manuscript's "Re-Measured Baseline: Euclidean Distance" table (reproduced above) reports full-circuit non-linear gate estimates for two Euclidean-distance configurations not directly compiled as complete circuits. Both are derived from the same shared Merkle+Nullifier overhead, computed once from directly-measured quantities and held fixed across all three rows:
+\[
+\text{Merkle+Nullifier} = 9{,}579 - 3{,}645 - 325 = 5{,}609
+\]
+where 9,579 is the fully-compiled SOPQ-64D \texttt{FaceAuth} circuit (main manuscript's constraint-footprint table), 3,645 is the directly-compiled \texttt{PoseidonHashChunked(64,8)} sub-circuit, and 325 is the directly-compiled \texttt{SquaredCosineSimilarity(64)} sub-circuit. The two derived rows then substitute each configuration's own directly-compiled Poseidon and distance-comparator costs into this shared overhead:
+\[
+\text{Euclidean-128D} = 7{,}092 + 5{,}609 + 257 = 12{,}958
+\]
+\[
+\text{Euclidean-64D} = 3{,}645 + 5{,}609 + 193 = 9{,}447
+\]
+where 7,092 is the directly-compiled \texttt{PoseidonHashChunked(128,8)} sub-circuit and 257/193 are the directly-compiled \texttt{SquaredEuclideanDistance} sub-circuit at $n=128$/$n=64$ respectively. This derivation assumes Merkle-tree and nullifier logic is dimensionality-independent (true by construction — both operate only on the fixed-size hash digest, never on the raw embedding), so the only terms that vary with the baseline configuration are the two directly-measured, dimensionality-dependent components.
+
 \section{Universal Composability Security Proofs}
 \label{sec:supp-security-proofs}
 
@@ -311,7 +348,7 @@ Taking the union bound over all four events:
 
 \begin{remark}[Biometric Slack and Approximate UC Calibration]
 \label{rem:far}
-Following the established treatment of metric extractors and fuzzy commitments in the UC framework~\cite{JuelsWattenberg1999,Dodis2004,Canetti2001}, biometric identity verification cannot achieve perfect cryptographic simulation due to sensor noise. In our $(\delta, \mathsf{FAR}_\delta)$ formulation, $\mathsf{FAR}_{256} = 0.047\%$ for iris ($\tau_{\mathsf{Hamming}} = 123$) on CASIA-Iris-Thousand and $\mathsf{FAR}_{\mathsf{face}} = 0.050\%$ for face ($\tau=0.50$) on LFW, strictly bounding adversarial bypass advantage to $0.050\% + \mathsf{negl}(\lambda)$.
+Following the established treatment of metric extractors and fuzzy commitments in the UC framework~\cite{JuelsWattenberg1999,Dodis2004,Canetti2001}, biometric identity verification cannot achieve perfect cryptographic simulation due to sensor noise. In our $(\delta, \mathsf{FAR}_\delta)$ formulation, measured $\mathsf{FAR}_{\mathsf{face}} = 0.82\%$ for face ($\tau=0.50$) on LFW bounds adversarial bypass advantage to $0.82\% + \mathsf{negl}(\lambda)$ for the face modality. For iris, measured $\mathsf{FAR}_{256} = 48.48\%$ ($\tau_{\mathsf{Hamming}} = 123$) on CASIA-Iris-Thousand reflects a classical segmentation-precision limitation (main text, Section~VII) and does not support a comparably tight bound; we scope the concrete instantiation of this composability guarantee to the face modality accordingly.
 \end{remark}
 
 \subsection{Part D: Proof of Corollary V.8 (Anti-Replay)}
