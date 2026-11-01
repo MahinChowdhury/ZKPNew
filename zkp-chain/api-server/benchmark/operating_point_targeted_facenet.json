@@ -1,0 +1,36 @@
+{
+  "rule": {
+    "attacker_recruits_K": 100,
+    "lookalike_success_target": 0.01,
+    "frr_target": 0.01,
+    "trials_per_target": 20
+  },
+  "validation": {
+    "fit_identities": 2586,
+    "select_identities": 863,
+    "genuine_pairs": 2422
+  },
+  "per_dim": {
+    "32": {
+      "tau": null,
+      "val_lookalike_success": null
+    },
+    "48": {
+      "tau": null,
+      "val_lookalike_success": null
+    },
+    "64": {
+      "tau": null,
+      "val_lookalike_success": null
+    },
+    "96": {
+      "tau": null,
+      "val_lookalike_success": null
+    },
+    "128": {
+      "tau": null,
+      "val_lookalike_success": null
+    }
+  },
+  "selected_dim": null
+}

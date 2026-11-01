@@ -1,0 +1,103 @@
+{
+  "date": "2026-10-30T11:39:55.427Z",
+  "results": [
+    {
+      "id": "BASELINE",
+      "finding": "-",
+      "title": "Honest registered face voter casts one vote",
+      "outcome": "OK",
+      "detail": "stored as VOTE_tx1"
+    },
+    {
+      "id": "A1-face",
+      "finding": "C1",
+      "title": "Unregistered attacker forges Merkle membership (face)",
+      "outcome": "VULNERABLE",
+      "detail": "stored as VOTE_tx2"
+    },
+    {
+      "id": "A1-iris",
+      "finding": "C1",
+      "title": "Unregistered attacker forges Merkle membership (iris)",
+      "outcome": "VULNERABLE",
+      "detail": "stored as VOTE_tx3"
+    },
+    {
+      "id": "A2-face",
+      "finding": "C2",
+      "title": "Impostor face (random embedding) passes with threshold_sq_num = 0",
+      "outcome": "VULNERABLE",
+      "detail": "stored as VOTE_tx4"
+    },
+    {
+      "id": "A2-iris",
+      "finding": "C2",
+      "title": "Impostor iris (random bits) passes with hammingThreshold = 257",
+      "outcome": "VULNERABLE",
+      "detail": "stored as VOTE_tx5"
+    },
+    {
+      "id": "A2-control",
+      "finding": "C2",
+      "title": "Control: same impostor face with the honest threshold is rejected",
+      "outcome": "OK",
+      "detail": "Error: Assert Failed. Error in template FaceAuth_154 line: 239"
+    },
+    {
+      "id": "A3",
+      "finding": "C3",
+      "title": "Voter who already voted on ballot A votes again on A with a fresh electionId",
+      "outcome": "VULNERABLE",
+      "detail": "2 stored votes on ballot A from the same voter"
+    },
+    {
+      "id": "A4",
+      "finding": "C4",
+      "title": "Votes are linkable across elections (and to NID by the server) via public biometric hash",
+      "outcome": "VULNERABLE",
+      "detail": "2 on-chain votes (ballots ballot-soundness-A, ballot-soundness-B) carry the same faceHash"
+    },
+    {
+      "id": "A5",
+      "finding": "C9",
+      "title": "Negated template (cos = -1) passes the squared-cosine check",
+      "outcome": "VULNERABLE",
+      "detail": "stored as VOTE_tx9"
+    },
+    {
+      "id": "A6",
+      "finding": "C6",
+      "title": "Holder of the credential bundle votes without any live capture (live := registered)",
+      "outcome": "VULNERABLE",
+      "detail": "stored as VOTE_tx10"
+    },
+    {
+      "id": "A7",
+      "finding": "C8",
+      "title": "Front-runner swaps the ciphertext under an intercepted (proof, nullifier)",
+      "outcome": "VULNERABLE",
+      "detail": "attacker ballot stored; honest voter then rejected: \"Double voting detected - this identity has already voted\""
+    },
+    {
+      "id": "A8",
+      "finding": "C8",
+      "title": "Vote accepted with no ciphertext at all",
+      "outcome": "VULNERABLE",
+      "detail": "stored as VOTE_tx12"
+    },
+    {
+      "id": "A9",
+      "finding": "C8",
+      "title": "Ciphertext with an invalid Σ-OR proof (encrypts 5) accepted on-chain",
+      "outcome": "VULNERABLE",
+      "detail": "stored as VOTE_tx13"
+    },
+    {
+      "id": "A10",
+      "finding": "C18",
+      "title": "Non-RA Fabric identity registers a phantom voter, which then votes",
+      "outcome": "VULNERABLE",
+      "detail": "stored as VOTE_tx14"
+    }
+  ]
+}

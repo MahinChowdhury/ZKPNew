@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { registerUser } from './api';
+import { extractBiometric, registerCommitment } from './api';
+import { createCredential, sealCredential, toTemplate } from './crypto/voterClient';
 
 export default function Register({ onRegistrationSuccess }) {
   const [biometricMode, setBiometricMode] = useState('face');
@@ -18,13 +19,15 @@ export default function Register({ onRegistrationSuccess }) {
     setStatus({ loading: false, error: null, success: null });
   };
 
-  const downloadQRCode = (qrCodeUrl, mode) => {
+  const downloadCredential = (sealedJSON, mode) => {
+    const url = URL.createObjectURL(new Blob([sealedJSON], { type: 'application/json' }));
     const link = document.createElement('a');
-    link.href = qrCodeUrl;
-    link.download = `voter-credential-${mode}.png`;
+    link.href = url;
+    link.download = `voter-credential-${mode}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const resetForm = () => {
@@ -51,30 +54,22 @@ export default function Register({ onRegistrationSuccess }) {
     }
     setStatus({ loading: true, error: null, success: null });
     try {
-      const formData = new FormData();
-      formData.append('nidNumber', nidNumber);
-      formData.append('password', password);
-      formData.append('biometricMode', biometricMode);
-      
-      if (biometricMode === 'face') {
-        formData.append('faceImg', bioFile);
-      } else {
-        formData.append('irisImg', bioFile);
-      }
+      // Template, salt and secret key are created here and never sent anywhere
+      const reading = await extractBiometric(biometricMode, bioFile);
+      const credential = await createCredential(biometricMode, toTemplate(biometricMode, reading));
+      const sealed = await sealCredential(credential, password);
 
-      const res = await registerUser(formData);
-      if (res.error) {
-        setStatus({ loading: false, error: res.error, success: null });
-      } else {
-        downloadQRCode(res.qrCodeUrl, biometricMode);
-        setStatus({
-          loading: false,
-          error: null,
-          success: `Registration successful (${biometricMode.toUpperCase()} mode). Your encrypted QR credential has been downloaded.`
-        });
-        resetForm();
-        if (onRegistrationSuccess) onRegistrationSuccess();
-      }
+      // The RA receives only the NID (for deduplication) and the commitment
+      await registerCommitment(nidNumber, biometricMode, credential.commitment);
+
+      downloadCredential(sealed, biometricMode);
+      setStatus({
+        loading: false,
+        error: null,
+        success: `Registration successful (${biometricMode.toUpperCase()} mode). Your password-encrypted credential file has been downloaded — keep it; it cannot be re-issued.`
+      });
+      resetForm();
+      if (onRegistrationSuccess) onRegistrationSuccess();
     } catch (err) {
       setStatus({ loading: false, error: err.message || 'Registration failed.', success: null });
     }
@@ -100,7 +95,7 @@ export default function Register({ onRegistrationSuccess }) {
               onClick={() => handleModeSwitch('face')}
             >
               <div className="mode-title">Facial Recognition</div>
-              <div className="mode-desc">64D PCA Cosine Similarity</div>
+              <div className="mode-desc">ArcFace PCA-128 Cosine Similarity</div>
             </div>
             <div
               className={`mode-card ${biometricMode === 'iris' ? 'selected' : ''}`}

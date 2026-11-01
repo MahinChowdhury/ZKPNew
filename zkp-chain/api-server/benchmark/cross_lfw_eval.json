@@ -1,0 +1,130 @@
+{
+  "encoding": "PCA-128 (LFW training identities)",
+  "tau": 0.35,
+  "sets": {
+    "calfw": {
+      "images": 7156,
+      "embedded": 7156,
+      "all": {
+        "genuine_pairs": 3000,
+        "impostor_pairs": 3000,
+        "eer_raw": {
+          "eer": 0.06467,
+          "ci95": [
+            0.056,
+            0.07283
+          ]
+        },
+        "eer_pca": {
+          "eer": 0.067,
+          "ci95": [
+            0.05883,
+            0.07483
+          ]
+        },
+        "raw_minus_pca": {
+          "diff": -0.00233,
+          "ci95": [
+            -0.005,
+            0.00033
+          ],
+          "significant": false
+        },
+        "circuit_frr": 0.096,
+        "circuit_far": 0.00133,
+        "circuit_false_accepts": 4
+      },
+      "unseen": {
+        "genuine_pairs": 1172,
+        "impostor_pairs": 396,
+        "eer_raw": {
+          "eer": 0.06314,
+          "ci95": [
+            0.05042,
+            0.07627
+          ]
+        },
+        "eer_pca": {
+          "eer": 0.06314,
+          "ci95": [
+            0.05084,
+            0.07627
+          ]
+        },
+        "raw_minus_pca": {
+          "diff": 0.0,
+          "ci95": [
+            -0.00592,
+            0.00466
+          ],
+          "significant": false
+        },
+        "circuit_frr": 0.09471,
+        "circuit_far": 0.00505,
+        "circuit_false_accepts": 2
+      }
+    },
+    "cplfw": {
+      "images": 5984,
+      "embedded": 5950,
+      "all": {
+        "genuine_pairs": 2968,
+        "impostor_pairs": 2971,
+        "eer_raw": {
+          "eer": 0.04647,
+          "ci95": [
+            0.04074,
+            0.05288
+          ]
+        },
+        "eer_pca": {
+          "eer": 0.05556,
+          "ci95": [
+            0.04933,
+            0.0623
+          ]
+        },
+        "raw_minus_pca": {
+          "diff": -0.00909,
+          "ci95": [
+            -0.01313,
+            -0.00539
+          ],
+          "significant": true
+        },
+        "circuit_frr": 0.13814,
+        "circuit_far": 0.00236,
+        "circuit_false_accepts": 7
+      },
+      "unseen": {
+        "genuine_pairs": 1149,
+        "impostor_pairs": 444,
+        "eer_raw": {
+          "eer": 0.04559,
+          "ci95": [
+            0.03542,
+            0.056
+          ]
+        },
+        "eer_pca": {
+          "eer": 0.056,
+          "ci95": [
+            0.04428,
+            0.06818
+          ]
+        },
+        "raw_minus_pca": {
+          "diff": -0.01041,
+          "ci95": [
+            -0.01858,
+            -0.00287
+          ],
+          "significant": true
+        },
+        "circuit_frr": 0.14273,
+        "circuit_far": 0.0045,
+        "circuit_false_accepts": 2
+      }
+    }
+  }
+}

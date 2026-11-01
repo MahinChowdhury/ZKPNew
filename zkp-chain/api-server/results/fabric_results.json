@@ -1,0 +1,76 @@
+{
+  "date": "2026-11-01T05:59:44.345Z",
+  "host": {
+    "cpu": "AMD Ryzen 5 5600 6-Core Processor",
+    "threads": 12,
+    "node": "v20.20.2"
+  },
+  "network": "Fabric test-network: 2 orgs x 1 peer, CouchDB, 1 orderer, endorsement by both orgs",
+  "voters": 40,
+  "concurrency": 10,
+  "keygen": {
+    "registerBallotMs": 2083,
+    "dealingMs": {
+      "n": 3,
+      "mean": 2086.8,
+      "sd": 13.8,
+      "ci95": 15.6,
+      "p50": 2081.2,
+      "p95": 2102.5,
+      "min": 2076.7,
+      "max": 2102.5
+    },
+    "finalizeMs": 2059,
+    "totalMs": 10403
+  },
+  "register": {
+    "n": 40,
+    "mean": 2121.4,
+    "sd": 127.1,
+    "ci95": 39.4,
+    "p50": 2065.4,
+    "p95": 2440.5,
+    "min": 2056.6,
+    "max": 2493.3
+  },
+  "castVoteSequential": {
+    "n": 20,
+    "mean": 2140.2,
+    "sd": 106.2,
+    "ci95": 46.6,
+    "p50": 2116.5,
+    "p95": 2590,
+    "min": 2102.5,
+    "max": 2590
+  },
+  "castVoteConcurrent": {
+    "submitted": 20,
+    "committed": 20,
+    "failed": 0,
+    "errors": {},
+    "wallMs": 1233,
+    "throughputTps": 16.23,
+    "latency": {
+      "n": 20,
+      "mean": 616.2,
+      "sd": 14.4,
+      "ci95": 6.3,
+      "p50": 630.1,
+      "p95": 630.2,
+      "min": 602.1,
+      "max": 630.2
+    }
+  },
+  "tally": {
+    "numVotes": 40,
+    "totals": [
+      14,
+      13,
+      13
+    ],
+    "closeMs": 2053,
+    "thresholdDecryptMs": 34,
+    "publishTallyMs": 2227,
+    "totalsMatchCommittedVotes": true
+  }
+}

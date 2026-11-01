@@ -1,8 +1,9 @@
 // ============================================================
 // iris_auth.circom — ZK-SNARK for iris biometric authentication
 // Architecture: Merkle Tree + Nullifier (Semaphore-style)
+//               + in-circuit sensor attestation of the live sample
 // Biometric: Hamming Distance on downsampled iris codes
-// Stack: Circom 2 + Groth16, Poseidon hash
+// Stack: Circom 2 + Groth16, Poseidon hash, EdDSA-Poseidon (BabyJubJub)
 // ============================================================
 
 pragma circom 2.1.6;
@@ -10,71 +11,27 @@ pragma circom 2.1.6;
 include "node_modules/circomlib/circuits/poseidon.circom";
 include "node_modules/circomlib/circuits/comparators.circom";
 include "node_modules/circomlib/circuits/bitify.circom";
-include "node_modules/circomlib/circuits/mux1.circom";
-include "node_modules/circomlib/circuits/switcher.circom";
+include "common.circom";
 
 // ============================================================
-// PoseidonHashChunked
-// Hash an n-element array via Poseidon in chunkSize-element
-// chunks, then hash the intermediate digests into one value.
-// (Reused from face_auth.circom — identical logic)
+// PackedBitsHash
+// 256 bits → 32 bytes (Bits2Num(8), LSB first) → PoseidonHashChunked(32, 8)
 // ============================================================
-template PoseidonHashChunked(n, chunkSize) {
-    signal input in[n];
+template PackedBitsHash(codeSize) {
+    signal input bits[codeSize];
     signal output out;
 
-    var numChunks = n \ chunkSize;  // integer division
-
-    // Step 1: Hash each chunk
-    component chunkHashers[numChunks];
-    for (var i = 0; i < numChunks; i++) {
-        chunkHashers[i] = Poseidon(chunkSize);
-        for (var j = 0; j < chunkSize; j++) {
-            chunkHashers[i].inputs[j] <== in[i * chunkSize + j];
+    var nPacks = codeSize \ 8;
+    component packBits[nPacks];
+    component hasher = PoseidonHashChunked(nPacks, 8);
+    for (var i = 0; i < nPacks; i++) {
+        packBits[i] = Bits2Num(8);
+        for (var j = 0; j < 8; j++) {
+            packBits[i].in[j] <== bits[i * 8 + j];
         }
+        hasher.in[i] <== packBits[i].out;
     }
-
-    // Step 2: Hash all chunk digests together
-    component finalHash = Poseidon(numChunks);
-    for (var i = 0; i < numChunks; i++) {
-        finalHash.inputs[i] <== chunkHashers[i].out;
-    }
-
-    out <== finalHash.out;
-}
-
-// ============================================================
-// MerkleTreeChecker
-// Verifies Merkle membership using Poseidon-based binary tree.
-// (Reused from face_auth.circom — identical logic)
-// ============================================================
-template MerkleTreeChecker(levels) {
-    signal input leaf;
-    signal input root;
-    signal input pathElements[levels];
-    signal input pathIndices[levels];  // 0 = left, 1 = right
-
-    component hashers[levels];
-    component switchers[levels];
-
-    signal levelHashes[levels + 1];
-    levelHashes[0] <== leaf;
-
-    for (var i = 0; i < levels; i++) {
-        switchers[i] = Switcher();
-        switchers[i].sel <== pathIndices[i];
-        switchers[i].L <== levelHashes[i];
-        switchers[i].R <== pathElements[i];
-
-        hashers[i] = Poseidon(2);
-        hashers[i].inputs[0] <== switchers[i].outL;
-        hashers[i].inputs[1] <== switchers[i].outR;
-
-        levelHashes[i + 1] <== hashers[i].out;
-    }
-
-    // The final hash must equal the root
-    root === levelHashes[levels];
+    out <== hasher.out;
 }
 
 // ============================================================
@@ -86,12 +43,12 @@ template MerkleTreeChecker(levels) {
 //   XOR(a, b) = a + b − 2·a·b
 //   HD = Σ XOR(a[i], b[i])
 //
-// Proves: HD < threshold
+// Proves: HD < threshold  (threshold is a template parameter, fixed
+// by the verification key — never a prover-chosen input)
 // ============================================================
-template HammingDistance(n) {
+template HammingDistance(n, threshold) {
     signal input a[n];         // live iris code bits
     signal input b[n];         // registered iris code bits
-    signal input threshold;    // max allowed Hamming distance (exclusive)
 
     signal output pass;        // 1 if HD < threshold, 0 otherwise
 
@@ -129,22 +86,30 @@ template HammingDistance(n) {
 // IrisAuth — Main circuit (Merkle + Nullifier architecture)
 //
 // Proves:
-//   1. Pack registered iris bits → Poseidon hash matches irisHash
+//   1. irisHash = Poseidon(pack(registeredIris) || salt)   (private)
 //   2. commitment = Poseidon(irisHash, secretKey) is in the Merkle tree
 //   3. nullifier = Poseidon(secretKey, electionId)
 //   4. HammingDistance(liveIris, registeredIris) < hammingThreshold
+//   5. the live code was signed by an authorised capture device for
+//      this vote (SensorAttestation)
+//   6. the proof is bound to voteBinding (hash of the ballot ciphertexts)
+//
+// irisHash is deliberately NOT public: it is constant per voter, so
+// publishing it would link every ballot a voter casts across elections.
 //
 // Parameters:
 //   codeSize  — number of bits in downsampled iris code (256)
 //   treeLevels — Merkle tree depth (20 → supports ~1M voters)
+//   hammingThreshold — max HD, exclusive (123 for 0.478 * 256)
+//   sensorLevels — sensor registry depth (10 → 1,024 capture devices)
 // ============================================================
-template IrisAuth(codeSize, treeLevels) {
+template IrisAuth(codeSize, treeLevels, hammingThreshold, sensorLevels) {
     // --- Public Inputs ---
-    signal input irisHash;              // Poseidon hash of registered iris code + salt
     signal input merkleRoot;            // Root of the iris commitment Merkle tree
     signal input nullifier;             // Nullifier = Poseidon(secretKey, electionId)
     signal input electionId;            // Unique election identifier
-    signal input hammingThreshold;      // Max HD (e.g., 123 for 0.478 * 256)
+    signal input voteBinding;           // H(ballot ciphertexts), checked by the chaincode
+    signal input sensorRoot;            // Root of the authorised-sensor registry
 
     // --- Private Inputs ---
     signal input irisCodeLive[codeSize];           // Live iris code bits (0/1)
@@ -154,47 +119,39 @@ template IrisAuth(codeSize, treeLevels) {
     signal input pathElements[treeLevels];         // Merkle proof siblings
     signal input pathIndices[treeLevels];          // Merkle proof path (0=left, 1=right)
 
+    // Sensor attestation (see common.circom)
+    signal input sessionNonce;
+    signal input sensorAx;
+    signal input sensorAy;
+    signal input sigR8x;
+    signal input sigR8y;
+    signal input sigS;
+    signal input sensorPathElements[sensorLevels];
+    signal input sensorPathIndices[sensorLevels];
+
     // --- Output ---
     signal output valid;
 
     // =====================
-    // 1. Pack registered iris bits into field elements and hash
-    //    256 bits → 32 packed bytes (8 bits each) via Bits2Num
-    //    Then PoseidonHashChunked(32, 8): 4 chunks of 8 → Poseidon(4)
+    // 1. irisHash = Poseidon(pack(registered) || salt)
     // =====================
-    var nPacks = codeSize \ 8;   // = 32
-
-    component packBits[nPacks];
-    for (var i = 0; i < nPacks; i++) {
-        packBits[i] = Bits2Num(8);
-        for (var j = 0; j < 8; j++) {
-            packBits[i].in[j] <== irisCodeRegistered[i * 8 + j];
-        }
+    component registeredHash = PackedBitsHash(codeSize);
+    for (var i = 0; i < codeSize; i++) {
+        registeredHash.bits[i] <== irisCodeRegistered[i];
     }
 
-    // Hash the 32 packed values
-    component irisHasher = PoseidonHashChunked(nPacks, 8);
-    for (var i = 0; i < nPacks; i++) {
-        irisHasher.in[i] <== packBits[i].out;
-    }
-
-    // Combine with salt: finalHash = Poseidon(irisHasher.out, salt)
     component saltHasher = Poseidon(2);
-    saltHasher.inputs[0] <== irisHasher.out;
+    saltHasher.inputs[0] <== registeredHash.out;
     saltHasher.inputs[1] <== salt;
-
-    // Constrain: computed hash == public irisHash
-    saltHasher.out === irisHash;
 
     // =====================
     // 2. Compute commitment and verify Merkle membership
     //    commitment = Poseidon(irisHash, secretKey)
     // =====================
     component commitmentHasher = Poseidon(2);
-    commitmentHasher.inputs[0] <== irisHash;
+    commitmentHasher.inputs[0] <== saltHasher.out;
     commitmentHasher.inputs[1] <== secretKey;
 
-    // Verify Merkle tree membership (independent iris tree)
     component merkleChecker = MerkleTreeChecker(treeLevels);
     merkleChecker.leaf <== commitmentHasher.out;
     merkleChecker.root <== merkleRoot;
@@ -214,20 +171,48 @@ template IrisAuth(codeSize, treeLevels) {
     nullifierHasher.out === nullifier;
 
     // =====================
-    // 4. Hamming distance check on iris codes
+    // 4. Hamming distance check on iris codes (also booleanity of both codes)
     // =====================
-    component hamming = HammingDistance(codeSize);
+    component hamming = HammingDistance(codeSize, hammingThreshold);
     for (var i = 0; i < codeSize; i++) {
         hamming.a[i] <== irisCodeLive[i];
         hamming.b[i] <== irisCodeRegistered[i];
     }
-    hamming.threshold <== hammingThreshold;
 
-    // All checks must pass
     valid <== hamming.pass;
     valid === 1;
+
+    // =====================
+    // 5. Sensor attestation over the live code
+    // =====================
+    component liveHash = PackedBitsHash(codeSize);
+    for (var i = 0; i < codeSize; i++) {
+        liveHash.bits[i] <== irisCodeLive[i];
+    }
+
+    component attest = SensorAttestation(sensorLevels);
+    attest.liveHash <== liveHash.out;
+    attest.electionId <== electionId;
+    attest.nullifier <== nullifier;
+    attest.sensorRoot <== sensorRoot;
+    attest.sessionNonce <== sessionNonce;
+    attest.sensorAx <== sensorAx;
+    attest.sensorAy <== sensorAy;
+    attest.sigR8x <== sigR8x;
+    attest.sigR8y <== sigR8y;
+    attest.sigS <== sigS;
+    for (var i = 0; i < sensorLevels; i++) {
+        attest.sensorPathElements[i] <== sensorPathElements[i];
+        attest.sensorPathIndices[i] <== sensorPathIndices[i];
+    }
+
+    // =====================
+    // 6. Bind voteBinding into the proof. A public input that appears in no
+    //    constraint is not bound by Groth16, so square it into a dummy signal.
+    // =====================
+    signal voteBindingSq <== voteBinding * voteBinding;
 }
 
 // Instantiate with 256-bit downsampled iris codes, 20-level Merkle tree (~1M voters)
 // Hamming threshold 0.478 → floor(0.478 × 256) + 1 = 123 (strict less-than)
-component main {public [irisHash, merkleRoot, nullifier, electionId, hammingThreshold]} = IrisAuth(256, 20);
+component main {public [merkleRoot, nullifier, electionId, voteBinding, sensorRoot]} = IrisAuth(256, 20, 123, 10);

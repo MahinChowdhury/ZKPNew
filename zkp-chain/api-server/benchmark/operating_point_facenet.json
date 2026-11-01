@@ -1,0 +1,64 @@
+{
+  "label": "facenet",
+  "cache": "face_embeddings",
+  "far_target": 0.001,
+  "frr_target": 0.01,
+  "validation": {
+    "fit_identities": 2586,
+    "select_identities": 863,
+    "genuine_pairs": 2422,
+    "impostor_pairs": 200000
+  },
+  "test": {
+    "genuine_pairs": 6000,
+    "impostor_pairs": 200000
+  },
+  "per_dim": {
+    "32": {
+      "tau": 0.64,
+      "val_frr": 0.39182,
+      "tau_num": 4096,
+      "tau_den": 10000,
+      "test_far": 0.00049,
+      "test_frr": 0.4185,
+      "test_false_accepts": 97
+    },
+    "48": {
+      "tau": 0.58,
+      "val_frr": 0.33237,
+      "tau_num": 3364,
+      "tau_den": 10000,
+      "test_far": 0.00048,
+      "test_frr": 0.33517,
+      "test_false_accepts": 96
+    },
+    "64": {
+      "tau": 0.56,
+      "val_frr": 0.31957,
+      "tau_num": 3136,
+      "tau_den": 10000,
+      "test_far": 0.00059,
+      "test_frr": 0.308,
+      "test_false_accepts": 118
+    },
+    "96": {
+      "tau": 0.56,
+      "val_frr": 0.3204,
+      "tau_num": 3136,
+      "tau_den": 10000,
+      "test_far": 0.00059,
+      "test_frr": 0.308,
+      "test_false_accepts": 117
+    },
+    "128": {
+      "tau": 0.56,
+      "val_frr": 0.3204,
+      "tau_num": 3136,
+      "tau_den": 10000,
+      "test_far": 0.00059,
+      "test_frr": 0.308,
+      "test_false_accepts": 117
+    }
+  },
+  "selected_dim": null
+}

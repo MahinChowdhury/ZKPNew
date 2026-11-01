@@ -313,8 +313,12 @@ async function computeIrisNullifier(secretKey, electionId) {
  * @param {number[]} pathIndices - Merkle proof directions
  * @param {BigInt} electionId - unique election identifier
  * @param {BigInt} nullifier - precomputed nullifier
- * @param {number} hammingThreshold - max allowed Hamming distance (default 123)
+ * @param {BigInt} voteBinding - homomorphic.computeVoteBinding() of the ballot
+ *   ciphertexts (0n for login proofs that carry no ballot)
  * @returns {Promise<{proof, publicSignals}>}
+ *
+ * The Hamming threshold (HAMMING_THRESHOLD) is fixed inside the circuit;
+ * irisHash is only used for logging and is not a public input.
  */
 async function generateIrisProof(
   irisCodeLive256,
@@ -327,7 +331,7 @@ async function generateIrisProof(
   pathIndices,
   electionId,
   nullifier,
-  hammingThreshold = HAMMING_THRESHOLD
+  voteBinding = 0n
 ) {
   // Validate circuit artifacts
   if (!fs.existsSync(IRIS_WASM_PATH)) {
@@ -344,11 +348,10 @@ async function generateIrisProof(
   // Build witness input
   const input = {
     // Public inputs
-    irisHash: toFieldString(irisHash),
     merkleRoot: toFieldString(merkleRoot),
     nullifier: toFieldString(nullifier),
     electionId: toFieldString(electionId),
-    hammingThreshold: hammingThreshold.toString(),
+    voteBinding: toFieldString(voteBinding),
 
     // Private inputs
     irisCodeLive: irisCodeLive256.map((b) => b.toString()),
@@ -365,7 +368,7 @@ async function generateIrisProof(
   console.log(`merkleRoot: ${merkleRoot.toString().slice(0, 20)}...`);
   console.log(`nullifier: ${nullifier.toString().slice(0, 20)}...`);
   console.log(`electionId: ${electionId.toString()}`);
-  console.log(`hammingThreshold: ${hammingThreshold}`);
+  console.log(`hammingThreshold (in-circuit): ${HAMMING_THRESHOLD}`);
 
   const startTime = Date.now();
 
@@ -513,6 +516,7 @@ async function computeIrisRegistrationData(irisCode, noiseMask, saltHex) {
  * @param {BigInt} secretKey - voter's secret key
  * @param {BigInt[]} irisCommitments - all registered iris commitments
  * @param {BigInt} electionId - unique election identifier
+ * @param {BigInt} voteBinding - binding to the ballot ciphertexts (0n for login)
  * @returns {Promise<{proof, publicSignals, isValid, nullifier, merkleRoot}>}
  */
 async function generateIrisAuthProof(
@@ -523,7 +527,8 @@ async function generateIrisAuthProof(
   irisHash,
   secretKey,
   irisCommitments,
-  electionId
+  electionId,
+  voteBinding = 0n
 ) {
   const totalStart = Date.now();
   const timings = {};
@@ -584,7 +589,7 @@ async function generateIrisAuthProof(
     pathIndices,
     electionId,
     nullifier,
-    HAMMING_THRESHOLD
+    voteBinding
   );
   timings.snarkProve = Date.now() - t0;
 

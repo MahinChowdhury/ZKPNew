@@ -1,0 +1,34 @@
+{
+  "PoseidonHashChunked(64,8)": 3618
+  ,"SquaredCosineSimilarity(64)": 2901
+  ,"MerkleTreeChecker(20)": 4840
+  ,"SensorAttestation(10)": 7368
+  ,"Poseidon(2)": 240
+  ,"PackedBitsHash(256)": 1905
+  ,"HammingDistance(256)": 778
+  ,"SquaredCosineSimilarity(128)": 5656
+  ,"SquaredEuclideanDistance(64)": 2672
+  ,"SquaredEuclideanDistance(128)": 5296
+  ,"PoseidonHashChunked(128,8)": 7041
+  ,"PoseidonHashChunked(16,8)": 1044
+  ,"SquaredCosineSimilarity(16)": 831
+  ,"PoseidonHashChunked(32,8)": 1905
+  ,"SquaredCosineSimilarity(32)": 1522
+  ,"PoseidonHashChunked(48,8)": 2766
+  ,"SquaredCosineSimilarity(48)": 2213
+  ,"PoseidonHashChunked(80,8)": 4479
+  ,"SquaredCosineSimilarity(80)": 3592
+  ,"PoseidonHashChunked(96,8)": 5328
+  ,"SquaredCosineSimilarity(96)": 4280
+  ,"PoseidonHashChunked(112,8)": 6165
+  ,"SquaredCosineSimilarity(112)": 4968
+  ,"PoseidonHashChunked(160,8)": 9198
+  ,"SquaredCosineSimilarity(160)": 7035
+  ,"PoseidonHashChunked(192,8)": 10896
+  ,"SquaredCosineSimilarity(192)": 8411
+  ,"PoseidonHashChunked(256,8)": 14322
+  ,"SquaredCosineSimilarity(256)": 11163
+  ,"face_auth (full)": 32668
+  ,"iris_auth (full)": 17518
+  ,"face_auth (dim)": 128
+}

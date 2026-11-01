@@ -196,6 +196,20 @@ router.get("/history", (req, res) => {
 });
 
 /**
+ * GET /api/v1/ballot/:ballotId/chain
+ * The on-chain ballot record { ballotId, numOptions, publicKey, electionId }
+ * that castVote verifies against — the client encrypts under this key.
+ */
+router.get("/:ballotId/chain", async (req, res) => {
+  try {
+    const record = await res.locals.fabricClient.getBallot(req.params.ballotId);
+    res.json({ ok: true, ballot: record });
+  } catch (err) {
+    res.status(404).json({ ok: false, error: `No on-chain record for this ballot yet (run tally setup): ${err.message}` });
+  }
+});
+
+/**
  * GET /api/v1/ballot/:ballotId
  * Get specific ballot by ID
  */

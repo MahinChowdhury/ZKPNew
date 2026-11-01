@@ -1,0 +1,11 @@
+# Trusted-setup and proving artifacts (large; regenerate with circuits/build_*.sh)
+*.ptau
+*.zkey
+attacks/soundness/build/
+
+# Written by crypto/snark.js verifyProof()
+proof.json
+public.json
+
+# Capture-device signing key (sensor/attestor.js)
+sensor/sensor_key.json

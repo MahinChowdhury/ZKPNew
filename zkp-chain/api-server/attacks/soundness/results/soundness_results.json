@@ -1,0 +1,222 @@
+{
+  "date": "2026-11-01T05:06:53.311Z",
+  "results": [
+    {
+      "id": "BASELINE-face",
+      "finding": "-",
+      "title": "Honest registered face voter casts one vote",
+      "outcome": "OK",
+      "detail": "stored as VOTE_tx1"
+    },
+    {
+      "id": "BASELINE-iris",
+      "finding": "-",
+      "title": "Honest registered iris voter casts one vote",
+      "outcome": "OK",
+      "detail": "stored as VOTE_tx2"
+    },
+    {
+      "id": "A1-face",
+      "finding": "C1",
+      "title": "Unregistered attacker forges Merkle membership (face)",
+      "outcome": "PROTECTED",
+      "detail": "Error: Assert Failed. Error in template MerkleTreeChecker_230 line: 75"
+    },
+    {
+      "id": "A1-iris",
+      "finding": "C1",
+      "title": "Unregistered attacker forges Merkle membership (iris)",
+      "outcome": "PROTECTED",
+      "detail": "Error: Assert Failed. Error in template MerkleTreeChecker_224 line: 75"
+    },
+    {
+      "id": "A2-face",
+      "finding": "C2",
+      "title": "Impostor face (random embedding) tries threshold_sq_num = 0",
+      "outcome": "PROTECTED",
+      "detail": "Error: Assert Failed. Error in template Num2Bits_233 line: 38"
+    },
+    {
+      "id": "A2-iris",
+      "finding": "C2",
+      "title": "Impostor iris (random bits) tries hammingThreshold = 257",
+      "outcome": "PROTECTED",
+      "detail": "Error: Assert Failed. Error in template IrisAuth_398 line: 183"
+    },
+    {
+      "id": "A2-control",
+      "finding": "C2",
+      "title": "Control: impostor face with no threshold tampering is rejected",
+      "outcome": "OK",
+      "detail": "Error: Assert Failed. Error in template Num2Bits_233 line: 38"
+    },
+    {
+      "id": "A3",
+      "finding": "C3",
+      "title": "Voter who already voted on ballot A votes again on A with a fresh electionId",
+      "outcome": "PROTECTED",
+      "detail": "ElectionId in proof does not belong to this ballot"
+    },
+    {
+      "id": "A4",
+      "finding": "C4",
+      "title": "Votes are linkable across elections (and to NID by the server) via public biometric hash",
+      "outcome": "PROTECTED",
+      "detail": "biometric hash appears in 0 stored votes (needs 2 to link)"
+    },
+    {
+      "id": "A5",
+      "finding": "C9",
+      "title": "Negated template (cos = -1) passes the squared-cosine check",
+      "outcome": "PROTECTED",
+      "detail": "Error: Assert Failed. Error in template Num2Bits_233 line: 38"
+    },
+    {
+      "id": "A5b",
+      "finding": "C9",
+      "title": "Out-of-range live embedding (template x 2^10, cos = 1) accepted",
+      "outcome": "PROTECTED",
+      "detail": "Error: Assert Failed. Error in template Num2Bits_231 line: 38"
+    },
+    {
+      "id": "A6",
+      "finding": "C6",
+      "title": "Credential holder votes with no live capture: live := registered, self-signed with an unregistered key",
+      "outcome": "PROTECTED",
+      "detail": "Error: Assert Failed. Error in template MerkleTreeChecker_396 line: 89"
+    },
+    {
+      "id": "A13",
+      "finding": "C6",
+      "title": "Credential holder uses the real device on THEIR OWN face, then proves with the victim's template",
+      "outcome": "PROTECTED",
+      "detail": "Error: Assert Failed. Error in template ForceEqualIfEnabled_404 line: 56"
+    },
+    {
+      "id": "A14",
+      "finding": "C6",
+      "title": "Replay a genuine attestation captured for a different election",
+      "outcome": "PROTECTED",
+      "detail": "Error: Assert Failed. Error in template ForceEqualIfEnabled_394 line: 56"
+    },
+    {
+      "id": "A15",
+      "finding": "C6",
+      "title": "Replay a genuine attestation bound to another vote session (different nullifier)",
+      "outcome": "PROTECTED",
+      "detail": "Error: Assert Failed. Error in template ForceEqualIfEnabled_394 line: 56"
+    },
+    {
+      "id": "A16",
+      "finding": "C6",
+      "title": "Rogue key signs, witness claims the registered device's public key",
+      "outcome": "PROTECTED",
+      "detail": "Error: Assert Failed. Error in template ForceEqualIfEnabled_394 line: 56"
+    },
+    {
+      "id": "A7",
+      "finding": "C8",
+      "title": "Front-runner swaps the ciphertext under an intercepted (proof, nullifier)",
+      "outcome": "PROTECTED",
+      "detail": "Vote binding mismatch — ciphertexts are not the ones this proof was made for"
+    },
+    {
+      "id": "A8",
+      "finding": "C8",
+      "title": "Vote accepted with no ciphertext at all",
+      "outcome": "PROTECTED",
+      "detail": "Required parameters: proof, publicSignals, nullifier, encryptedVote, ballotId"
+    },
+    {
+      "id": "A9",
+      "finding": "C8",
+      "title": "Ciphertext encrypting 5 with a forged Σ-OR proof",
+      "outcome": "PROTECTED",
+      "detail": "Validity proof failed for option 0"
+    },
+    {
+      "id": "A11",
+      "finding": "C20",
+      "title": "Overvote: every option encrypts 1, each with a valid Σ-OR proof",
+      "outcome": "PROTECTED",
+      "detail": "Sum proof failed — ballot does not encrypt exactly one choice"
+    },
+    {
+      "id": "A12",
+      "finding": "C19",
+      "title": "Ballot copying: attacker re-submits another voter's ciphertexts + proofs under own credential",
+      "outcome": "PROTECTED",
+      "detail": "Validity proof failed for option 0"
+    },
+    {
+      "id": "A10",
+      "finding": "C18",
+      "title": "Non-RA Fabric identity registers a phantom voter, which then votes",
+      "outcome": "PROTECTED",
+      "detail": "Access denied: RogueMSP is not an authorised registrar organisation"
+    },
+    {
+      "id": "A17",
+      "finding": "C15",
+      "title": "A single key holder (one trustee) decrypts an individual ballot",
+      "outcome": "PROTECTED",
+      "detail": "one trustee's share does not open the ballot"
+    },
+    {
+      "id": "A18",
+      "finding": "C15",
+      "title": "Tally published while voting is still open (early results)",
+      "outcome": "PROTECTED",
+      "detail": "Ballot ballot-soundness-A is open, expected closed"
+    },
+    {
+      "id": "A22",
+      "finding": "C15",
+      "title": "Vote cast after the ballot is closed",
+      "outcome": "PROTECTED",
+      "detail": "Ballot ballot-soundness-A is not open for voting (status: closed)"
+    },
+    {
+      "id": "A19",
+      "finding": "C15",
+      "title": "Inflated total published with genuine partial decryptions",
+      "outcome": "PROTECTED",
+      "detail": "Option 0: published total does not match the decryption"
+    },
+    {
+      "id": "A20",
+      "finding": "C15",
+      "title": "Correct totals backed by a single trustee's partial decryption (below t = 2)",
+      "outcome": "PROTECTED",
+      "detail": "Option 0: 1 partial decryptions, threshold is 2"
+    },
+    {
+      "id": "A21",
+      "finding": "C15",
+      "title": "Partial decryption made with a forged key share",
+      "outcome": "PROTECTED",
+      "detail": "Option 0: partial decryption of trustee 2 is invalid"
+    },
+    {
+      "id": "BASELINE-tally",
+      "finding": "-",
+      "title": "Honest 2-of-3 tally of the closed ballot is accepted and matches the votes cast",
+      "outcome": "OK",
+      "detail": "totals [4,0] over 4 ballots"
+    },
+    {
+      "id": "A23",
+      "finding": "C15",
+      "title": "Trustee corrupts key generation by sending an inconsistent share",
+      "outcome": "PROTECTED",
+      "detail": "dealer 3 disqualified by complaint; QUAL = [1,2]"
+    },
+    {
+      "id": "A23-control",
+      "finding": "-",
+      "title": "Control: a false complaint against an honest dealer is rejected",
+      "outcome": "OK",
+      "detail": "Complaint rejected: trustee 1's share to trustee 2 is consistent"
+    }
+  ]
+}

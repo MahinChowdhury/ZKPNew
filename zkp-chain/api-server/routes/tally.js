@@ -1,45 +1,71 @@
 // ============================
-// Homomorphic Tally Routes
+// Homomorphic Tally Routes — threshold trustees
 // ============================
+//
+// The election key comes from a t-of-n DKG among trustees and is derived by
+// the chaincode (finalizeBallotKey); no party holds the decryption key. The
+// chaincode re-verifies the published tally (publishTally), and anyone can
+// re-check it from public data (/verify).
+//
+// PROTOTYPE: the n trustees run in this process. Each Trustee object only
+// ever uses its own shares, as separate machines would; in deployment each
+// trustee runs crypto/threshold.js itself and posts its own transactions.
 
 const express = require("express");
 const homomorphic = require("../crypto/homomorphic");
+const threshold = require("../crypto/threshold");
+
+const { Trustee, tc } = threshold;
 
 const router = express.Router();
 
-// Store encryption keypairs per ballot (in production, use secure key management)
-const ballotKeys = new Map();
+const TRUSTEES = parseInt(process.env.TALLY_TRUSTEES || "3", 10);
+const THRESHOLD = parseInt(process.env.TALLY_THRESHOLD || "2", 10);
+
+// ballotId -> Trustee[] (prototype only, see above)
+const ballotTrustees = new Map();
 
 /**
  * POST /api/v1/tally/setup/:ballotId
- * Setup homomorphic encryption for a ballot
- * Generates ElGamal keypair
+ * Register the ballot with its trustee set, run the DKG on-chain and open voting.
  */
 router.post("/setup/:ballotId", async (req, res) => {
   try {
     const { ballotId } = req.params;
+    const { fabricClient, ballotRoutes } = res.locals;
 
-    console.log(`\n=== TALLY SETUP FOR BALLOT ${ballotId} ===`);
+    const ballot = ballotRoutes.getBallotById(ballotId);
+    if (!ballot) {
+      return res.status(404).json({ ok: false, error: `Ballot not found: ${ballotId}` });
+    }
+    if (ballotTrustees.has(ballotId)) {
+      return res.status(409).json({ ok: false, error: "Ballot key already set up (on-chain record is write-once)" });
+    }
 
-    // Generate ElGamal keypair
-    const keypair = homomorphic.generateKeypair();
-    
-    console.log("ElGamal keypair generated");
-    console.log(`Public key: ${keypair.publicKey.getX().toString(16).slice(0, 16)}...`);
-    console.log(`Private key: ${keypair.privateKey.toString(16).slice(0, 16)}... (KEEP SECRET)`);
+    const trustees = Array.from({ length: TRUSTEES }, (_, i) => new Trustee(i + 1));
+    await fabricClient.registerBallot(ballotId, ballot.options.length, trustees.map((t) => t.publicKey), THRESHOLD);
 
-    // Store keypair (in production, private key should be in HSM or distributed)
-    ballotKeys.set(ballotId, keypair);
+    // Each trustee posts its commitments and sends shares to the others
+    const dealings = trustees.map((t) => t.deal(ballotId, THRESHOLD, TRUSTEES));
+    for (const t of trustees) {
+      const d = dealings[t.index - 1];
+      await fabricClient.submitDealing(ballotId, t.index, d.commitments, d.sig);
+    }
+    for (const receiver of trustees) {
+      for (const dealer of trustees) {
+        const d = dealings[dealer.index - 1];
+        const complaint = receiver.receive(ballotId, dealer.index, d.commitments, d.shares[receiver.index]);
+        if (complaint) {
+          await fabricClient.complain(ballotId, complaint.complainer, complaint.dealer, complaint.share, complaint.sig);
+        }
+      }
+    }
+    const { publicKey, qual } = await fabricClient.finalizeBallotKey(ballotId);
+    trustees.forEach((t) => t.finalize(qual));
+    ballotTrustees.set(ballotId, trustees);
 
-    const serialized = homomorphic.serializeKeypair(keypair);
-
-    res.json({
-      ok: true,
-      ballotId,
-      publicKey: serialized.publicKey,
-      message: "Homomorphic encryption setup complete"
-    });
-
+    console.log(`Ballot ${ballotId}: ${THRESHOLD}-of-${TRUSTEES} key generated, QUAL = [${qual}]`);
+    res.json({ ok: true, ballotId, publicKey, threshold: THRESHOLD, trustees: TRUSTEES, qual });
   } catch (err) {
     console.error("TALLY SETUP ERROR:", err);
     res.status(500).json({ ok: false, error: err.message });
@@ -47,274 +73,79 @@ router.post("/setup/:ballotId", async (req, res) => {
 });
 
 /**
- * GET /api/v1/tally/publickey/:ballotId
- * Get public key for a ballot
+ * GET /api/v1/tally/publickey/:ballotId — the election key, from the ledger
  */
-router.get("/publickey/:ballotId", (req, res) => {
+router.get("/publickey/:ballotId", async (req, res) => {
   try {
-    const { ballotId } = req.params;
-
-    const keypair = ballotKeys.get(ballotId);
-    if (!keypair) {
-      return res.status(404).json({
-        ok: false,
-        error: "No encryption key found for this ballot"
-      });
+    const chain = await res.locals.fabricClient.getBallot(req.params.ballotId);
+    if (!chain.publicKey) {
+      return res.status(404).json({ ok: false, error: "Key generation has not finished for this ballot" });
     }
-
-    const serialized = homomorphic.serializeKeypair(keypair);
-
-    res.json({
-      ok: true,
-      ballotId,
-      publicKey: serialized.publicKey
-    });
-
+    res.json({ ok: true, ballotId: req.params.ballotId, publicKey: chain.publicKey });
   } catch (err) {
-    console.error("GET PUBLIC KEY ERROR:", err);
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(404).json({ ok: false, error: err.message });
   }
 });
 
+// Sum each option's ciphertexts over the ballots on the ledger, re-verifying
+// every ballot proof so the tally never rests on the endorsers alone.
+function aggregate(votes, chain, ballotId) {
+  const pk = homomorphic.deserializeCiphertext({ c1: chain.publicKey, c2: chain.publicKey }).c1;
+  const valid = votes.filter((vote) => {
+    const enc = vote.encryptedVote;
+    if (!enc || !Array.isArray(enc.ciphertexts) || enc.ciphertexts.length !== chain.numOptions) return false;
+    const cts = enc.ciphertexts.map((c) => homomorphic.deserializeCiphertext(c));
+    const ok = enc.ciphertexts.every((c, i) => c.validityProof &&
+      homomorphic.verifyValidVote(pk, cts[i], c.validityProof, homomorphic.optionContext(ballotId, vote.nullifier, i))) &&
+      homomorphic.verifySumIsOne(pk, cts, enc.sumProof, homomorphic.sumContext(ballotId, vote.nullifier));
+    if (!ok) console.warn(`  Vote ${vote.voteId} failed ballot proof verification - skipping`);
+    return ok;
+  });
+  return { sums: threshold.aggregate(valid.map((v) => v.encryptedVote), chain.numOptions), counted: valid.length };
+}
+
 /**
  * POST /api/v1/tally/compute/:ballotId
- * Compute homomorphic tally for a ballot
- * Fetches all encrypted votes from blockchain and sums them
+ * Close voting, collect t partial decryptions per option, publish on-chain.
  */
 router.post("/compute/:ballotId", async (req, res) => {
   try {
     const { ballotId } = req.params;
     const { fabricClient, ballotRoutes } = res.locals;
-
-    console.log(`\n=== COMPUTING HOMOMORPHIC TALLY ===`);
-    console.log(`Ballot ID: ${ballotId}`);
-
-    // Get ballot info
-    const ballot = ballotRoutes.getActiveBallot();
-    if (!ballot || ballot.id !== ballotId) {
-      // Try to find in history
-      console.log("Ballot not currently active, checking history...");
+    const ballot = ballotRoutes.getBallotById(ballotId);
+    const trustees = ballotTrustees.get(ballotId);
+    if (!ballot || !trustees) {
+      return res.status(404).json({ ok: false, error: "Unknown ballot or no trustees. Run /tally/setup first." });
     }
 
-    // Get encryption keypair
-    const keypair = ballotKeys.get(ballotId);
-    if (!keypair) {
-      return res.status(404).json({
-        ok: false,
-        error: "No encryption key found for this ballot. Run /tally/setup first."
-      });
+    let chain = await fabricClient.getBallot(ballotId);
+    if (chain.status === "open") {
+      await fabricClient.closeBallot(ballotId);
+      chain = await fabricClient.getBallot(ballotId);
     }
 
-    // Get all votes from blockchain
-    const allVotes = await fabricClient.getAllVotes(ballotId);
-    console.log(`Total votes on blockchain for ballot: ${allVotes.length}`);
+    const votes = await fabricClient.getAllVotes(ballotId);
+    const { sums, counted } = aggregate(votes, chain, ballotId);
 
-    if (allVotes.length === 0) {
-      return res.json({
-        ok: true,
-        ballotId,
-        tallies: {},
-        totalVotes: 0,
-        message: "No votes to tally"
-      });
-    }
+    // Any t trustees of QUAL suffice; here, the first t. A failed discrete
+    // log means an aggregate is not a valid count: fail rather than publish.
+    const active = trustees.filter((t) => chain.qual.includes(t.index)).slice(0, chain.threshold);
+    const { options } = threshold.decryptTally(ballotId, sums, active, votes.length);
 
-    // Count votes with encryption
-    let encryptedVoteCount = 0;
-    allVotes.forEach(vote => {
-      if (vote.encryptedVote) encryptedVoteCount++;
-    });
-
-    console.log(`Votes with encryption: ${encryptedVoteCount}`);
-
-    // If no encrypted votes, fall back to plaintext counting
-    if (encryptedVoteCount === 0) {
-      console.warn("Warning: No encrypted votes found, using plaintext tallying");
-      
-      // Build hash -> name map from ballot options
-      const choiceHashMap = {};
-      if (ballot) {
-        ballot.options.forEach(option => {
-          const hash = require('crypto').createHash('sha256').update(String(option.name)).digest('hex');
-          choiceHashMap[hash] = option.name;
-        });
-      }
-
-      const plaintextTallies = {};
-      
-      // Initialize all options to 0
-      if (ballot) {
-        ballot.options.forEach(option => {
-          plaintextTallies[option.name] = 0;
-        });
-      }
-      
-      // Count votes using hash-to-name mapping
-      allVotes.forEach(vote => {
-        const choiceHash = vote.voteChoiceHash || vote.voteChoice;
-        const choiceName = choiceHashMap[choiceHash] || choiceHash; // fallback to raw value for legacy
-        if (plaintextTallies[choiceName] !== undefined) {
-          plaintextTallies[choiceName]++;
-        } else {
-          plaintextTallies[choiceName] = 1;
-        }
-      });
-
-      return res.json({
-        ok: true,
-        ballotId,
-        ballotTitle: ballot ? ballot.title : "Unknown",
-        tallies: plaintextTallies,
-        totalVotes: allVotes.length,
-        method: "plaintext",
-        warning: "No encrypted votes found - used plaintext counting"
-      });
-    }
-
-    // FIXED: True homomorphic tallying using encrypted vectors
-    // The tally is completely oblivious to individual voter choices.
-    const encryptedTallies = {};
-
-    // Initialize with null for all options
-    if (ballot) {
-      ballot.options.forEach(option => {
-        encryptedTallies[option.name] = null;
-      });
-    }
-
-    let processedCount = 0;
-    allVotes.forEach(vote => {
-      if (!vote.encryptedVote || !Array.isArray(vote.encryptedVote)) {
-        console.warn(`Vote ${vote.voteId} has invalid or legacy encrypted vote format - skipping`);
-        return;
-      }
-
-      try {
-        // VECTOR FORMAT (True Privacy)
-        // The vote is an array of ciphertexts, one for each option
-        // We sum them element-wise
-        if (ballot && ballot.options && vote.encryptedVote.length === ballot.options.length) {
-          
-          let isValidVote = true;
-          const ciphertexts = [];
-
-          // First pass: Verify all proofs
-          for (let i = 0; i < ballot.options.length; i++) {
-            const ciphertext = homomorphic.deserializeCiphertext(vote.encryptedVote[i]);
-            ciphertexts.push(ciphertext);
-            
-            const proof = vote.encryptedVote[i].validityProof;
-            if (proof) {
-               const isValid = homomorphic.verifyValidVote(keypair.publicKey, ciphertext, proof);
-               if (!isValid) {
-                  console.warn(`  Vote ${vote.voteId} validity proof failed (perhaps encrypted with an older public key) - skipping`);
-                  isValidVote = false;
-                  break;
-               }
-            } else {
-               // Allow for testing, but warn
-               console.warn(`  Vote ${vote.voteId} missing validity proof`);
-            }
-          }
-
-          if (isValidVote) {
-            for (let i = 0; i < ballot.options.length; i++) {
-              const optionName = ballot.options[i].name;
-              const ciphertext = ciphertexts[i];
-              
-              if (encryptedTallies[optionName] === null) {
-                encryptedTallies[optionName] = ciphertext;
-              } else {
-                encryptedTallies[optionName] = homomorphic.addCiphertexts(
-                  encryptedTallies[optionName],
-                  ciphertext
-                );
-              }
-            }
-            console.log(`  Processed vector vote ${vote.voteId}`);
-            processedCount++;
-          }
-        } else {
-          console.warn(`  Vector vote ${vote.voteId} length doesn't match ballot options - skipping`);
-        }
-      } catch (err) {
-        console.error(`Error processing vote ${vote.voteId}:`, err.message);
-      }
-    });
-
-    console.log(`Successfully processed ${processedCount} encrypted votes`);
-
-    // Decrypt tallies
+    const published = await fabricClient.publishTally(ballotId, { options });
     const tallies = {};
-    const decryptionLog = [];
-
-    for (const [choice, encryptedSum] of Object.entries(encryptedTallies)) {
-      if (encryptedSum === null) {
-        // No votes for this choice
-        tallies[choice] = 0;
-        console.log(`\nNo votes for "${choice}"`);
-        continue;
-      }
-
-      console.log(`\nDecrypting tally for "${choice}"...`);
-      
-      try {
-        // Decrypt: M = sum of all v_i·G for this choice
-        const M = homomorphic.decrypt(keypair.privateKey, encryptedSum);
-        
-        console.log(`  Decrypted point M for "${choice}"`);
-        console.log(`    M.x: ${M.getX().toString(16).slice(0, 32)}...`);
-        console.log(`    M.y: ${M.getY().toString(16).slice(0, 32)}...`);
-        
-        // Solve discrete log to get vote count
-        // Since each vote encrypts 1, the sum is the vote count
-        const maxExpected = allVotes.length;
-        const count = homomorphic.solveDiscreteLog(M, maxExpected);
-        
-        tallies[choice] = count;
-        
-        decryptionLog.push({
-          choice,
-          count,
-          encryptedSum: homomorphic.serializeCiphertext(encryptedSum)
-        });
-        
-        console.log(`  ✅ Count: ${count}`);
-      } catch (err) {
-        console.error(`  ❌ Error decrypting "${choice}":`, err.message);
-        console.error(`  Stack:`, err.stack);
-        
-        // Try to diagnose the issue
-        try {
-          const M = homomorphic.decrypt(keypair.privateKey, encryptedSum);
-          console.log(`  Decrypted point exists, issue is in discrete log`);
-          console.log(`  Point coordinates:`, {
-            x: M.getX().toString(16),
-            y: M.getY().toString(16)
-          });
-        } catch (decryptErr) {
-          console.error(`  Decryption itself failed:`, decryptErr.message);
-        }
-        
-        tallies[choice] = 0;
-      }
-    }
-
-    console.log(`\n✅ Tally computation complete`);
-    console.log(`Final tallies:`, tallies);
-    console.log(`=== TALLY COMPLETE ===\n`);
+    ballot.options.forEach((o, j) => { tallies[o.name] = published.totals[j]; });
 
     res.json({
       ok: true,
       ballotId,
-      ballotTitle: ballot ? ballot.title : "Unknown",
+      ballotTitle: ballot.title,
       tallies,
-      totalVotes: allVotes.length,
-      encryptedVotes: processedCount,
-      method: "homomorphic",
-      decryptionLog
+      totalVotes: published.numVotes,
+      encryptedVotes: counted,
+      method: `homomorphic, ${chain.threshold}-of-${chain.trustees.length} threshold decryption`,
+      tally: { options },
     });
-
   } catch (err) {
     console.error("COMPUTE TALLY ERROR:", err);
     res.status(500).json({ ok: false, error: err.message });
@@ -323,91 +154,38 @@ router.post("/compute/:ballotId", async (req, res) => {
 
 /**
  * POST /api/v1/tally/verify/:ballotId
- * Verify homomorphic tally computation
- * Anyone can verify the tally is correctly computed
+ * Re-check a tally from public data only: the ledger's ballots, the DKG
+ * transcript and the partial decryptions. Checks the on-chain tally, or a
+ * candidate { options } given in the body.
  */
 router.post("/verify/:ballotId", async (req, res) => {
   try {
     const { ballotId } = req.params;
-    const { decryptionLog } = req.body;
     const { fabricClient } = res.locals;
+    const chain = await fabricClient.getBallot(ballotId);
+    const tally = req.body && req.body.options ? req.body : await fabricClient.getTally(ballotId);
 
-    if (!decryptionLog) {
-      return res.status(400).json({
-        ok: false,
-        error: "Missing decryptionLog in request body"
-      });
-    }
-
-    console.log(`\n=== VERIFYING TALLY ===`);
-
-    // Get all votes
-    const allVotes = await fabricClient.getAllVotes(ballotId);
-
-    // Recompute encrypted sums
-    const recomputedSums = {};
-
-    // Build hash -> name map for backward compatibility in plaintext fallback route
-    // (We keep this for the plaintext tallying only, not used for homomorphic vector verification)
-    const ballot = require('./ballot').getActiveBallot && require('./ballot').getActiveBallot();
-
-    allVotes.forEach(vote => {
-      if (!vote.encryptedVote || !Array.isArray(vote.encryptedVote)) return;
-
+    const votes = await fabricClient.getAllVotes(ballotId);
+    const { sums } = aggregate(votes, chain, ballotId);
+    const key = {
+      threshold: chain.threshold,
+      trustees: chain.trustees.length,
+      qualDealings: chain.qual.map((i) => chain.dealings[i]),
+    };
+    const verifications = tally.options.map((entry, j) => {
       try {
-        // Vector format
-        if (ballot && ballot.options && vote.encryptedVote.length === ballot.options.length) {
-          for (let i = 0; i < ballot.options.length; i++) {
-            const optionName = ballot.options[i].name;
-            const ciphertext = homomorphic.deserializeCiphertext(vote.encryptedVote[i]);
-            
-            if (!recomputedSums[optionName]) {
-              recomputedSums[optionName] = ciphertext;
-            } else {
-              recomputedSums[optionName] = homomorphic.addCiphertexts(
-                recomputedSums[optionName],
-                ciphertext
-              );
-            }
-          }
+        if (!sums[j]) {
+          if (entry.total !== 0) throw new Error("no ballots, total must be 0");
+        } else {
+          tc.verifyOptionTally(key, sums[j], j, ballotId, entry);
         }
-      } catch (err) {
-        console.error(`Error in verify sum for ${vote.voteId}:`, err.message);
+        return { option: j, total: entry.total, valid: true };
+      } catch (e) {
+        return { option: j, total: entry.total, valid: false, error: e.message };
       }
     });
-
-    // Verify each tally
-    const verifications = [];
-    let allValid = true;
-
-    for (const logEntry of decryptionLog) {
-      const { choice, encryptedSum } = logEntry;
-      
-      const claimed = homomorphic.deserializeCiphertext(encryptedSum);
-      const recomputed = recomputedSums[choice];
-
-      const matches = recomputed && 
-        claimed.c1.eq(recomputed.c1) && 
-        claimed.c2.eq(recomputed.c2);
-
-      verifications.push({
-        choice,
-        valid: matches
-      });
-
-      if (!matches) allValid = false;
-    }
-
-    console.log(`Verification result: ${allValid ? 'VALID' : 'INVALID'}`);
-    console.log(`=== VERIFICATION COMPLETE ===\n`);
-
-    res.json({
-      ok: true,
-      ballotId,
-      valid: allValid,
-      verifications
-    });
-
+    const valid = verifications.length === chain.numOptions && verifications.every((v) => v.valid);
+    res.json({ ok: true, ballotId, valid, verifications });
   } catch (err) {
     console.error("VERIFY TALLY ERROR:", err);
     res.status(500).json({ ok: false, error: err.message });
@@ -415,23 +193,16 @@ router.post("/verify/:ballotId", async (req, res) => {
 });
 
 /**
- * GET /api/v1/tally/keys
- * Get all ballot keys (ADMIN ONLY - for debugging)
+ * GET /api/v1/tally/keys — election public keys and trustee sets (never secrets)
  */
-router.get("/keys", (req, res) => {
+router.get("/keys", async (req, res) => {
   try {
     const keys = {};
-    
-    for (const [ballotId, keypair] of ballotKeys.entries()) {
-      keys[ballotId] = homomorphic.serializeKeypair(keypair);
+    for (const ballotId of ballotTrustees.keys()) {
+      const chain = await res.locals.fabricClient.getBallot(ballotId);
+      keys[ballotId] = { publicKey: chain.publicKey, threshold: chain.threshold, trustees: chain.trustees };
     }
-
-    res.json({
-      ok: true,
-      count: Object.keys(keys).length,
-      keys
-    });
-
+    res.json({ ok: true, count: Object.keys(keys).length, keys });
   } catch (err) {
     console.error("GET KEYS ERROR:", err);
     res.status(500).json({ ok: false, error: err.message });

@@ -1,0 +1,135 @@
+{
+  "face": {
+    "raw_128d": {
+      "eer": 0.06058,
+      "th": 0.218,
+      "n_genuine": 6000,
+      "n_impostor": 6000
+    },
+    "pca_64d": {
+      "eer": 0.06767,
+      "th": 0.198,
+      "far_op": 0.0005,
+      "frr_op": 0.385
+    },
+    "sopq_64d": {
+      "eer": 0.06883,
+      "th": 0.278,
+      "far_op": 0.00183,
+      "frr_op": 0.23617,
+      "circuit_op": {
+        "far": 0.00183,
+        "frr": 0.23617,
+        "tau": 0.5,
+        "sigma": 1000000
+      }
+    },
+    "recovery_pct": -16.5,
+    "face_model": "ArcFace",
+    "face_detector": "retinaface",
+    "embedded": {
+      "train": [
+        7762,
+        7762
+      ],
+      "test": [
+        5471,
+        5471
+      ]
+    },
+    "pca_fit": "train split",
+    "source": "measured",
+    "bootstrap": {
+      "method": "pair-level, percentile",
+      "n_boot": 1000,
+      "eer": {
+        "raw": {
+          "eer": 0.061,
+          "ci95": [
+            0.05608,
+            0.06583
+          ]
+        },
+        "pca64": {
+          "eer": 0.06783,
+          "ci95": [
+            0.06283,
+            0.07283
+          ]
+        },
+        "sopq64": {
+          "eer": 0.06883,
+          "ci95": [
+            0.06391,
+            0.07334
+          ]
+        }
+      },
+      "paired_diff": {
+        "raw-pca64": {
+          "diff": -0.00683,
+          "ci95": [
+            -0.00917,
+            -0.00425
+          ],
+          "significant": true
+        },
+        "raw-sopq64": {
+          "diff": -0.00783,
+          "ci95": [
+            -0.01125,
+            -0.00433
+          ],
+          "significant": true
+        },
+        "pca64-sopq64": {
+          "diff": -0.001,
+          "ci95": [
+            -0.00475,
+            0.00267
+          ],
+          "significant": false
+        }
+      }
+    },
+    "sopq_dim_sweep": {
+      "16": 0.10733,
+      "32": 0.082,
+      "48": 0.073,
+      "64": 0.06883,
+      "80": 0.0635,
+      "96": 0.06217,
+      "112": 0.06017
+    },
+    "celeba_64d_sopq": {
+      "eer": 0.08826,
+      "th": 0.236,
+      "embedded": [
+        39727,
+        39733
+      ],
+      "source": "measured"
+    },
+    "demographic_fairness": {
+      "male": {
+        "eer": 0.08262,
+        "th": 0.262,
+        "n_identities": 878,
+        "n_genuine": 5996,
+        "n_impostor": 5999
+      },
+      "female": {
+        "eer": 0.10793,
+        "th": 0.252,
+        "n_identities": 1122,
+        "n_genuine": 5999,
+        "n_impostor": 6000
+      },
+      "eer_gap_pp": 2.53,
+      "source": "measured"
+    },
+    "pad_resilience": {
+      "status": "SKIPPED \u2014 pass --pad-spoof-dir to measure this"
+    }
+  }
+}

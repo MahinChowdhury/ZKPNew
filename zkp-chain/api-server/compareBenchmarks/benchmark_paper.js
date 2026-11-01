@@ -270,12 +270,11 @@ async function benchmarkFaceProof(regData, commitments, electionId, run) {
 
   // Build witness input
   const input = {
-    faceHash: toFieldString(regData.faceHash),
+    // Public: [merkleRoot, nullifier, electionId, voteBinding]; τ = 0.5 is fixed in-circuit
     merkleRoot: toFieldString(root),
     nullifier: toFieldString(nullifier),
     electionId: toFieldString(electionId),
-    threshold_sq_num: toFieldString(25n),
-    threshold_sq_den: toFieldString(100n),
+    voteBinding: "0",
     embedding: liveScaled.map(toFieldString),
     registeredEmbedding: regScaled.map(toFieldString),
     salt: toFieldString(salt),
@@ -396,11 +395,11 @@ async function benchmarkIrisProof(regData, commitments, electionId, run) {
 
   // Build witness input
   const input = {
-    irisHash: toFieldString(regData.irisHash),
+    // Public: [merkleRoot, nullifier, electionId, voteBinding]; HD < 123 is fixed in-circuit
     merkleRoot: toFieldString(root),
     nullifier: toFieldString(nullifier),
     electionId: toFieldString(electionId),
-    hammingThreshold: "123",
+    voteBinding: "0",
     irisCodeLive: liveCode.map((b) => b.toString()),
     irisCodeRegistered: registeredCode.map((b) => b.toString()),
     salt: toFieldString(salt),

@@ -20,6 +20,7 @@ from scipy.ndimage import uniform_filter
 # Import DeepFace/TensorFlow LAST
 from deepface import DeepFace
 from fastapi import FastAPI, File, UploadFile, HTTPException, Body
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from contextlib import asynccontextmanager
 
@@ -28,9 +29,16 @@ warnings.filterwarnings('ignore')
 # ============================
 # CONFIG — FACE
 # ============================
-COSINE_THRESHOLD   = 0.50
+# Deployed: InsightFace buffalo_l (512-D ArcFace) -> PCA-128, cos >= 0.35, which
+# matches FaceAuth(128, 20, 1225, 10000, 10) in api-server/circuits/face_auth.circom.
+# d and tau chosen on validation identities against a lookalike attacker by
+# model/select_operating_point_targeted.py (api-server/benchmark/operating_point_targeted.json). FaceNet on a BlazeFace
+# crop is kept as the evaluated baseline.
+COSINE_THRESHOLD   = 0.35
 EUCLIDEAN_THRESHOLD = 1.0
-PCA_MODEL_PATH     = "pca_model_64d.pkl"
+FACE_DIM           = 128
+PCA_MODEL_PATH     = f"pca_model_{FACE_DIM}d.pkl"
+INSIGHTFACE_PACK   = "buffalo_l"
 FACE_DETECTOR_MODEL_PATH = "mp_models/blaze_face_short_range.tflite"
 
 # ============================
@@ -54,6 +62,7 @@ HAMMING_THRESHOLD  = 0.478
 # ============================
 pca_model     = None
 mp_detector   = None
+face_app      = None  # InsightFace FaceAnalysis (detector + recognizer)
 log_gabor_bank = None  # Built once at startup
 
 
@@ -381,32 +390,47 @@ def compare_iris_codes(code_a, mask_a, code_b, mask_b, n_shifts=8):
 # ============================
 # MODEL INITIALIZATION
 # ============================
-def init_models():
+def init_models(insightface=True, facenet=False, insightface_pack=INSIGHTFACE_PACK):
     """
     Load all models needed by the face/iris pipelines. Factored out of the
     FastAPI lifespan hook so standalone scripts (e.g. batch accuracy
     evaluation over a real dataset) can reuse the exact same pipeline the
-    live server uses, instead of re-implementing it.
+    live server uses, instead of re-implementing it. The service needs only
+    InsightFace; facenet=True loads the FaceNet baseline for evaluation.
     """
-    global pca_model, mp_detector, log_gabor_bank
+    global pca_model, mp_detector, face_app, log_gabor_bank
 
     print("⏳ Initializing models...")
 
-    # Face models
-    pca_model = load_pca_model()
+    # Face models (the PCA is fitted by pca_followup.py, after the embeddings exist)
+    if os.path.exists(PCA_MODEL_PATH):
+        pca_model = load_pca_model()
 
-    detector_options = mp_vision.FaceDetectorOptions(
-        base_options=mp_python.BaseOptions(
-            model_asset_path=FACE_DETECTOR_MODEL_PATH,
-            delegate=mp_python.BaseOptions.Delegate.CPU
-        ),
-        min_detection_confidence=0.5
-    )
-    mp_detector = mp_vision.FaceDetector.create_from_options(detector_options)
-    print("✓ MediaPipe face detector loaded")
+    if insightface:
+        import onnxruntime as ort
+        from insightface.app import FaceAnalysis
+        try:
+            ort.preload_dlls()   # CUDA/cuDNN from onnxruntime-gpu[cuda,cudnn] pip wheels, if installed
+        except Exception as e:
+            print(f"  (onnxruntime CUDA preload failed, may fall back to CPU: {e})")
+        face_app = FaceAnalysis(name=insightface_pack, allowed_modules=["detection", "recognition"],
+                                providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
+        face_app.prepare(ctx_id=0, det_size=(640, 640))
+        print(f"✓ InsightFace {insightface_pack} loaded")
 
-    DeepFace.build_model("Facenet")
-    print("✓ DeepFace FaceNet loaded")
+    if facenet:
+        detector_options = mp_vision.FaceDetectorOptions(
+            base_options=mp_python.BaseOptions(
+                model_asset_path=FACE_DETECTOR_MODEL_PATH,
+                delegate=mp_python.BaseOptions.Delegate.CPU
+            ),
+            min_detection_confidence=0.5
+        )
+        mp_detector = mp_vision.FaceDetector.create_from_options(detector_options)
+        print("✓ MediaPipe face detector loaded")
+
+        DeepFace.build_model("Facenet")
+        print("✓ DeepFace FaceNet loaded")
 
     # Iris filter bank (pure numpy, fast)
     log_gabor_bank = build_log_gabor_bank()
@@ -437,6 +461,16 @@ async def lifespan(app: FastAPI):
 # FASTAPI APP
 # ============================
 app = FastAPI(lifespan=lifespan)
+
+# The voter's client calls this service directly so that biometric templates
+# never pass through the API gateway. In deployment this service runs on the
+# voter's device or a supervised kiosk; override origins with CLIENT_ORIGINS.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.environ.get("CLIENT_ORIGINS", "http://localhost:5173").split(","),
+    allow_methods=["POST"],
+    allow_headers=["*"],
+)
 
 
 # ============================
@@ -469,12 +503,30 @@ def detect_face_from_bytes(img_bytes: bytes, margin=20):
 # ============================
 # FACE EMBEDDING (internal)
 # ============================
-def get_raw_embedding_from_bytes(img_bytes: bytes):
-    """Crop → FaceNet embedding → L2 normalise. Raw 128-D, no reduction.
+def get_insightface_embedding_from_bytes(img_bytes: bytes):
+    """InsightFace detection + 5-point alignment + ArcFace → L2 normalise.
+    Raw 512-D, no reduction. Batch evaluation calls this same function, so
+    the evaluated and deployed pipelines are identical. Of several faces,
+    the one nearest the image centre is kept."""
+    img = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("Invalid image")
+    # Tight crops (e.g. CelebA's aligned images) leave the detector too little context
+    pad = max(img.shape[:2]) // 2
+    img = cv2.copyMakeBorder(img, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=(0, 0, 0))
+    faces = face_app.get(img)
+    if not faces:
+        raise ValueError("No face detected")
+    cy, cx = img.shape[0] / 2, img.shape[1] / 2
+    f = min(faces, key=lambda f: ((f.bbox[0] + f.bbox[2]) / 2 - cx) ** 2
+                                 + ((f.bbox[1] + f.bbox[3]) / 2 - cy) ** 2)
+    v = np.asarray(f.normed_embedding, dtype=np.float64)
+    return v / np.linalg.norm(v), float(f.det_score)
 
-    Factored out of get_face_embedding_from_bytes so batch evaluation code
-    (and any alternative reduction, e.g. SOPQ) can reuse the exact same
-    detection/FaceNet pipeline the live server uses instead of duplicating it.
+
+def get_facenet_embedding_from_bytes(img_bytes: bytes):
+    """Baseline (pre-revision deployed pipeline): BlazeFace crop → FaceNet
+    embedding → L2 normalise. Raw 128-D, no reduction. Needs init_models(facenet=True).
     """
     face_img, conf = detect_face_from_bytes(img_bytes)
 
@@ -497,12 +549,12 @@ def get_raw_embedding_from_bytes(img_bytes: bytes):
 
 
 def get_face_embedding_from_bytes(img_bytes: bytes):
-    """Crop → FaceNet embedding → PCA 64D → L2 normalise."""
-    embedding_128d, conf = get_raw_embedding_from_bytes(img_bytes)
-    embedding_64d  = pca_model.transform(embedding_128d.reshape(1, -1))[0]
-    embedding_64d  = embedding_64d  / np.linalg.norm(embedding_64d)
-
-    return embedding_64d, conf
+    """Deployed encoding: InsightFace 512-D → PCA-128 → L2 normalise."""
+    if pca_model is None:
+        raise RuntimeError(f"{PCA_MODEL_PATH} missing — run `python pca_followup.py` first")
+    raw, conf = get_insightface_embedding_from_bytes(img_bytes)
+    reduced = pca_model.transform(raw.reshape(1, -1))[0]
+    return reduced / np.linalg.norm(reduced), conf
 
 
 # ============================
@@ -527,11 +579,11 @@ def compare_face_embeddings(e1, e2):
 async def api_get_embedding(file: UploadFile = File(...)):
     try:
         img_bytes     = await file.read()
-        emb_64d, conf = get_face_embedding_from_bytes(img_bytes)
+        emb, conf = get_face_embedding_from_bytes(img_bytes)
         return {
-            "embedding":  emb_64d.tolist(),
+            "embedding":  emb.tolist(),
             "confidence": float(conf),
-            "dimension":  len(emb_64d),
+            "dimension":  len(emb),
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

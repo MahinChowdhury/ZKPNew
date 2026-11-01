@@ -187,9 +187,11 @@ function solveDiscreteLog(M, maxValue = 10000) {
  * @param {{ c1: Point, c2: Point }} ciphertext 
  * @param {number} voteValue - The actual vote (0 or 1)
  * @param {BN} r - The randomness used in encryption
+ * @param {string} context - binds the proof to (ballot, nullifier, option);
+ *   without it a ciphertext+proof can be copied into another voter's ballot
  * @returns {Object} Zero-knowledge proof
  */
-function proveValidVote(publicKey, ciphertext, voteValue, r) {
+function proveValidVote(publicKey, ciphertext, voteValue, r, context = "") {
   if (voteValue !== 0 && voteValue !== 1) {
     throw new Error("This proof only works for binary votes (0 or 1)");
   }
@@ -216,7 +218,7 @@ function proveValidVote(publicKey, ciphertext, voteValue, r) {
     b2 = publicKey.mul(r2).add(c2.add(oneG.neg()).mul(d2));
     
     // Challenge
-    const challenge = hashProof(c1, c2, a1, b1, a2, b2);
+    const challenge = hashProof(publicKey, c1, c2, a1, b1, a2, b2, context);
     d1 = challenge.sub(d2).umod(ec.curve.n);
     
     // Response for real proof
@@ -236,7 +238,7 @@ function proveValidVote(publicKey, ciphertext, voteValue, r) {
     b1 = publicKey.mul(r1).add(c2.mul(d1));
     
     // Challenge
-    const challenge = hashProof(c1, c2, a1, b1, a2, b2);
+    const challenge = hashProof(publicKey, c1, c2, a1, b1, a2, b2, context);
     d2 = challenge.sub(d1).umod(ec.curve.n);
     
     // Response for real proof
@@ -258,22 +260,22 @@ function proveValidVote(publicKey, ciphertext, voteValue, r) {
 /**
  * Verify zero-knowledge proof of valid vote
  */
-function verifyValidVote(publicKey, ciphertext, proof) {
+function verifyValidVote(publicKey, ciphertext, proof, context = "") {
   const { c1, c2 } = ciphertext;
-  
-  // Reconstruct points
-  const a1 = ec.curve.point(new BN(proof.a1.x, 16), new BN(proof.a1.y, 16));
-  const b1 = ec.curve.point(new BN(proof.b1.x, 16), new BN(proof.b1.y, 16));
-  const a2 = ec.curve.point(new BN(proof.a2.x, 16), new BN(proof.a2.y, 16));
-  const b2 = ec.curve.point(new BN(proof.b2.x, 16), new BN(proof.b2.y, 16));
-  
+
+  // Reconstruct points (rejects anything not on the curve)
+  const a1 = toPoint(proof.a1);
+  const b1 = toPoint(proof.b1);
+  const a2 = toPoint(proof.a2);
+  const b2 = toPoint(proof.b2);
+
   const d1 = new BN(proof.d1, 16);
   const d2 = new BN(proof.d2, 16);
   const r1 = new BN(proof.r1, 16);
   const r2 = new BN(proof.r2, 16);
-  
+
   // Verify challenge
-  const challenge = hashProof(c1, c2, a1, b1, a2, b2);
+  const challenge = hashProof(publicKey, c1, c2, a1, b1, a2, b2, context);
   const sumD = d1.add(d2).umod(ec.curve.n);
   
   if (!challenge.eq(sumD)) {
@@ -301,26 +303,127 @@ function verifyValidVote(publicKey, ciphertext, proof) {
 }
 
 /**
- * Hash function for challenge in ZK proof
+ * Fiat–Shamir challenge. Hashes the full statement (public key and
+ * ciphertext) plus a caller context, following the "strong Fiat–Shamir"
+ * requirement (Bernhard–Pereira–Warinschi, ASIACRYPT 2012).
+ * Must stay byte-identical to chaincode/identity/lib/ballotCrypto.js.
  */
-function hashProof(c1, c2, a1, b1, a2, b2) {
-  const data = [
-    c1.getX().toString(16, 64),
-    c1.getY().toString(16, 64),
-    c2.getX().toString(16, 64),
-    c2.getY().toString(16, 64),
-    a1.getX().toString(16, 64),
-    a1.getY().toString(16, 64),
-    b1.getX().toString(16, 64),
-    b1.getY().toString(16, 64),
-    a2.getX().toString(16, 64),
-    a2.getY().toString(16, 64),
-    b2.getX().toString(16, 64),
-    b2.getY().toString(16, 64)
-  ].join('');
-  
+function hashChallenge(tag, points, context) {
+  const data = [tag, ...points.flatMap((p) => [p.getX().toString(16, 64), p.getY().toString(16, 64)]), context].join("|");
   const hash = crypto.createHash("sha256").update(data).digest("hex");
   return new BN(hash, 16).umod(ec.curve.n);
+}
+
+function hashProof(publicKey, c1, c2, a1, b1, a2, b2, context = "") {
+  return hashChallenge("bbzkv-sigma-or-v1", [publicKey, c1, c2, a1, b1, a2, b2], context);
+}
+
+function toPoint(xy) {
+  const p = ec.curve.point(new BN(xy.x, 16), new BN(xy.y, 16));
+  if (!p.validate()) throw new Error("point not on curve");
+  return p;
+}
+
+/**
+ * Chaum–Pedersen proof that a one-hot vote vector sums to exactly 1:
+ * for C = Σ E(v_j) = (R·G, (Σv_j)·G + R·h), prove log_G(C1) = log_h(C2 − G).
+ * Without it, every entry can encrypt 1 (overvoting) and each Σ-OR proof
+ * still verifies.
+ */
+function proveSumIsOne(publicKey, ciphertexts, rs, context = "") {
+  const R = rs.reduce((acc, r) => acc.add(r), new BN(0)).umod(ec.curve.n);
+  const C = ciphertexts.reduce((acc, c) => addCiphertexts(acc, c));
+  const w = new BN(crypto.randomBytes(32)).umod(ec.curve.n);
+  const A = ec.g.mul(w);
+  const B = publicKey.mul(w);
+  const e = hashChallenge("bbzkv-sum-one-v1", [publicKey, C.c1, C.c2, A, B], context);
+  const z = w.add(e.mul(R)).umod(ec.curve.n);
+  return {
+    A: { x: A.getX().toString(16), y: A.getY().toString(16) },
+    B: { x: B.getX().toString(16), y: B.getY().toString(16) },
+    z: z.toString(16),
+  };
+}
+
+function verifySumIsOne(publicKey, ciphertexts, proof, context = "") {
+  const C = ciphertexts.reduce((acc, c) => addCiphertexts(acc, c));
+  const A = toPoint(proof.A);
+  const B = toPoint(proof.B);
+  const z = new BN(proof.z, 16);
+  const e = hashChallenge("bbzkv-sum-one-v1", [publicKey, C.c1, C.c2, A, B], context);
+  return ec.g.mul(z).eq(A.add(C.c1.mul(e))) &&
+         publicKey.mul(z).eq(B.add(C.c2.add(ec.g.neg()).mul(e)));
+}
+
+/**
+ * Verifiable decryption (Chaum–Pedersen DLEQ): proves M = c2 − x·c1 for the
+ * same x with h = x·G, i.e. log_G(h) = log_{c1}(c2 − M), without revealing x.
+ * Anyone can then check the published total T against M = T·G.
+ */
+// The total T fixes M = T·G (M may be the point at infinity, which has no
+// affine coordinates), so T itself goes into the challenge.
+const decryptContext = (ballotId, option, total) => `${ballotId}|${option}|T=${total}|decrypt`;
+const totalPoint = (total) => (total === 0 ? ec.curve.point(null, null) : ec.g.mul(new BN(total)));
+
+function proveDecryption(keypair, ciphertext, total, context) {
+  const { c1 } = ciphertext;
+  const w = new BN(crypto.randomBytes(32)).umod(ec.curve.n);
+  const A = ec.g.mul(w);
+  const B = c1.mul(w);
+  const e = hashChallenge("bbzkv-decrypt-v1", [keypair.publicKey, c1, ciphertext.c2, A, B], context);
+  return {
+    A: { x: A.getX().toString(16), y: A.getY().toString(16) },
+    B: { x: B.getX().toString(16), y: B.getY().toString(16) },
+    z: w.add(e.mul(keypair.privateKey)).umod(ec.curve.n).toString(16),
+  };
+}
+
+function verifyDecryption(publicKey, ciphertext, total, proof, context) {
+  const { c1, c2 } = ciphertext;
+  const A = toPoint(proof.A);
+  const B = toPoint(proof.B);
+  const z = new BN(proof.z, 16);
+  const e = hashChallenge("bbzkv-decrypt-v1", [publicKey, c1, c2, A, B], context);
+  return ec.g.mul(z).eq(A.add(publicKey.mul(e))) &&
+         c1.mul(z).eq(B.add(c2.add(totalPoint(total).neg()).mul(e)));
+}
+
+// Proof contexts — the chaincode recomputes these from (ballotId, nullifier)
+const optionContext = (ballotId, nullifier, j) => `${ballotId}|${nullifier}|opt${j}`;
+const sumContext = (ballotId, nullifier) => `${ballotId}|${nullifier}|sum`;
+
+/**
+ * Build the full encrypted ballot for a one-hot choice:
+ *   { ciphertexts: [{c1, c2, validityProof}], sumProof }
+ */
+function encryptBallot(publicKey, numOptions, choiceIndex, ballotId, nullifier) {
+  const raw = [];
+  const ciphertexts = [];
+  for (let j = 0; j < numOptions; j++) {
+    const m = j === choiceIndex ? 1 : 0;
+    const c = encrypt(publicKey, m);
+    raw.push(c);
+    const s = serializeCiphertext(c);
+    s.validityProof = proveValidVote(publicKey, c, m, c.r, optionContext(ballotId, nullifier, j));
+    ciphertexts.push(s);
+  }
+  const sumProof = proveSumIsOne(publicKey, raw, raw.map((c) => c.r), sumContext(ballotId, nullifier));
+  return { ciphertexts, sumProof };
+}
+
+/**
+ * voteBinding public input: 248-bit digest of (ballotId, ciphertexts), so
+ * the SNARK cannot be replayed with substituted ciphertexts.
+ * Must stay byte-identical to chaincode/identity/lib/ballotCrypto.js.
+ */
+function computeVoteBinding(ballotId, encryptedBallot) {
+  const cts = encryptedBallot.ciphertexts
+    .map((c) => [c.c1.x, c.c1.y, c.c2.x, c.c2.y].join(":"))
+    .join(",");
+  const hex = crypto.createHash("sha256")
+    .update(`bbzkv-vote-binding-v1|${ballotId}|${cts}`)
+    .digest("hex");
+  return BigInt("0x" + hex.slice(0, 62));
 }
 
 /**
@@ -348,8 +451,8 @@ function deserializeCiphertext(data) {
   }
   
   return {
-    c1: ec.curve.point(new BN(data.c1.x, 16), new BN(data.c1.y, 16)),
-    c2: ec.curve.point(new BN(data.c2.x, 16), new BN(data.c2.y, 16))
+    c1: toPoint(data.c1),
+    c2: toPoint(data.c2)
   };
 }
 
@@ -388,6 +491,15 @@ module.exports = {
   encodeVote,
   proveValidVote,
   verifyValidVote,
+  proveSumIsOne,
+  verifySumIsOne,
+  proveDecryption,
+  verifyDecryption,
+  decryptContext,
+  optionContext,
+  sumContext,
+  encryptBallot,
+  computeVoteBinding,
   serializeCiphertext,
   deserializeCiphertext,
   serializeKeypair,

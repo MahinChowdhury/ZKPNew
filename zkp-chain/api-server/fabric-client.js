@@ -92,6 +92,8 @@ class FabricClient {
       if (!defaultContract) {
         throw new Error(`Dynamic channel '${channelName}' and default 'mychannel' are both unavailable.`);
       }
+      // Remember the fallback, so later calls don't retry channel discovery
+      this.contracts.set(channelName, defaultContract);
       return defaultContract;
     }
   }
@@ -262,6 +264,87 @@ class FabricClient {
   // ============================
   // Voting Functions
   // ============================
+
+  // ============================
+  // Ballot Functions
+  // ============================
+
+  async _allContracts() {
+    const names = ['mychannel', ...Array.from({ length: this.numChannels }, (_, i) => `channel-${i}`)];
+    const contracts = new Set();
+    for (const name of names) contracts.add(await this.getContract(name));
+    return contracts;
+  }
+
+  // Ballot setup runs on every reachable channel (votes are routed by
+  // nullifier, and castVote checks the ballot record of its own channel).
+  // The same dealings give the same election key on every channel.
+  async _submitEverywhere(fn, ...args) {
+    let result;
+    for (const contract of await this._allContracts()) {
+      result = await contract.submitTransaction(fn, ...args);
+    }
+    return result ? JSON.parse(result.toString()) : null;
+  }
+
+  /** Register a ballot with its trustee signing keys and threshold t. */
+  async registerBallot(ballotId, numOptions, trustees, threshold) {
+    return this._submitEverywhere('registerBallot', ballotId, String(numOptions), JSON.stringify(trustees), String(threshold));
+  }
+
+  async submitDealing(ballotId, dealer, commitments, sig) {
+    return this._submitEverywhere('submitDealing', ballotId, String(dealer), JSON.stringify(commitments), sig);
+  }
+
+  async complain(ballotId, complainer, dealer, share, sig) {
+    return this._submitEverywhere('complain', ballotId, String(complainer), String(dealer), share, sig);
+  }
+
+  async finalizeBallotKey(ballotId) {
+    return this._submitEverywhere('finalizeBallotKey', ballotId);
+  }
+
+  async closeBallot(ballotId) {
+    return this._submitEverywhere('closeBallot', ballotId);
+  }
+
+  // The tally is verified against the ballots of one channel; combining
+  // per-channel tallies is future work (FINDINGS C21).
+  async publishTally(ballotId, tally) {
+    const contract = await this.getContract('mychannel');
+    const result = await contract.submitTransaction('publishTally', ballotId, JSON.stringify(tally));
+    return JSON.parse(result.toString());
+  }
+
+  async getTally(ballotId) {
+    const contract = await this.getContract('mychannel');
+    const result = await contract.evaluateTransaction('getTally', ballotId);
+    return JSON.parse(result.toString());
+  }
+
+  /**
+   * Register a capture device's EdDSA public key on every reachable channel
+   * (castVote checks the registry root on the channel it runs on).
+   */
+  async registerSensor(ax, ay) {
+    return this._submitEverywhere('registerSensor', ax, ay);
+  }
+
+  async getSensors() {
+    const contract = await this.getContract('mychannel');
+    const result = await contract.evaluateTransaction('getSensors');
+    return JSON.parse(result.toString());
+  }
+
+  /**
+   * Fetch the on-chain ballot record { ballotId, numOptions, trustees, threshold,
+   * dealings, qual, publicKey, status, electionId }
+   */
+  async getBallot(ballotId) {
+    const contract = await this.getContract('mychannel');
+    const result = await contract.evaluateTransaction('getBallot', ballotId);
+    return JSON.parse(result.toString());
+  }
 
   /**
    * Cast a vote with ZK-SNARK proof + nullifier

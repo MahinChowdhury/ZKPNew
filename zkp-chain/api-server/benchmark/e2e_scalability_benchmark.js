@@ -209,7 +209,7 @@ async function buildIrisCommitmentsPool(N, irisHash, secretKey, commitment) {
         snark.generateProof(
           liveScaled, regScaled, BigInt("0x" + FACE_SALT),
           faceRegData.secretKey, faceRegData.faceHash,
-          fRoot, fPE, fPI, electionId, fNullifier, 25n, 100n
+          fRoot, fPE, fPI, electionId, fNullifier, 0n // voteBinding: no ballot in benchmark (threshold is fixed in-circuit)
         )
       );
       face_prove_times.push(nowMs() - t0);
@@ -245,7 +245,7 @@ async function buildIrisCommitmentsPool(N, irisHash, secretKey, commitment) {
           liveIris, irisCodeReg, irisSaltBig,
           irisSecretKey, irisHash,
           iRoot, iPE, iPI, electionId, iNullifier,
-          irisSnark.HAMMING_THRESHOLD
+          0n // voteBinding: no ballot in benchmark (threshold is fixed in-circuit)
         )
       );
       iris_prove_times.push(nowMs() - t0);

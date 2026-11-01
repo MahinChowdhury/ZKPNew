@@ -2,8 +2,8 @@
 %  BIOVOTE — references.bib  (reviewed & corrected)
 %
 %  CHANGES FROM ORIGINAL:
-%  [FIX-1]  Karakosta2026 → year corrected to 2025 (arXiv 2603.xxxxx
-%           cannot be 2026; verify actual submission date and update)
+%  [FIX-1]  Karakosta2025 (key kept): arXiv:2603.26890 → year 2026 to match
+%           the ID (YYMM = March 2026); confirm the ID on arxiv.org
 %  [FIX-2]  Jozwik2025 arXiv:2507.09453 — flagged as very recent;
 %           expand comparison in related work before submission
 %  [FIX-3]  Duplicate Civitas2008 entry removed
@@ -547,13 +547,16 @@
   year         = {2025}
 }
 
-@misc{zkSABER2025,
-  author       = {Tomoki Chinen and C. Wiraatmaja and Y. Nakahata
-                  and T. Hara and S. Kasahara},
-  title        = {{zkSABER}: Zero-Knowledge Succinct Authentication
-                  using Biometric Embedding Representation},
-  howpublished = {Proc.\ BRAINS 2025},
-  year         = {2025}
+@inproceedings{zkSABER2025,
+  author    = {Tomoki Chinen and Christopher Wiraatmaja and Yu Nakahata
+               and Takanori Hara and Shoji Kasahara},
+  title     = {{zkSABER}: Zero-Knowledge Succinct Authentication
+               using Biometric Embedding Representation},
+  booktitle = {Proc.\ 7th Conf.\ Blockchain Research \& Applications for
+               Innovative Networks and Services (BRAINS)},
+  pages     = {1--8},
+  year      = {2025},
+  doi       = {10.1109/BRAINS67003.2025.11302919}
 }
 
 @misc{WorldID2024,
@@ -570,7 +573,7 @@
   title        = {Privacy-Preserving Iris Recognition: Performance
                   Challenges and Outlook},
   howpublished = {arXiv preprint arXiv:2603.26890},
-  year         = {2025}
+  year         = {2026}
 }
 
 @article{OudeRoelink2024,
@@ -593,7 +596,7 @@
   title        = {Circom: Circuit Compiler for Zero-Knowledge Proofs},
   howpublished = {\url{https://docs.circom.io}},
   year         = {2023},
-  note         = {Version 2.1.6}
+  note         = {Version 2.2.3}
 }
 
 % [NEW-6] — cite when comparing snarkjs vs rapidsnark proving times
@@ -775,4 +778,134 @@
   series    = {Lecture Notes in Computer Science},
   pages     = {70--85},
   year      = {2020}
+}
+
+@inproceedings{Fuchsbauer2018,
+  author    = {Georg Fuchsbauer and Eike Kiltz and Julian Loss},
+  title     = {The Algebraic Group Model and its Applications},
+  booktitle = {Advances in Cryptology -- CRYPTO 2018},
+  series    = {Lecture Notes in Computer Science},
+  publisher = {Springer},
+  year      = {2018}
+}
+
+@inproceedings{Baghery2021,
+  author    = {Karim Baghery and Markulf Kohlweiss and Janno Siim and Mikhail Volkhov},
+  title     = {Another Look at Extraction and Randomization of {Groth}'s {zk-SNARK}},
+  booktitle = {Financial Cryptography and Data Security (FC 2021)},
+  series    = {Lecture Notes in Computer Science},
+  publisher = {Springer},
+  year      = {2021}
+}
+
+@inproceedings{Bernhard2012,
+  author    = {David Bernhard and Olivier Pereira and Bogdan Warinschi},
+  title     = {How Not to Prove Yourself: Pitfalls of the {Fiat-Shamir} Heuristic and Applications to {Helios}},
+  booktitle = {Advances in Cryptology -- ASIACRYPT 2012},
+  series    = {Lecture Notes in Computer Science},
+  publisher = {Springer},
+  year      = {2012}
+}
+
+@inproceedings{Bernhard2015,
+  author    = {David Bernhard and V{\'e}ronique Cortier and David Galindo and Olivier Pereira and Bogdan Warinschi},
+  title     = {{SoK}: A Comprehensive Analysis of Game-Based Ballot Privacy Definitions},
+  booktitle = {IEEE Symposium on Security and Privacy (S\&P)},
+  year      = {2015}
+}
+
+@article{Bernstein2012,
+  author    = {Daniel J. Bernstein and Niels Duif and Tanja Lange and Peter Schwabe and Bo-Yin Yang},
+  title     = {High-Speed High-Security Signatures},
+  journal   = {Journal of Cryptographic Engineering},
+  volume    = {2},
+  number    = {2},
+  year      = {2012}
+}
+
+@inproceedings{Deng2019ArcFace,
+  author    = {Jiankang Deng and Jia Guo and Niannan Xue and Stefanos Zafeiriou},
+  title     = {{ArcFace}: Additive Angular Margin Loss for Deep Face Recognition},
+  booktitle = {Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition (CVPR)},
+  pages     = {4690--4699},
+  year      = {2019}
+}
+
+@inproceedings{Zhu2021WebFace260M,
+  author    = {Zheng Zhu and Guan Huang and Jiankang Deng and Yun Ye and Junjie Huang and Xinze Chen and Jiagang Zhu and Tian Yang and Jiwen Lu and Dalong Du and Jie Zhou},
+  title     = {{WebFace260M}: A Benchmark Unveiling the Power of Million-Scale Deep Face Recognition},
+  booktitle = {Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition (CVPR)},
+  pages     = {10492--10502},
+  year      = {2021}
+}
+
+@inproceedings{Guo2022SCRFD,
+  author    = {Jia Guo and Jiankang Deng and Alexandros Lattas and Stefanos Zafeiriou},
+  title     = {Sample and Computation Redistribution for Efficient Face Detection},
+  booktitle = {Proc. Int. Conf. Learning Representations (ICLR)},
+  year      = {2022}
+}
+
+@misc{Zheng2017CALFW,
+  author       = {Tianyue Zheng and Weihong Deng and Jiani Hu},
+  title        = {Cross-Age {LFW}: A Database for Studying Cross-Age Face Recognition in Unconstrained Environments},
+  howpublished = {arXiv:1708.08197},
+  year         = {2017}
+}
+
+@techreport{Zheng2018CPLFW,
+  author      = {Tianyue Zheng and Weihong Deng},
+  title       = {Cross-Pose {LFW}: A Database for Studying Cross-Pose Face Recognition in Unconstrained Environments},
+  institution = {Beijing University of Posts and Telecommunications},
+  number      = {18-01},
+  year        = {2018}
+}
+
+@techreport{Huang2007LFW,
+  author      = {Gary B. Huang and Manu Ramesh and Tamara Berg and Erik Learned-Miller},
+  title       = {Labeled Faces in the Wild: A Database for Studying Face Recognition in Unconstrained Environments},
+  institution = {University of Massachusetts, Amherst},
+  number      = {07-49},
+  year        = {2007}
+}
+
+@inproceedings{Liu2015CelebA,
+  author    = {Ziwei Liu and Ping Luo and Xiaogang Wang and Xiaoou Tang},
+  title     = {Deep Learning Face Attributes in the Wild},
+  booktitle = {Proc. IEEE Int. Conf. Computer Vision (ICCV)},
+  pages     = {3730--3738},
+  year      = {2015}
+}
+
+@inproceedings{Pedersen1991,
+  author    = {Torben Pryds Pedersen},
+  title     = {A Threshold Cryptosystem without a Trusted Party},
+  booktitle = {Advances in Cryptology -- EUROCRYPT '91},
+  series    = {LNCS},
+  volume    = {547},
+  pages     = {522--526},
+  publisher = {Springer},
+  year      = {1991}
+}
+
+@article{Gennaro2007,
+  author  = {Rosario Gennaro and Stanis{\l}aw Jarecki and Hugo Krawczyk and Tal Rabin},
+  title   = {Secure Distributed Key Generation for Discrete-Log Based Cryptosystems},
+  journal = {Journal of Cryptology},
+  volume  = {20},
+  number  = {1},
+  pages   = {51--83},
+  year    = {2007}
+}
+
+@inproceedings{Gennaro2003,
+  author    = {Rosario Gennaro and Stanis{\l}aw Jarecki and Hugo Krawczyk and Tal Rabin},
+  title     = {Secure Applications of {Pedersen's} Distributed Key Generation Protocol},
+  booktitle = {Topics in Cryptology -- {CT-RSA} 2003},
+  series    = {LNCS},
+  volume    = {2612},
+  pages     = {373--390},
+  publisher = {Springer},
+  year      = {2003},
+  doi       = {10.1007/3-540-36563-X_26}
 }

@@ -32,7 +32,7 @@ const CPP_WITNESS_GEN = path.join(CIRCUITS_DIR, "face_auth_cpp", "face_auth");
 // Constants
 // ============================================================
 const MERKLE_TREE_LEVELS = 20; // Supports up to 2^20 ~ 1M voters
-const SCALE_FACTOR = 1000000; // 1e6
+const SCALE_FACTOR = 500000; // 5e5, matches the circuit range check |x| < 2^19
 const BN128_PRIME = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 
 function toFieldString(val) {
@@ -97,13 +97,13 @@ async function initPoseidon() {
 async function poseidonHashEmbedding(embedding, salt) {
   const { poseidon, F } = await initPoseidon();
 
-  if (embedding.length !== 64) {
-    throw new Error(`Expected 64-element embedding, got ${embedding.length}`);
+  if (embedding.length % 8 || embedding.length > 128) {
+    throw new Error(`Expected a multiple of 8 up to 128 elements, got ${embedding.length}`);
   }
 
-  // Step 1: Hash 8 chunks of 8 elements each (matching circuit chunkSize = 8)
+  // Step 1: Hash d/8 chunks of 8 elements each (matching circuit chunkSize = 8)
   const chunkHashes = [];
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < embedding.length / 8; i++) {
     const chunk = embedding.slice(i * 8, (i + 1) * 8);
     const h = poseidon(chunk.map((v) => F.e(v)));
     chunkHashes.push(h);
@@ -393,9 +393,12 @@ function generateSecretKey() {
  * @param {number[]} pathIndices - Merkle proof directions (0=left, 1=right)
  * @param {BigInt} electionId - unique election identifier
  * @param {BigInt} nullifier - precomputed nullifier
- * @param {BigInt} threshold_sq_num - squared threshold numerator (e.g. 25)
- * @param {BigInt} threshold_sq_den - squared threshold denominator (e.g. 100)
+ * @param {BigInt} voteBinding - homomorphic.computeVoteBinding() of the ballot
+ *   ciphertexts (0n for login proofs that carry no ballot)
  * @returns {Promise<{proof: Object, publicSignals: string[]}>}
+ *
+ * The cosine threshold (0.5) is fixed inside the circuit; faceHash is only
+ * used for logging and is not a public input.
  */
 async function generateProof(
   embedding,
@@ -408,8 +411,7 @@ async function generateProof(
   pathIndices,
   electionId,
   nullifier,
-  threshold_sq_num = 16n,
-  threshold_sq_den = 100n
+  voteBinding = 0n
 ) {
   // Validate circuit artifacts exist
   if (!fs.existsSync(WASM_PATH)) {
@@ -426,12 +428,10 @@ async function generateProof(
   // Build witness input
   const input = {
     // Public inputs
-    faceHash: toFieldString(faceHash),
     merkleRoot: toFieldString(merkleRoot),
     nullifier: toFieldString(nullifier),
     electionId: toFieldString(electionId),
-    threshold_sq_num: toFieldString(threshold_sq_num),
-    threshold_sq_den: toFieldString(threshold_sq_den),
+    voteBinding: toFieldString(voteBinding),
 
     // Private inputs
     embedding: embedding.map(toFieldString),
@@ -608,6 +608,7 @@ async function computeRegistrationData(embeddingFloat, saltHex) {
  * @param {BigInt} secretKey - voter's secret key
  * @param {BigInt[]} commitments - all registered commitments (for building Merkle tree)
  * @param {BigInt} electionId - unique election identifier
+ * @param {BigInt} voteBinding - binding to the ballot ciphertexts (0n for login)
  * @returns {Promise<{proof, publicSignals, isValid, nullifier, merkleRoot}>}
  */
 async function generateAuthProof(
@@ -617,7 +618,8 @@ async function generateAuthProof(
   faceHash,
   secretKey,
   commitments,
-  electionId
+  electionId,
+  voteBinding = 0n
 ) {
   const totalStart = Date.now();
   const timings = {};
@@ -678,11 +680,7 @@ async function generateAuthProof(
   const nullifier = await computeNullifier(secretKey, electionId);
   timings.nullifier = Date.now() - t0;
 
-  // Threshold: cosine sim >= 0.40 → squared = 0.16 → 16/100
-  const threshold_sq_num = 16n;
-  const threshold_sq_den = 100n;
-
-  // Generate SNARK proof (Groth16)
+  // Generate SNARK proof (Groth16); threshold cos >= 0.5 is fixed in the circuit
   t0 = Date.now();
   const { proof, publicSignals } = await generateProof(
     liveScaled,
@@ -695,8 +693,7 @@ async function generateAuthProof(
     pathIndices,
     electionId,
     nullifier,
-    threshold_sq_num,
-    threshold_sq_den
+    voteBinding
   );
   timings.snarkProve = Date.now() - t0;
 

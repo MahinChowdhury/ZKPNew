@@ -1,0 +1,122 @@
+{
+  "rule": {
+    "attacker_recruits_K": 100,
+    "lookalike_success_target": 0.01,
+    "frr_target": 0.01,
+    "trials_per_target": 20
+  },
+  "validation": {
+    "fit_identities": 2586,
+    "select_identities": 863,
+    "genuine_pairs": 2422
+  },
+  "per_dim": {
+    "64": {
+      "tau": 0.46,
+      "val_lookalike_success": 0.008,
+      "val_frr": 0.04666,
+      "test_far": 0.000155,
+      "test_false_accepts": 31,
+      "test_impostor_pairs": 200000,
+      "test_frr": 0.031,
+      "test_lookalike_success": {
+        "1": 0.00013,
+        "10": 0.00128,
+        "100": 0.0107,
+        "1000": 0.10728
+      }
+    },
+    "80": {
+      "tau": 0.42,
+      "val_lookalike_success": 0.00939,
+      "val_frr": 0.02684,
+      "test_far": 0.000115,
+      "test_false_accepts": 23,
+      "test_impostor_pairs": 200000,
+      "test_frr": 0.01133,
+      "test_lookalike_success": {
+        "1": 0.00015,
+        "10": 0.00122,
+        "100": 0.0098,
+        "1000": 0.09746
+      }
+    },
+    "96": {
+      "tau": 0.4,
+      "val_lookalike_success": 0.00776,
+      "val_frr": 0.01734,
+      "test_far": 7.5e-05,
+      "test_false_accepts": 15,
+      "test_impostor_pairs": 200000,
+      "test_frr": 0.009,
+      "test_lookalike_success": {
+        "1": 7e-05,
+        "10": 0.0007,
+        "100": 0.0065,
+        "1000": 0.06389
+      }
+    },
+    "112": {
+      "tau": 0.37,
+      "val_lookalike_success": 0.00834,
+      "val_frr": 0.01197,
+      "test_far": 0.000135,
+      "test_false_accepts": 27,
+      "test_impostor_pairs": 200000,
+      "test_frr": 0.00683,
+      "test_lookalike_success": {
+        "1": 4e-05,
+        "10": 0.0008,
+        "100": 0.00854,
+        "1000": 0.08241
+      }
+    },
+    "128": {
+      "tau": 0.35,
+      "val_lookalike_success": 0.00834,
+      "val_frr": 0.00619,
+      "test_far": 0.00013,
+      "test_false_accepts": 26,
+      "test_impostor_pairs": 200000,
+      "test_frr": 0.006,
+      "test_lookalike_success": {
+        "1": 4e-05,
+        "10": 0.00091,
+        "100": 0.009,
+        "1000": 0.08365
+      }
+    },
+    "160": {
+      "tau": 0.33,
+      "val_lookalike_success": 0.00701,
+      "val_frr": 0.00413,
+      "test_far": 7.5e-05,
+      "test_false_accepts": 15,
+      "test_impostor_pairs": 200000,
+      "test_frr": 0.004,
+      "test_lookalike_success": {
+        "1": 7e-05,
+        "10": 0.00054,
+        "100": 0.00583,
+        "1000": 0.05607
+      }
+    }
+  },
+  "selected_dim": 128,
+  "selected": {
+    "dim": 128,
+    "tau": 0.35,
+    "tau_num": 1225,
+    "tau_den": 10000,
+    "test_far": 0.00013,
+    "test_false_accepts": 26,
+    "test_impostor_pairs": 200000,
+    "test_frr": 0.006,
+    "test_lookalike_success": {
+      "1": 4e-05,
+      "10": 0.00091,
+      "100": 0.009,
+      "1000": 0.08365
+    }
+  }
+}

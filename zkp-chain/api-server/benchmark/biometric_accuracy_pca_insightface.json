@@ -1,0 +1,68 @@
+{
+  "encoding": "PCA-96 of insightface (512-D), fitted on the LFW training split",
+  "cache": "face_embeddings_insightface_buffalo_l",
+  "dim": 96,
+  "train_images": 7762,
+  "test_images": 5471,
+  "n_genuine": 6000,
+  "n_impostor": 6000,
+  "lfw": {
+    "eer": 0.00267,
+    "ci95": [
+      0.00183,
+      0.00375
+    ]
+  },
+  "circuit_op": {
+    "far": 0.00183,
+    "frr": 0.00467,
+    "tau": 0.33,
+    "tau_num": 1089,
+    "tau_den": 10000,
+    "sigma": 1000000
+  },
+  "pca_dim_sweep": {
+    "16": 0.055,
+    "32": 0.0175,
+    "48": 0.0085,
+    "64": 0.00517,
+    "80": 0.00367,
+    "96": 0.00267,
+    "112": 0.00267,
+    "128": 0.00217
+  },
+  "inversion": {
+    "mean_cosine_to_true": 0.6423,
+    "impersonation_eer": 0.0035,
+    "raw_eer": 0.00133
+  },
+  "celeba": {
+    "eer": 0.04085,
+    "ci95": [
+      0.03651,
+      0.04577
+    ],
+    "embedded": [
+      39726,
+      39733
+    ]
+  },
+  "fairness": {
+    "male": {
+      "eer": 0.02335,
+      "ci95": [
+        0.02026,
+        0.02718
+      ],
+      "n_identities": 878
+    },
+    "female": {
+      "eer": 0.05334,
+      "ci95": [
+        0.04867,
+        0.05875
+      ],
+      "n_identities": 1122
+    }
+  }
+}

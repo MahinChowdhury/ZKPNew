@@ -1,0 +1,16 @@
+# API server
+fastapi
+uvicorn[standard]
+python-multipart        # required by FastAPI for File/UploadFile
+
+# Face detection + embedding
+mediapipe               # BlazeFace detector (mp_models/blaze_face_short_range.tflite)
+deepface                # Facenet embeddings (pulls in tensorflow)
+tf-keras                # needed by deepface on TensorFlow >= 2.16
+werkzeug                # imported by deepface but not declared as its dependency
+opencv-python
+
+# Numerics
+numpy
+scipy
+scikit-learn==1.6.1     # matches the version pca_model_64d.pkl was pickled with

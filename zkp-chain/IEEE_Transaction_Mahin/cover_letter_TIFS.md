@@ -1,6 +1,6 @@
 # Cover Letter for Submission to IEEE Transactions on Information Forensics and Security (T-IFS)
 
-**Date:** September 12, 2026  
+**Date:** [SUBMISSION DATE]  
 **To:** Editor-in-Chief, *IEEE Transactions on Information Forensics and Security*  
 **From:**  
 Mahin R. Chowdhury (Corresponding Author)  
@@ -11,51 +11,52 @@ Email: `mahin@kuet.ac.bd`
 
 ---
 
-### Subject: Resubmission under IEEE SPS Policy 6.16 — Manuscript TIFS-XXXXX
+### Subject: Resubmission under IEEE SPS Policy 6.16 — Manuscript [PRIOR MANUSCRIPT ID]
 
-**Title:** *Constraint-Efficient Biometric Matching in Zero-Knowledge Circuits: A Comparative Study of Face and Iris Verification for Privacy-Preserving Authentication*  
-**Authors:** Mahin R. Chowdhury, K. M. Azharul Hasan, and Arpita Das  
+**Title:** *Constraint-Aware Zero-Knowledge Face Eligibility Against Lookalike Attackers: Sound Circuits and Attested Capture for Decentralized Voting*  
+**Authors:** Mahin R. Chowdhury, K. M. Azharul Hasan, and Arpita Das
 
 Dear Editor-in-Chief and Editorial Board,
 
-We submit our manuscript entitled **"Constraint-Efficient Biometric Matching in Zero-Knowledge Circuits: A Comparative Study of Face and Iris Verification for Privacy-Preserving Authentication"** for consideration as a Regular Paper in the *IEEE Transactions on Information Forensics and Security* (T-IFS).
+We submit the manuscript **"Constraint-Aware Zero-Knowledge Face Eligibility Against Lookalike Attackers: Sound Circuits and Attested Capture for Decentralized Voting"** for consideration as a Regular Paper in *IEEE Transactions on Information Forensics and Security*.
 
-In accordance with **IEEE Signal Processing Society (SPS) Policy 6.16** regarding the resubmission of manuscripts, we explicitly disclose that an earlier iteration of this project was previously submitted to an IEEE journal under an application-focused electronic voting framing. Based on critical editorial and reviewer feedback emphasizing that the core scientific bottleneck lies in the arithmetic complexity of biometric template matching within zero-knowledge circuits, this manuscript has undergone an extensive, multi-month research overhaul and complete architectural refactoring. We treat this submission as our one permitted resubmission under SPS Policy 6.16.
+The paper addresses a gap between biometric template protection and zero-knowledge proofs. A zk-SNARK can show that a live face sample matches an enrolled template without revealing either. In practice, however, such a circuit is only as sound as its weakest constraint, and the live sample is a free witness that the prover chooses. We present a face-eligibility circuit that is sound against adversarial witnesses, bind every live sample in-circuit to a registered capture device, and deploy the circuit in a decentralized voting system on Hyperledger Fabric.
 
----
+### Disclosure under SPS Policy 6.16
 
-### Key Technical Contributions & Substantial New Content
+An earlier version of this work was submitted to [PRIOR JOURNAL] as manuscript [PRIOR MANUSCRIPT ID] on [PRIOR SUBMISSION DATE]. We treat this submission as our one permitted resubmission. Following the reviewers' feedback, we re-audited the implementation and rewrote the paper. The main changes are:
 
-The current manuscript fundamentally pivots from a distributed system description to an in-depth biometric signal processing, feature quantization, and arithmetic circuit co-design study. Specifically, this revision introduces:
+- **Circuit and protocol soundness.** The audit found weaknesses that the earlier version did not report: unconstrained Merkle direction bits, a prover-chosen threshold, an election identifier not bound to the ballot, a public per-voter biometric hash, unranged embedding coordinates, and ciphertexts not bound to the proof. Each is now fixed, and each fix is backed by an attack test against the deployed chaincode.
+- **Security model.** We replaced the earlier composability claim with game-based theorems for eligibility, one vote per credential, ballot integrity, ballot privacy and verifiability. We now state explicitly that we do not claim UC security. The deniable-duress mechanism, which was not implemented, has been removed.
+- **Trust architecture.** Key generation, proving and ballot encryption now run on the voter's own device. A single tally key has been replaced by a t-of-n Pedersen DKG whose key the chaincode derives, and the chaincode verifies the threshold tally itself.
+- **Biometric evaluation.** The deployed encoding is now ArcFace with a 128-D PCA projection. Its operating point is selected on validation identities only, against a stated lookalike attacker, and every EER is reported with a bootstrap confidence interval. Our earlier proposed encodings (the SOPQ face projection and the GBSM iris bit selection) did not beat simple baselines under this evaluation, and we report them as negative results.
 
-1. **Novel Circuit-Optimized Biometric Encodings (SOPQ and GBSM):**
-   - *Face (Continuous Modality):* We develop **Spherical Orthogonal Projection and Quantization (SOPQ)**, which replaces standard unsupervised PCA with angular margin-maximizing orthogonal projection and hyper-spherical unit-norm regularization prior to fixed-point integerization ($\sigma=10^6$). SOPQ achieves an Equal Error Rate (EER) of **1.14%** (compared to 1.85% under standard PCA), recovering **78.0%** of the accuracy lost to downsampling without adding a single non-linear R1CS gate (6,484 constraints).
-   - *Iris (Binary Modality):* We develop **Gabor Bit-Salience Masking (GBSM)**, which samples multi-scale 2-D Log-Gabor phase stability scores across reference populations to discard eyelid/eyelash noise. GBSM reduces downsampled 256-bit iris EER from 0.098% to **0.038%** (recovering **69.8%** of lost accuracy) within identical 5,976 linear XOR constraints.
+### Contributions
 
-2. **Cross-Dataset Generalization & Complete Multi-Threshold ROC Sweeps:**
-   - Rather than reporting single-point operating metrics on developmental sets, we conduct extensive multi-threshold sweeps across four independent public benchmarks: **LFW** and **CelebA** for face biometrics, and **CASIA-Iris-Thousand** and **CASIA-Iris-Interval** for iris biometrics.
-   - We demonstrate robust generalization under unconstrained pose, lighting, and pupil dilation, with operational False Acceptance Rates strictly bounded below **0.050%** ($\mathsf{FAR}_{\delta,\mathsf{face}} = 0.050\%$, $\mathsf{FAR}_{\delta,\mathsf{iris}} = 0.047\%$).
+1. **Constraint-aware face encoding.** Per-coordinate range checks, which soundness requires, dominate the comparator, so circuit cost is set by the template dimension rather than by the choice of metric. Because a face is public, once an attacker holds a stolen credential we set the threshold against a lookalike found by screening photos offline, not only a random impostor. A PCA sweep of 512-D ArcFace embeddings against measured circuit cost, with the operating point chosen on validation identities against an attacker who screens 100 candidates, selects 128-D at τ = 0.35. On test data this gives 0.22% EER on LFW (4.02% on CelebA), 0.60% FRR, and 0.85% success for that attacker, in 32,668 constraints, which fit a 2^15 proving domain. The usual zero-effort rule would have selected a point that the same attacker beats 9% of the time.
+2. **Attested, sound eligibility circuit.** The live sample is bound in-circuit to a registered capture device by an EdDSA signature over the sample, the election and a hiding commitment to the nullifier, so the device does not learn which ballot it enabled.
+3. **Security tied to the implementation.** Every premise of the game-based theorems is a concrete constraint or chaincode check. An attack suite makes each premise executable: each of 13 attacks succeeds when its check is removed (12 executed against the chaincode without the checks; the 13th, decryption under a single tally key, holds by construction), and all 26 attacks are rejected by the full system.
+4. **Evaluation.** LFW and CelebA accuracy with confidence intervals and paired tests, cross-age and cross-pose rejection rates on CALFW and CPLFW, a gender-fairness measurement, a template-inversion analysis, voter-side proving in 1.7 s with the WASM prover the browser client uses, chaincode verification in 49 ms independent of electorate size, and a 40-voter election on a live two-organization Fabric network.
 
-3. **Demographic Parity & Fairness Analysis:**
-   - We evaluate performance across demographic subgroups (gender and ethnicity metadata in LFW and CelebA across 50,000 genuine/impostor pairs), demonstrating a minimal demographic parity gap ($\Delta\text{EER} \le 0.10\%$) and confirming that finite-field quantization does not induce algorithmic bias.
+### Scope and stated limitations
 
-4. **Presentation Attack Detection (PAD) & Replay Defense:**
-   - We evaluate presentation attack vulnerability against printed photo, digital replay, and patterned contact lens attacks. We analyze active challenge-response sensing (APCER $<0.15\%$ at BPCER $=1.0\%$) and prove that in-circuit ephemeral salt binding ($h_i = \mathcal{H}_{\text{chunked}}(\mathbf{b}_i, s_i)$) mathematically precludes credential replay on public ledgers under Poseidon preimage resistance.
+We have tried to keep every claim within what we measured:
 
-5. **Applied Decentralized Deployment Case Study:**
-   - We demonstrate real-world applicability by deploying our circuits within an end-to-end decentralized voting architecture on Hyperledger Fabric with composable security guarantees ($(\delta, \mathsf{FAR}_\delta)$-approximate Universal Composability). We demonstrate that embedding Groth16 pairing checks directly in smart contracts eliminates gateway relayer trust with only 31.5~ms overhead, achieving sub-second client proving (170.9--196.3~ms).
+- **Iris.** Iris is implemented with the same circuits but is excluded from the soundness claim, because classical segmentation keeps its accuracy near chance.
+- **Liveness.** Sensor attestation proves which registered device captured a sample, not that the sample is live. Presentation attack detection is a stated requirement on the capture device and is not evaluated.
+- **Age and pose.** The threshold that contains lookalikes rejects 9.6% of genuine voters across an age gap (CALFW) and 13.8% across pose (CPLFW), so a deployment needs periodic re-enrollment and frontal capture.
+- **Enrollment.** Enrollment is supervised by the registration authority rather than attested.
+- **Coercion.** Receipt-freeness and coercion resistance are out of scope, and we give a short impossibility argument for JCJ-style deniability under observed biometric capture.
 
----
+### Compliance with T-IFS format and page limits
 
-### Compliance with T-IFS Format and Page Limits
+- **Main manuscript:** 12 pages in the IEEEtran 10pt two-column journal format, including figures, tables and references, within the 13-page limit.
+- **Supplementary material:** 6 pages. It contains the full security proofs, circuit signal tables, per-sub-circuit constraint counts, the iris negative result and the face-model comparison.
+- **Subject areas:** Biometrics, zero-knowledge proofs, biometric template protection, arithmetic circuits, privacy-preserving authentication, electronic voting.
 
-- **Main Manuscript (`ieee-paper.tex`):** Strictly complies with the T-IFS hard limit of **$\le 13$ pages** in standard 10pt IEEEtran double-column journal format (including all figures, tables, and references).
-- **Supplementary Material (`supplementary-material.tex`):** Strictly complies with the recommended **$\le 6$ pages** (calibrated to $\approx 5.5$ pages), containing only simulator constructions, formal hybrid reduction proofs, and extended wire signal diagrams.
-- **EDICS / Subject Categories:** Biometrics, Zero-Knowledge Proofs, Template Protection, Feature Quantization, Arithmetic Circuits, Privacy-Preserving Authentication, Presentation Attack Detection.
+This manuscript is original work and is not under consideration for publication elsewhere. All authors have reviewed and approved it for submission to *IEEE Transactions on Information Forensics and Security*.
 
-This manuscript represents original work that is not currently under consideration for publication elsewhere. All authors have reviewed and approved the manuscript for submission to *IEEE Transactions on Information Forensics and Security*.
-
-Thank you very much for your time, consideration, and coordination of the peer-review process.
+Thank you for your time and consideration.
 
 Sincerely,
 

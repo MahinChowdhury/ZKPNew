@@ -264,7 +264,7 @@ function getR1CSConstraintCount(r1csPath) {
       snark.generateProof(
         liveScaled, regScaled, BigInt("0x" + FACE_SALT),
         faceRegData.secretKey, faceRegData.faceHash,
-        root, pathElements, pathIndices, electionId, nullifier, 25n, 100n
+        root, pathElements, pathIndices, electionId, nullifier, 0n // voteBinding: no ballot in benchmark (threshold is fixed in-circuit)
       )
     );
     const proveTime = nowMs() - t0;
@@ -311,7 +311,7 @@ function getR1CSConstraintCount(r1csPath) {
         liveCode, irisCodeReg, irisSaltBig,
         irisSecretKey, irisHash,
         root, pathElements, pathIndices, electionId, nullifier,
-        irisSnark.HAMMING_THRESHOLD
+        0n // voteBinding: no ballot in benchmark (threshold is fixed in-circuit)
       )
     );
     const proveTime = nowMs() - t0;

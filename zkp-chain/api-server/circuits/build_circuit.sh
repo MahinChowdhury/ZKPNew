@@ -8,9 +8,13 @@
 set -e
 
 CIRCUIT=face_auth
-PTAU_SIZE=18   # 2^18 = 262144 constraints (Merkle tree depth=20 adds ~20 Poseidon hashes)
-PTAU_FILE="powersOfTau28_hez_final_${PTAU_SIZE}.ptau"
-PTAU_URL="https://storage.googleapis.com/zkevm/ptau/${PTAU_FILE}"
+PTAU_SIZE=${PTAU_SIZE:-16}   # verified PSE ppot 2^16; covers face 32,668 (PCA-128, 2^15 domain) / iris 17,518
+# PSE perpetual powers of tau (the Hermez mirrors return 403 as of 2026-10)
+PTAU_FILE="ppot_0080_${PTAU_SIZE}.ptau"
+PTAU_URL="https://pse-trusted-setup-ppot.s3.eu-central-1.amazonaws.com/pot28_0080/${PTAU_FILE}"
+
+# Use circom from PATH, else the copy built in ./circom
+CIRCOM="$(command -v circom || echo ./circom/target/release/circom)"
 
 echo "============================================"
 echo "  ZK-SNARK Circuit Build (Groth16)"
@@ -32,8 +36,8 @@ fi
 # ------------------------------------------
 echo ""
 echo "[1/5] Compiling ${CIRCUIT}.circom..."
-circom ${CIRCUIT}.circom \
-    --r1cs \
+"$CIRCOM" ${CIRCUIT}.circom \
+    --O2 --r1cs \
     --wasm \
     --sym \
     --c \
@@ -47,10 +51,14 @@ echo "  ✓ SYM:   ${CIRCUIT}.sym"
 
 echo ""
 echo "[1.5/5] Compiling C++ witness generator..."
-cd ${CIRCUIT}_cpp
-make -j$(nproc)
-cd ..
-echo "  ✓ C++ witness binary: ${CIRCUIT}_cpp/${CIRCUIT}"
+# Optional (snark.js falls back to WASM). Never leave a stale binary behind:
+# it would compute witnesses for the previous circuit.
+if (cd ${CIRCUIT}_cpp && make -j$(nproc) > /dev/null 2>&1); then
+    echo "  ✓ C++ witness binary: ${CIRCUIT}_cpp/${CIRCUIT}"
+else
+    rm -f ${CIRCUIT}_cpp/${CIRCUIT}
+    echo "  ⚠ C++ witness build skipped (needs libgmp-dev nlohmann-json3-dev nasm) — WASM witness will be used"
+fi
 
 # Print circuit info
 echo ""
@@ -63,7 +71,7 @@ npx snarkjs r1cs info ${CIRCUIT}.r1cs
 echo ""
 if [ ! -f "${PTAU_FILE}" ]; then
     echo "[2/5] Downloading Powers of Tau (2^${PTAU_SIZE})..."
-    curl -L -o ${PTAU_FILE} ${PTAU_URL}
+    curl -fL -o ${PTAU_FILE} ${PTAU_URL}
 else
     echo "[2/5] Powers of Tau already downloaded ✓"
 fi
@@ -81,7 +89,7 @@ npx snarkjs groth16 setup \
 npx snarkjs zkey contribute \
     ${CIRCUIT}_0000.zkey \
     ${CIRCUIT}.zkey \
-    --name="Development Phase 2" -v -e="some random text for entropy"
+    --name="Development Phase 2" -v -e="$(head -c 32 /dev/urandom | xxd -p -c 64)"
 
 rm ${CIRCUIT}_0000.zkey
 
@@ -96,7 +104,8 @@ npx snarkjs zkey export verificationkey \
     ${CIRCUIT}.zkey \
     verification_key.json
 
-echo "  ✓ Verification key: verification_key.json"
+cp verification_key.json ../../chaincode/identity/lib/verification_key.json
+echo "  ✓ Verification key: verification_key.json (copied to chaincode/identity/lib/)"
 
 # ------------------------------------------
 # Step 5: Generate Solidity verifier (optional, for on-chain)

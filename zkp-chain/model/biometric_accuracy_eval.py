@@ -252,6 +252,9 @@ def make_pairs(identities: dict, max_pairs=6000, seed=SEED, max_per_identity=50)
 def eval_cosine(genuine, impostor, steps=500, t_min=0.0, t_max=1.0):
     best_diff, best_eer, best_th = 999.0, 0.0, 0.5
     n_g, n_i = len(genuine), len(impostor)
+    if n_g == 0 or n_i == 0:
+        raise ValueError(f"no scored pairs (genuine={n_g}, impostor={n_i}) — "
+                         "were the embeddings skipped? check the '⚠ skip' lines above")
     for s in range(steps + 1):
         t = t_min + (t_max - t_min) * (s / steps)
         far = sum(1 for x in impostor if x >= t) / n_i
@@ -280,6 +283,65 @@ def get_rates_cosine(genuine, impostor, t):
             sum(1 for x in genuine if x < t) / len(genuine))
 
 
+def eer_np(genuine, impostor):
+    """Exact EER over all score thresholds (vectorized; for bootstrapping)."""
+    g = np.sort(np.asarray(genuine))
+    i = np.sort(np.asarray(impostor))
+    t = np.unique(np.concatenate([g, i]))
+    frr = np.searchsorted(g, t, side="left") / len(g)            # genuine < t
+    far = 1.0 - np.searchsorted(i, t, side="left") / len(i)      # impostor >= t
+    k = int(np.argmin(np.abs(far - frr)))
+    return float((far[k] + frr[k]) / 2.0)
+
+
+def bootstrap_eer(scores, n_boot=1000, seed=SEED):
+    """Pair-level bootstrap. `scores` maps method -> (genuine, impostor) over the
+    SAME pairs, so resampled indices are shared and method differences are paired.
+    Returns {method: {eer, ci95}} and {"a-b": {diff, ci95, significant}}."""
+    rng = np.random.default_rng(seed)
+    names = list(scores)
+    n_g = len(scores[names[0]][0])
+    n_i = len(scores[names[0]][1])
+    arr = {m: (np.asarray(g), np.asarray(i)) for m, (g, i) in scores.items()}
+    boots = {m: [] for m in names}
+    for _ in range(n_boot):
+        gi = rng.integers(0, n_g, n_g)
+        ii = rng.integers(0, n_i, n_i)
+        for m in names:
+            boots[m].append(eer_np(arr[m][0][gi], arr[m][1][ii]))
+    out = {}
+    for m in names:
+        b = np.asarray(boots[m])
+        out[m] = {"eer": round(eer_np(*arr[m]), 5),
+                  "ci95": [round(float(np.percentile(b, 2.5)), 5), round(float(np.percentile(b, 97.5)), 5)]}
+    diffs = {}
+    for a_idx in range(len(names)):
+        for b_idx in range(a_idx + 1, len(names)):
+            a, b = names[a_idx], names[b_idx]
+            d = np.asarray(boots[a]) - np.asarray(boots[b])
+            lo, hi = float(np.percentile(d, 2.5)), float(np.percentile(d, 97.5))
+            diffs[f"{a}-{b}"] = {"diff": round(out[a]["eer"] - out[b]["eer"], 5),
+                                 "ci95": [round(lo, 5), round(hi, 5)],
+                                 "significant": bool(lo > 0 or hi < 0)}
+    return out, diffs
+
+
+def quantized_rates(pairs, embeddings, tau_num=25, tau_den=100, sigma=1_000_000):
+    """Accept decisions exactly as the circuit makes them: integer coordinates
+    round(sigma*v), accept iff dot >= 0 and dot^2 * tau_den >= tau_num * |a|^2 |b|^2,
+    i.e. cos >= sqrt(tau_num/tau_den) (FaceAuth's thNum/thDen; 25/100 is tau = 0.5)."""
+    out = []
+    for a, b in pairs:
+        if a in embeddings and b in embeddings:
+            qa = [int(round(sigma * float(x))) for x in embeddings[a]]
+            qb = [int(round(sigma * float(x))) for x in embeddings[b]]
+            dot = sum(x * y for x, y in zip(qa, qb))
+            na = sum(x * x for x in qa)
+            nb = sum(y * y for y in qb)
+            out.append(dot >= 0 and dot * dot * tau_den >= tau_num * na * nb)
+    return out
+
+
 def get_rates_hamming(genuine, impostor, t):
     return (sum(1 for x in impostor if x <= t) / len(impostor),
             sum(1 for x in genuine if x > t) / len(genuine))
@@ -288,7 +350,28 @@ def get_rates_hamming(genuine, impostor, t):
 # ------------------------------------------------------------------
 # Face evaluation
 # ------------------------------------------------------------------
-def embed_all_faces(paths, cache=None):
+def deepface_embedder(model_name, detector):
+    """Alternative embedder (e.g. ArcFace with RetinaFace alignment) via DeepFace,
+    L2-normalized like the deployed FaceNet path."""
+    from deepface import DeepFace
+
+    def embed(img_bytes, path):
+        rep = DeepFace.represent(img_path=path, model_name=model_name,
+                                 detector_backend=detector, align=True, enforce_detection=True)
+        v = np.asarray(rep[0]["embedding"], dtype=np.float64)
+        return v / np.linalg.norm(v), rep[0].get("face_confidence")
+    return embed
+
+
+def insightface_embedder():
+    """Deployed raw embedding: InsightFace pack (buffalo_l: SCRFD detector,
+    5-point alignment, ArcFace R50 trained on WebFace600K, 512-D), through
+    app.py so the evaluated and deployed pipelines are the same code.
+    Needs pipeline.init_models(insightface=True)."""
+    return lambda img_bytes, path: pipeline.get_insightface_embedding_from_bytes(img_bytes)
+
+
+def embed_all_faces(paths, cache=None, embedder=None):
     """path -> raw128 embedding. Skips images with no detected face.
 
     `cache` (if given) is a disk-backed lookaside: entries already computed
@@ -302,12 +385,21 @@ def embed_all_faces(paths, cache=None):
     """
     out = {}
     for i, p in enumerate(paths):
+        cached = None
         if cache is not None and p in cache:
-            out[p] = cache[p]
+            try:
+                cached = cache[p]
+            except Exception:
+                # Entry half-written by an interrupted run: recompute it
+                cached = None
+        if cached is not None:
+            out[p] = cached
         else:
             try:
                 with open(p, "rb") as f:
-                    raw128, conf = pipeline.get_raw_embedding_from_bytes(f.read())
+                    data = f.read()
+                raw128, conf = (embedder(data, p) if embedder
+                                else pipeline.get_facenet_embedding_from_bytes(data))
                 out[p] = raw128
                 if cache is not None:
                     cache[p] = raw128
@@ -315,6 +407,8 @@ def embed_all_faces(paths, cache=None):
                 print(f"  ⚠ skip {p}: {e}")
         if (i + 1) % 200 == 0:
             print(f"  ...embedded {i + 1}/{len(paths)}")
+            if cache is not None and hasattr(cache, "sync"):
+                cache.sync()  # bound what an interruption can lose to one batch
     return out
 
 
@@ -327,12 +421,25 @@ def cosine_scores(pairs, embeddings):
 
 
 def load_celeba_gender_labels(attr_csv_path):
-    """CelebA's list_attr_celeba.csv -> {image_id filename: 'M' or 'F'}, from
+    """CelebA's list_attr_celeba.csv (Kaggle) or list_attr_celeba.txt (official)
+    -> {image_id filename: 'M' or 'F'}, from
     the real 'Male' attribute column (+1/-1). This is the standard binary
     gender-fairness axis used in face-verification fairness studies; CelebA
     has no ethnicity/skin-tone label, so that axis is not evaluated here."""
     labels = {}
     with open(attr_csv_path, newline="") as f:
+        first = f.readline().strip()
+        if first.isdigit():
+            # Official list_attr_celeba.txt: count line, attribute-name line,
+            # then "<file> <+1/-1 x 40>" whitespace-separated rows
+            names = f.readline().split()
+            male = names.index("Male") + 1
+            for line in f:
+                parts = line.split()
+                if len(parts) == len(names) + 1:
+                    labels[parts[0]] = "M" if parts[male] == "1" else "F"
+            return labels
+        f.seek(0)
         reader = csv.DictReader(f)
         if "Male" not in reader.fieldnames:
             raise ValueError(f"'Male' column not found in {attr_csv_path}; "
@@ -355,8 +462,19 @@ def identity_gender(paths, gender_of_file):
 
 def run_face_eval(args):
     print("=" * 85)
-    print("FACE — loading dataset and computing FaceNet embeddings (this hits the real pipeline)")
-    face_cache = open_cache("face_embeddings", args.cache_dir, args.no_cache)
+    print(f"FACE — loading dataset and computing {args.face_model} embeddings "
+          f"({'deployed FaceNet pipeline' if args.face_model == 'deployed' else args.face_detector + ' alignment'})")
+    # Deployed path = FaceNet on a BlazeFace crop; --face-model selects an aligned
+    # DeepFace alternative (e.g. ArcFace + RetinaFace). Separate caches per model.
+    embedder = None
+    cache_name = "face_embeddings"
+    if args.face_model == "insightface":
+        embedder = insightface_embedder()
+        cache_name = f"face_embeddings_insightface_{args.insightface_pack}"
+    elif args.face_model != "deployed":
+        embedder = deepface_embedder(args.face_model, args.face_detector)
+        cache_name = f"face_embeddings_{args.face_model}_{args.face_detector}"
+    face_cache = open_cache(cache_name, args.cache_dir, args.no_cache)
     identities = scan_identity_folders(args.lfw_root)
     if args.lfw_max_identities and len(identities) > args.lfw_max_identities:
         rng = random.Random(SEED)
@@ -371,9 +489,9 @@ def run_face_eval(args):
     print(f"  {len(identities)} identities total -> {len(train_ids)} train / {len(test_ids)} test")
 
     print("Embedding train split (for fitting SOPQ)...")
-    train_emb = embed_all_faces(train_paths, face_cache)
+    train_emb = embed_all_faces(train_paths, face_cache, embedder)
     print("Embedding test split (for measuring EER)...")
-    test_emb = embed_all_faces(test_paths, face_cache)
+    test_emb = embed_all_faces(test_paths, face_cache, embedder)
 
     # Fit SOPQ strictly on train identities
     train_labels_flat, train_vecs = [], []
@@ -384,8 +502,13 @@ def run_face_eval(args):
                 train_labels_flat.append(ident)
     W = sopq_mod.fit_sopq(np.array(train_vecs), np.array(train_labels_flat), out_dim=64)
 
+    # PCA baseline fitted on the SAME train split as SOPQ (fair comparison);
+    # the deployed pca_model_64d.pkl is FaceNet-only and of unknown provenance.
+    from sklearn.decomposition import PCA
+    pca_fit = PCA(n_components=64, random_state=SEED).fit(np.array(train_vecs))
+
     def to_pca64(v):
-        reduced = pipeline.pca_model.transform(v.reshape(1, -1))[0]
+        reduced = pca_fit.transform(v.reshape(1, -1))[0]
         return reduced / np.linalg.norm(reduced)
 
     pca64 = {p: to_pca64(v) for p, v in test_emb.items()}
@@ -415,8 +538,40 @@ def run_face_eval(args):
         "sopq_64d": {"eer": round(eer_sopq, 5), "th": round(th_sopq, 3),
                      "far_op": round(far_sopq_op, 5), "frr_op": round(frr_sopq_op, 5)},
         "recovery_pct": round(recovery, 1) if recovery == recovery else None,
+        "face_model": args.face_model, "face_detector": args.face_detector,
+        "raw_dim": int(len(next(iter(test_emb.values())))),  # "raw_128d" is the full embedding (512-D for ArcFace)
+        "embedded": {"train": [len(train_emb), len(train_paths)], "test": [len(test_emb), len(test_paths)]},
+        "pca_fit": "train split",
         "source": "measured",
     }
+
+    # Confidence intervals and paired significance (same pairs for all methods)
+    print(f"Bootstrap ({args.bootstrap} resamples) for EER CIs and paired differences...")
+    ci, diffs = bootstrap_eer({"raw": (g128, i128), "pca64": (g_pca, i_pca), "sopq64": (g_sopq, i_sopq)},
+                              n_boot=args.bootstrap)
+    result["bootstrap"] = {"method": "pair-level, percentile", "n_boot": args.bootstrap,
+                           "eer": ci, "paired_diff": diffs}
+
+    # Operating point exactly as the circuit decides (sigma = 1e6 integers, tau = 0.5)
+    acc_g = quantized_rates(genuine_pairs, sopq64)
+    acc_i = quantized_rates(impostor_pairs, sopq64)
+    result["sopq_64d"]["circuit_op"] = {
+        "far": round(sum(acc_i) / len(acc_i), 5), "frr": round(1 - sum(acc_g) / len(acc_g), 5),
+        "tau": 0.50, "sigma": 1_000_000}
+
+    # Output-dimension sweep (Fig. encoding_pareto); costs come from
+    # api-server/results/subcircuit_constraints.json at plot time
+    if args.sopq_dims:
+        sweep = {}
+        for d in args.sopq_dims:
+            if d % 8:
+                print(f"  skip d={d}: must be a multiple of 8 (Poseidon chunking)")
+                continue
+            W_d = sopq_mod.fit_sopq(np.array(train_vecs), np.array(train_labels_flat), out_dim=d)
+            emb_d = {p: sopq_mod.apply_sopq(W_d, v) for p, v in test_emb.items()}
+            sweep[d] = round(eer_np(cosine_scores(genuine_pairs, emb_d), cosine_scores(impostor_pairs, emb_d)), 5)
+            print(f"  SOPQ d={d}: EER {sweep[d]:.4f}")
+        result["sopq_dim_sweep"] = sweep
 
     if args.celeba_root:
         print("Cross-dataset (CelebA): applying LFW-trained SOPQ without retraining...")
@@ -430,13 +585,14 @@ def run_face_eval(args):
             celeba_ids = {k: celeba_ids[k] for k in keep}
             print(f"  capped to {args.celeba_max_identities} randomly sampled CelebA identities "
                   f"(seed={SEED}) for tractable runtime")
-        celeba_emb = embed_all_faces([p for imgs in celeba_ids.values() for p in imgs], face_cache)
+        celeba_emb = embed_all_faces([p for imgs in celeba_ids.values() for p in imgs], face_cache, embedder)
         celeba_sopq = {p: sopq_mod.apply_sopq(W, v) for p, v in celeba_emb.items()}
         g_pairs, i_pairs = make_pairs(celeba_ids, max_pairs=args.max_pairs)
         eer_celeba, th_celeba = eval_cosine(
             cosine_scores(g_pairs, celeba_sopq), cosine_scores(i_pairs, celeba_sopq)
         )
         result["celeba_64d_sopq"] = {"eer": round(eer_celeba, 5), "th": round(th_celeba, 3),
+                                      "embedded": [len(celeba_emb), sum(len(v) for v in celeba_ids.values())],
                                       "source": "measured"}
     else:
         result["celeba_64d_sopq"] = {"status": "SKIPPED — pass --celeba-root to measure this"}
@@ -684,6 +840,18 @@ def main():
                           "female-labeled identities (real 'Male' attribute column) on the "
                           "CelebA cross-dataset split")
     ap.add_argument("--pad-spoof-dir", help="optional spoof/replay image set for PAD metrics")
+    ap.add_argument("--face-model", default="deployed",
+                     help="'insightface' (deployed: InsightFace pack via model/app.py, see "
+                          "--insightface-pack), 'facenet' or its old name 'deployed' (FaceNet "
+                          "baseline on a BlazeFace crop, the pre-revision pipeline) or a DeepFace "
+                          "model name such as ArcFace, evaluated with aligned detection")
+    ap.add_argument("--insightface-pack", default="buffalo_l",
+                     help="InsightFace model pack used with --face-model insightface")
+    ap.add_argument("--face-detector", default="retinaface",
+                     help="DeepFace detector used with --face-model (alignment enabled)")
+    ap.add_argument("--bootstrap", type=int, default=1000, help="bootstrap resamples for EER CIs")
+    ap.add_argument("--sopq-dims", type=lambda s: [int(x) for x in s.split(",")], default=None,
+                     help="comma-separated SOPQ output dims to sweep, e.g. 16,32,48,64,80,96,112")
     ap.add_argument("--train-frac", type=float, default=0.6)
     ap.add_argument("--max-pairs", type=int, default=6000)
     ap.add_argument("--out", default=os.path.join(RESULTS_DIR, "biometric_accuracy_results.json"))
@@ -709,8 +877,15 @@ def main():
         with open(args.out, "w") as f:
             json.dump(results, f, indent=2)
 
-    print("Initializing real pipeline models (FaceNet / MediaPipe / Log-Gabor bank)...")
-    pipeline.init_models()
+    # The FaceNet baseline (BlazeFace crop), InsightFace and the iris pipeline use
+    # app.py's models; a DeepFace model (e.g. ArcFace) does its own detection.
+    if args.face_model == "facenet":
+        args.face_model = "deployed"   # same pipeline and cache as the pre-revision runs
+    if args.face_model in ("deployed", "insightface") or args.casia_thousand_root:
+        print("Initializing real pipeline models...")
+        pipeline.init_models(insightface=args.face_model == "insightface",
+                             facenet=args.face_model == "deployed",
+                             insightface_pack=args.insightface_pack)
 
     results = {}
     if args.lfw_root:

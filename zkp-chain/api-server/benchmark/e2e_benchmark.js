@@ -459,7 +459,7 @@ async function getIrisCode() {
       snark.generateProof(
         liveScaled, regScaled, BigInt("0x" + FACE_SALT_HEX),
         BigInt(faceSnarkCreds.secretKey), BigInt(faceSnarkCreds.poseidonFaceHash),
-        root, pathElements, pathIndices, electionId, nullifier, 25n, 100n
+        root, pathElements, pathIndices, electionId, nullifier, 0n // voteBinding: no ballot in benchmark (threshold is fixed in-circuit)
       )
     );
     faceTimes.p5_snark_prove.push(nowMs() - t0);
@@ -540,7 +540,7 @@ async function getIrisCode() {
         liveCode256, irisCodeReg, irisSalt,
         BigInt(irisSnarkCreds.secretKey), BigInt(irisSnarkCreds.poseidonIrisHash),
         root, pathElements, pathIndices, electionId, nullifier,
-        irisSnark.HAMMING_THRESHOLD
+        0n // voteBinding: no ballot in benchmark (threshold is fixed in-circuit)
       )
     );
     irisTimes.p5_snark_prove.push(nowMs() - t0);

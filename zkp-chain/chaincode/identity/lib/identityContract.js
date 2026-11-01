@@ -5,6 +5,19 @@ const snarkjs = require('snarkjs');
 const circomlibjs = require('circomlibjs');
 const faceVKey = require('./verification_key.json');
 const irisVKey = require('./iris_verification_key.json');
+const ballotCrypto = require('./ballotCrypto');
+const tallyCrypto = require('./tallyCrypto');
+
+// Only the Registration Authority's organisation may enrol voters,
+// register ballots and close them. Override with REGISTRAR_MSPS="Org1MSP,OtherMSP".
+const REGISTRAR_MSPS = (process.env.REGISTRAR_MSPS || 'Org1MSP').split(',').map((s) => s.trim());
+
+// Public signal layout (set by the circom `main` declarations):
+//   [valid, merkleRoot, nullifier, electionId, voteBinding, sensorRoot]
+const PS = { VALID: 0, ROOT: 1, NULLIFIER: 2, ELECTION_ID: 3, VOTE_BINDING: 4, SENSOR_ROOT: 5, LENGTH: 6 };
+
+// Depth of the authorised capture-device registry (must match the circuits)
+const SENSOR_TREE_LEVELS = 10;
 
 let _poseidon = null;
 let _F = null;
@@ -26,9 +39,8 @@ async function poseidonHash2(left, right) {
 class IdentityContract extends Contract {
 
   // Helper: Build sparse Merkle tree root on-chain
-  async buildMerkleTreeOnChain(commitments) {
-    const MERKLE_TREE_LEVELS = 20;
-    
+  async buildMerkleTreeOnChain(commitments, MERKLE_TREE_LEVELS = 20) {
+
     // 1. Get zero hashes
     const zeroHashes = [0n];
     for (let i = 0; i < MERKLE_TREE_LEVELS; i++) {
@@ -98,10 +110,18 @@ class IdentityContract extends Contract {
   // REGISTRATION FUNCTIONS
   // ============================
 
+  _assertRegistrar(ctx) {
+    const msp = ctx.clientIdentity.getMSPID();
+    if (!REGISTRAR_MSPS.includes(msp)) {
+      throw new Error(`Access denied: ${msp} is not an authorised registrar organisation`);
+    }
+  }
+
   // Register a new voter by adding their Poseidon commitment
   async register(ctx, nidHash, commitment) {
     console.log('============= START : Register Identity ===========');
-    
+    this._assertRegistrar(ctx);
+
     // Validate inputs
     if (!nidHash || !commitment) {
       throw new Error('All parameters (nidHash, commitment) are required');
@@ -153,6 +173,60 @@ class IdentityContract extends Contract {
     return identityBytes && identityBytes.length > 0;
   }
 
+  // ============================
+  // INCREMENTAL VOTER TREE
+  // Append-only Poseidon tree of depth 20 kept as "filled subtrees"
+  // (Tornado/Semaphore style): O(L) per registration, O(1) root lookup per
+  // vote. Same tree as buildMerkleTreeOnChain (zero leaf 0, empty-subtree
+  // digests z[i]) — leaves are inserted in registration order.
+  // ============================
+
+  async _zeroHashes(levels = 20) {
+    const z = [0n];
+    for (let i = 0; i < levels; i++) z.push(await poseidonHash2(z[i], z[i]));
+    return z;
+  }
+
+  async _treeState(ctx, bioType) {
+    const key = bioType === 'iris' ? 'MERKLE_IRIS' : 'MERKLE_FACE';
+    const bytes = await ctx.stub.getState(key);
+    if (bytes && bytes.length > 0) return JSON.parse(bytes.toString());
+
+    // First use on a ledger that predates the incremental tree: build it
+    // once from the existing commitment list, then persist it.
+    const z = await this._zeroHashes();
+    const state = { nextIndex: 0, filled: z.slice(0, 20).map(String), root: z[20].toString() };
+    const listKey = bioType === 'iris' ? 'GLOBAL_IRIS_COMMITMENTS' : 'GLOBAL_COMMITMENTS';
+    const listBytes = await ctx.stub.getState(listKey);
+    if (listBytes && listBytes.length > 0) {
+      for (const c of JSON.parse(listBytes.toString()).commitments) await this._treeAppend(state, BigInt(c.value), z);
+    }
+    await ctx.stub.putState(key, Buffer.from(JSON.stringify(state)));
+    return state;
+  }
+
+  async _treeAppend(state, leaf, z) {
+    let idx = state.nextIndex;
+    let cur = leaf;
+    for (let i = 0; i < 20; i++) {
+      if (idx % 2 === 0) {
+        state.filled[i] = cur.toString();
+        cur = await poseidonHash2(cur, z[i]);
+      } else {
+        cur = await poseidonHash2(BigInt(state.filled[i]), cur);
+      }
+      idx = Math.floor(idx / 2);
+    }
+    state.root = cur.toString();
+    state.nextIndex += 1;
+  }
+
+  async _treeInsert(ctx, bioType, commitment) {
+    const state = await this._treeState(ctx, bioType);
+    await this._treeAppend(state, BigInt(commitment), await this._zeroHashes());
+    await ctx.stub.putState(bioType === 'iris' ? 'MERKLE_IRIS' : 'MERKLE_FACE', Buffer.from(JSON.stringify(state)));
+  }
+
   // Helper: Add commitment to global list
   async _addCommitment(ctx, commitment, timestamp) {
     // Get current commitments
@@ -177,6 +251,9 @@ class IdentityContract extends Contract {
       value: commitment,
       registeredAt: timestamp
     });
+
+    // Tree first: a lazy migration must read the list without this leaf
+    await this._treeInsert(ctx, 'face', commitment);
 
     // Update store
     await ctx.stub.putState('GLOBAL_COMMITMENTS', Buffer.from(JSON.stringify(store)));
@@ -229,7 +306,8 @@ class IdentityContract extends Contract {
   // Register a new voter via iris biometric
   async registerIris(ctx, nidHash, commitment) {
     console.log('============= START : Register Iris Identity ===========');
-    
+    this._assertRegistrar(ctx);
+
     if (!nidHash || !commitment) {
       throw new Error('All parameters (nidHash, commitment) are required');
     }
@@ -296,6 +374,9 @@ class IdentityContract extends Contract {
       registeredAt: timestamp
     });
 
+    // Tree first: a lazy migration must read the list without this leaf
+    await this._treeInsert(ctx, 'iris', commitment);
+
     await ctx.stub.putState('GLOBAL_IRIS_COMMITMENTS', Buffer.from(JSON.stringify(store)));
     console.log(`Added iris commitment. Total iris commitments: ${store.commitments.length}`);
   }
@@ -337,23 +418,243 @@ class IdentityContract extends Contract {
   }
 
   // ============================
+  // SENSOR REGISTRY
+  // Capture devices whose EdDSA-BabyJubJub key may attest live biometric
+  // samples. Proofs reveal only the registry root, not which device.
+  // ============================
+
+  async registerSensor(ctx, ax, ay) {
+    this._assertRegistrar(ctx);
+    if (!/^[0-9]{1,78}$/.test(String(ax)) || !/^[0-9]{1,78}$/.test(String(ay))) {
+      throw new Error('Sensor public key coordinates must be decimal field elements');
+    }
+    const bytes = await ctx.stub.getState('GLOBAL_SENSORS');
+    const store = bytes && bytes.length > 0 ? JSON.parse(bytes.toString()) : { sensors: [], docType: 'sensors' };
+    if (store.sensors.some((s) => s.ax === String(ax) && s.ay === String(ay))) {
+      throw new Error('Sensor already registered');
+    }
+    if (store.sensors.length >= 2 ** SENSOR_TREE_LEVELS) {
+      throw new Error('Sensor registry is full');
+    }
+    store.sensors.push({ ax: String(ax), ay: String(ay) });
+    await ctx.stub.putState('GLOBAL_SENSORS', Buffer.from(JSON.stringify(store)));
+    return JSON.stringify({ index: store.sensors.length - 1, root: (await this._sensorRoot(store)).toString() });
+  }
+
+  async getSensors(ctx) {
+    const bytes = await ctx.stub.getState('GLOBAL_SENSORS');
+    const store = bytes && bytes.length > 0 ? JSON.parse(bytes.toString()) : { sensors: [] };
+    return JSON.stringify(store.sensors);
+  }
+
+  async _sensorRoot(store) {
+    const leaves = [];
+    for (const s of store.sensors) leaves.push((await poseidonHash2(BigInt(s.ax), BigInt(s.ay))).toString());
+    return this.buildMerkleTreeOnChain(leaves, SENSOR_TREE_LEVELS);
+  }
+
+  // ============================
+  // BALLOT FUNCTIONS
+  // ============================
+
+  // Register a ballot, its option count and its trustee set (t-of-n).
+  // Nobody supplies the election key: the trustees post DKG dealings
+  // (submitDealing), may disqualify a dealer whose private share is
+  // inconsistent (complain), and finalizeBallotKey derives h = Σ A_i0 from
+  // the qualified dealings (tallyCrypto.js). Write-once.
+  // Lifecycle: keygen → open (castVote) → closed (publishTally).
+  async registerBallot(ctx, ballotId, numOptions, trusteesJSON, threshold) {
+    this._assertRegistrar(ctx);
+    if (!ballotId || !numOptions || !trusteesJSON || !threshold) {
+      throw new Error('Required parameters: ballotId, numOptions, trustees, threshold');
+    }
+    const key = `BALLOT_${ballotId}`;
+    const existing = await ctx.stub.getState(key);
+    if (existing && existing.length > 0) {
+      throw new Error(`Ballot ${ballotId} is already registered`);
+    }
+    const n = parseInt(numOptions, 10);
+    if (!Number.isInteger(n) || n < 2) {
+      throw new Error('numOptions must be an integer >= 2');
+    }
+    const trustees = JSON.parse(trusteesJSON);
+    const t = parseInt(threshold, 10);
+    if (!Array.isArray(trustees) || trustees.length < 2 || trustees.length > tallyCrypto.MAX_TRUSTEES ||
+        new Set(trustees).size !== trustees.length) {
+      throw new Error(`trustees must be 2..${tallyCrypto.MAX_TRUSTEES} distinct public keys`);
+    }
+    for (const pk of trustees) tallyCrypto.ec.keyFromPublic(pk, 'hex').validate();
+    if (!Number.isInteger(t) || t < 2 || t > trustees.length) {
+      throw new Error('threshold must be an integer in [2, number of trustees]');
+    }
+    const record = {
+      ballotId,
+      numOptions: n,
+      trustees,
+      threshold: t,
+      dealings: {},
+      disqualified: [],
+      publicKey: null,
+      status: 'keygen',
+      electionId: ballotCrypto.electionIdFor(ballotId).toString(),
+      docType: 'ballot',
+    };
+    await ctx.stub.putState(key, Buffer.from(JSON.stringify(record)));
+    return JSON.stringify(record);
+  }
+
+  async getBallot(ctx, ballotId) {
+    const bytes = await ctx.stub.getState(`BALLOT_${ballotId}`);
+    if (!bytes || bytes.length === 0) {
+      throw new Error(`Ballot ${ballotId} is not registered on-chain`);
+    }
+    return bytes.toString();
+  }
+
+  async _ballotInState(ctx, ballotId, status) {
+    const ballot = JSON.parse(await this.getBallot(ctx, ballotId));
+    if (ballot.status !== status) {
+      throw new Error(`Ballot ${ballotId} is ${ballot.status}, expected ${status}`);
+    }
+    return ballot;
+  }
+
+  _trusteeIndex(ballot, idx) {
+    const i = parseInt(idx, 10);
+    if (!Number.isInteger(i) || i < 1 || i > ballot.trustees.length) {
+      throw new Error(`Trustee index must be in 1..${ballot.trustees.length}`);
+    }
+    return i;
+  }
+
+  // Trustee `dealer` publishes Feldman commitments to its polynomial,
+  // signed with its registered key.
+  async submitDealing(ctx, ballotId, dealer, commitmentsJSON, sig) {
+    const ballot = await this._ballotInState(ctx, ballotId, 'keygen');
+    const i = this._trusteeIndex(ballot, dealer);
+    if (ballot.dealings[i]) throw new Error(`Trustee ${i} has already posted a dealing`);
+    const commitments = JSON.parse(commitmentsJSON);
+    if (!Array.isArray(commitments) || commitments.length !== ballot.threshold) {
+      throw new Error(`A dealing must commit to exactly ${ballot.threshold} coefficients`);
+    }
+    commitments.forEach((c) => tallyCrypto.toPoint(c));
+    if (!tallyCrypto.verifyTrusteeSig(ballot.trustees[i - 1], 'bbzkv-dealing-v1',
+      { ballotId, dealer: i, commitments }, sig)) {
+      throw new Error(`Dealing is not signed by trustee ${i}`);
+    }
+    ballot.dealings[i] = { dealer: i, commitments };
+    await ctx.stub.putState(`BALLOT_${ballotId}`, Buffer.from(JSON.stringify(ballot)));
+    return JSON.stringify({ dealer: i });
+  }
+
+  // Trustee `complainer` reveals the share it received from `dealer`. If the
+  // share does not match the dealer's commitments, the dealer is disqualified;
+  // a consistent share clears the dealer and the complaint fails.
+  async complain(ctx, ballotId, complainer, dealer, shareHex, sig) {
+    const ballot = await this._ballotInState(ctx, ballotId, 'keygen');
+    const j = this._trusteeIndex(ballot, complainer);
+    const i = this._trusteeIndex(ballot, dealer);
+    if (i === j) throw new Error('A trustee cannot complain about itself');
+    if (!ballot.dealings[i]) throw new Error(`Trustee ${i} has posted no dealing`);
+    if (!tallyCrypto.verifyTrusteeSig(ballot.trustees[j - 1], 'bbzkv-complaint-v1',
+      { ballotId, complainer: j, dealer: i, share: shareHex }, sig)) {
+      throw new Error(`Complaint is not signed by trustee ${j}`);
+    }
+    if (tallyCrypto.verifyShare(ballot.dealings[i].commitments, j, shareHex)) {
+      throw new Error(`Complaint rejected: trustee ${i}'s share to trustee ${j} is consistent`);
+    }
+    if (!ballot.disqualified.includes(i)) ballot.disqualified.push(i);
+    await ctx.stub.putState(`BALLOT_${ballotId}`, Buffer.from(JSON.stringify(ballot)));
+    return JSON.stringify({ disqualified: ballot.disqualified });
+  }
+
+  // Derive the election key from the qualified dealings and open voting.
+  async finalizeBallotKey(ctx, ballotId) {
+    const ballot = await this._ballotInState(ctx, ballotId, 'keygen');
+    const n = ballot.trustees.length;
+    if (Object.keys(ballot.dealings).length !== n) {
+      throw new Error(`Only ${Object.keys(ballot.dealings).length} of ${n} trustees have posted dealings`);
+    }
+    const qual = Object.values(ballot.dealings).filter((d) => !ballot.disqualified.includes(d.dealer));
+    // With at most t-1 corrupt trustees, |QUAL| >= t guarantees an honest dealer
+    if (qual.length < ballot.threshold) {
+      throw new Error(`Only ${qual.length} qualified dealings, threshold is ${ballot.threshold}`);
+    }
+    ballot.publicKey = tallyCrypto.ser(tallyCrypto.electionKey(qual));
+    ballot.qual = qual.map((d) => d.dealer);
+    ballot.status = 'open';
+    await ctx.stub.putState(`BALLOT_${ballotId}`, Buffer.from(JSON.stringify(ballot)));
+    return JSON.stringify({ publicKey: ballot.publicKey, qual: ballot.qual });
+  }
+
+  async closeBallot(ctx, ballotId) {
+    this._assertRegistrar(ctx);
+    const ballot = await this._ballotInState(ctx, ballotId, 'open');
+    ballot.status = 'closed';
+    await ctx.stub.putState(`BALLOT_${ballotId}`, Buffer.from(JSON.stringify(ballot)));
+    return JSON.stringify({ status: 'closed' });
+  }
+
+  // Publish the result. The chaincode recomputes every aggregate from the
+  // stored ballots and accepts the totals only with at least t valid partial
+  // decryptions per option that open the aggregate to exactly that total.
+  // Write-once. tally = { options: [{ total, partials: [{trustee, D, proof}] }] }
+  async publishTally(ctx, ballotId, tallyJSON) {
+    const ballot = await this._ballotInState(ctx, ballotId, 'closed');
+    const tallyKey = `TALLY_${ballotId}`;
+    const existing = await ctx.stub.getState(tallyKey);
+    if (existing && existing.length > 0) throw new Error(`Tally for ${ballotId} is already published`);
+    const tally = JSON.parse(tallyJSON);
+    if (!tally || !Array.isArray(tally.options) || tally.options.length !== ballot.numOptions) {
+      throw new Error(`Tally must have one entry per option (${ballot.numOptions})`);
+    }
+    const votes = JSON.parse(await this.getAllVotes(ctx, ballotId));
+    const aggregates = Array.from({ length: ballot.numOptions }, () => null);
+    for (const v of votes) {
+      v.encryptedVote.ciphertexts.forEach((ct, j) => {
+        const c = { c1: tallyCrypto.toPoint(ct.c1), c2: tallyCrypto.toPoint(ct.c2) };
+        aggregates[j] = aggregates[j] ? { c1: aggregates[j].c1.add(c.c1), c2: aggregates[j].c2.add(c.c2) } : c;
+      });
+    }
+    const key = {
+      threshold: ballot.threshold,
+      trustees: ballot.trustees.length,
+      qualDealings: ballot.qual.map((i) => ballot.dealings[i]),
+    };
+    tally.options.forEach((entry, j) => {
+      if (votes.length === 0) {
+        if (entry.total !== 0) throw new Error(`Option ${j}: no ballots, total must be 0`);
+        return;
+      }
+      tallyCrypto.verifyOptionTally(key, aggregates[j], j, ballotId, entry);
+    });
+    const record = {
+      ballotId,
+      numVotes: votes.length,
+      totals: tally.options.map((e) => e.total),
+      options: tally.options,
+      docType: 'tally',
+    };
+    await ctx.stub.putState(tallyKey, Buffer.from(JSON.stringify(record)));
+    return JSON.stringify({ ballotId, numVotes: record.numVotes, totals: record.totals });
+  }
+
+  async getTally(ctx, ballotId) {
+    const bytes = await ctx.stub.getState(`TALLY_${ballotId}`);
+    if (!bytes || bytes.length === 0) {
+      throw new Error(`No tally published for ${ballotId}`);
+    }
+    return bytes.toString();
+  }
+
+  // ============================
   // VOTING FUNCTIONS
   // ============================
 
   // -------------------------------------------------------
   // Helper: Verify a ZK-SNARK Groth16 proof on-chain
   // Selects the correct verification key based on biometricType.
-  //
-  // Public signal layout (set by the circom `main` declaration):
-  //   Face: [valid, faceHash, merkleRoot, nullifier, electionId, threshold_sq_num, threshold_sq_den]
-  //   Iris: [valid, irisHash, merkleRoot, nullifier, electionId, hammingThreshold]
-  //
-  // Shared indices across both circuits:
-  //   0 → valid (circuit output, must be "1")
-  //   1 → biometricHash (faceHash / irisHash)
-  //   2 → merkleRoot
-  //   3 → nullifier
-  //   4 → electionId
+  // Public signal layout: see PS at the top of this file.
   // -------------------------------------------------------
   async verifyZkProof(proof, publicSignals, biometricType) {
     const vkey = biometricType === 'iris' ? irisVKey : faceVKey;
@@ -370,23 +671,41 @@ class IdentityContract extends Contract {
   }
 
   // Cast a vote with ZK-SNARK proof + nullifier
-  // The chaincode performs FULL on-chain Groth16 verification:
+  // The chaincode performs FULL on-chain verification:
   //   1. snarkjs.groth16.verify() — cryptographic soundness
-  //   2. Merkle root validation — voter is a registered member
+  //   2. Output validity — circuit output signal must be 1
   //   3. Nullifier consistency — proof nullifier matches submitted nullifier
-  //   4. Output validity — circuit output signal must be 1
+  //   4. Merkle root validation — voter is a registered member
+  //   5. Election binding — proof electionId is derived from this ballotId
+  //      (+ sensor attestation — proof sensorRoot is the current device registry)
+  //   6. Ballot binding — proof voteBinding commits to these ciphertexts
+  //   7. Ballot well-formedness — every entry encrypts 0/1 and they sum to 1
+  //   8. Double-vote check — nullifier unused
   // The chaincode is completely oblivious to the voter's identity.
   // The nullifier prevents double voting without revealing who voted.
   async castVote(ctx, proofJSON, publicSignalsJSON, nullifier, encryptedVoteJSON, ballotId, biometricType) {
     console.log('============= START : Cast Vote (On-Chain Verification) ===========');
-    
-    if (!proofJSON || !publicSignalsJSON || !nullifier) {
-      throw new Error('Required parameters: proof, publicSignals, nullifier');
+
+    if (!proofJSON || !publicSignalsJSON || !nullifier || !ballotId || !encryptedVoteJSON) {
+      throw new Error('Required parameters: proof, publicSignals, nullifier, encryptedVote, ballotId');
     }
 
     const proof = JSON.parse(proofJSON);
     const publicSignals = JSON.parse(publicSignalsJSON);
     const bioType = biometricType || 'face';
+    if (bioType !== 'face' && bioType !== 'iris') {
+      throw new Error(`Unknown biometricType: ${bioType}`);
+    }
+    if (!Array.isArray(publicSignals) || publicSignals.length !== PS.LENGTH) {
+      throw new Error(`Expected ${PS.LENGTH} public signals, got ${publicSignals && publicSignals.length}`);
+    }
+
+    // The ballot must be registered on-chain (fixes its key and option count),
+    // its key generated by the trustees, and voting not yet closed
+    const ballot = JSON.parse(await this.getBallot(ctx, ballotId));
+    if (ballot.status !== 'open') {
+      throw new Error(`Ballot ${ballotId} is not open for voting (status: ${ballot.status})`);
+    }
 
     // =====================================================
     // STEP 1: Groth16 cryptographic proof verification
@@ -398,44 +717,35 @@ class IdentityContract extends Contract {
     console.log('✅ Groth16 proof verified on-chain');
 
     // =====================================================
-    // STEP 2: Validate circuit output (publicSignals[0])
+    // STEP 2: Validate circuit output
     //   The circuit output "valid" must be 1, meaning
     //   the biometric check (cosine/Hamming) passed.
     // =====================================================
-    if (publicSignals[0] !== '1') {
+    if (publicSignals[PS.VALID] !== '1') {
       throw new Error('ZK-SNARK output invalid — biometric similarity check failed inside circuit');
     }
     console.log('✅ Circuit output valid = 1');
 
     // =====================================================
     // STEP 3: Nullifier consistency check
-    //   The nullifier embedded in the proof (publicSignals[3])
-    //   must match the submitted nullifier parameter.
     // =====================================================
-    if (publicSignals[3] !== nullifier) {
+    if (publicSignals[PS.NULLIFIER] !== nullifier) {
       throw new Error('Nullifier mismatch — submitted nullifier does not match proof public signal');
     }
     console.log('✅ Nullifier matches proof');
 
     // =====================================================
     // STEP 4: Merkle root validation
-    //   Rebuild the Merkle tree from on-chain commitments
-    //   and verify the proof's merkleRoot (publicSignals[2])
-    //   matches the current on-chain state.
+    //   Compare with the root maintained incrementally at
+    //   registration: O(1) per vote instead of rebuilding the
+    //   tree from every commitment (O(N·L)).
     // =====================================================
-    const commitmentsKey = bioType === 'iris' ? 'GLOBAL_IRIS_COMMITMENTS' : 'GLOBAL_COMMITMENTS';
-    const commitmentsBytes = await ctx.stub.getState(commitmentsKey);
-    
-    if (!commitmentsBytes || commitmentsBytes.length === 0) {
+    const tree = await this._treeState(ctx, bioType);
+    if (tree.nextIndex === 0) {
       throw new Error('No registered commitments found on-chain');
     }
-
-    const store = JSON.parse(commitmentsBytes.toString());
-    const commitmentValues = store.commitments.map(c => c.value);
-
-    // Rebuild sparse Merkle tree root on-chain
-    const onChainRoot = await this.buildMerkleTreeOnChain(commitmentValues);
-    const proofMerkleRoot = BigInt(publicSignals[2]);
+    const onChainRoot = BigInt(tree.root);
+    const proofMerkleRoot = BigInt(publicSignals[PS.ROOT]);
 
     if (onChainRoot !== proofMerkleRoot) {
       throw new Error(
@@ -446,39 +756,54 @@ class IdentityContract extends Contract {
     console.log('✅ Merkle root verified against on-chain commitments');
 
     // =====================================================
-    // STEP 5: ElectionId presence check
-    //   publicSignals[4] is the electionId — we verify it is
-    //   non-zero (a valid election must have a non-zero ID).
+    // STEP 5: Election binding
+    //   Any other electionId yields a fresh nullifier for the
+    //   same credential, i.e. unlimited votes on this ballot.
     // =====================================================
-    const proofElectionId = publicSignals[4];
-    if (!proofElectionId || proofElectionId === '0') {
-      throw new Error('ElectionId in proof is missing or zero');
+    if (publicSignals[PS.ELECTION_ID] !== ballot.electionId) {
+      throw new Error('ElectionId in proof does not belong to this ballot');
     }
-    console.log(`✅ ElectionId present in proof: ${proofElectionId.slice(0, 20)}...`);
+    console.log('✅ ElectionId bound to ballot');
 
     // =====================================================
-    // STEP 6: Double-vote check via nullifier
+    // STEP 5b: Sensor attestation
+    //   The circuit verified an EdDSA signature by a key in the
+    //   registry with this root; it must be the current registry.
+    // =====================================================
+    const sensorBytes = await ctx.stub.getState('GLOBAL_SENSORS');
+    const sensorStore = sensorBytes && sensorBytes.length > 0 ? JSON.parse(sensorBytes.toString()) : { sensors: [] };
+    if (sensorStore.sensors.length === 0) {
+      throw new Error('No authorised capture devices registered');
+    }
+    if (publicSignals[PS.SENSOR_ROOT] !== (await this._sensorRoot(sensorStore)).toString()) {
+      throw new Error('Sensor registry root mismatch — live sample not attested by an authorised capture device');
+    }
+    console.log('✅ Live sample attested by an authorised capture device');
+
+    // =====================================================
+    // STEP 6 + 7: Ballot binding and well-formedness
+    // =====================================================
+    let encryptedVote;
+    try {
+      encryptedVote = JSON.parse(encryptedVoteJSON);
+    } catch (err) {
+      throw new Error('Encrypted vote is not valid JSON');
+    }
+    const binding = ballotCrypto.computeVoteBinding(ballotId, encryptedVote);
+    if (publicSignals[PS.VOTE_BINDING] !== binding.toString()) {
+      throw new Error('Vote binding mismatch — ciphertexts are not the ones this proof was made for');
+    }
+    ballotCrypto.verifyEncryptedBallot(ballot.publicKey, ballot.numOptions, encryptedVote, ballotId, nullifier);
+    console.log('✅ Ciphertexts bound to proof and well-formed (0/1 each, sum = 1)');
+
+    // =====================================================
+    // STEP 8: Double-vote check via nullifier
     // =====================================================
     const nullifierKey = `NULLIFIER_${nullifier}`;
     const existingVote = await ctx.stub.getState(nullifierKey);
-    
+
     if (existingVote && existingVote.length > 0) {
       throw new Error('Double voting detected - this identity has already voted');
-    }
-
-    // =====================================================
-    // Parse encrypted vote (if provided)
-    // =====================================================
-    let encryptedVote = null;
-    if (encryptedVoteJSON && encryptedVoteJSON.trim() !== '') {
-      try {
-        encryptedVote = JSON.parse(encryptedVoteJSON);
-        console.log('✅ Encrypted vote received and parsed');
-      } catch (err) {
-        console.log('⚠️  Warning: Could not parse encrypted vote');
-      }
-    } else {
-      console.log('⚠️  Warning: No encrypted vote provided');
     }
 
     // Use txId as the unique, conflict-free vote identifier

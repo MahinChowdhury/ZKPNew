@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { castVote, getActiveBallot } from './api';
+import { getActiveBallot, attestCapture, getSensors, getCommitments, getChainBallot, circuitArtifacts, submitVote } from './api';
+import { openCredential, startVoteSession, prepareVote } from './crypto/voterClient';
 
 export default function VoteCasting({ onVoteSuccess }) {
   const [biometricMode, setBiometricMode] = useState('face');
@@ -62,48 +63,56 @@ export default function VoteCasting({ onVoteSuccess }) {
     if (!qrCode || !bioFile) {
       setStatus({
         ...status,
-        error: `Please select both your QR Credential image and live ${biometricMode === 'face' ? 'face photo' : 'iris scan'}.`
+        error: `Please select both your credential file and live ${biometricMode === 'face' ? 'face photo' : 'iris scan'}.`
       });
       return;
     }
-    if (!voteChoice) {
-      setStatus({ ...status, error: 'Please select a candidate option.' });
+    if (!activeBallot) {
+      setStatus({ ...status, error: 'No active ballot.' });
       return;
     }
-    if (!ballotId) {
-      setStatus({ ...status, error: 'Ballot ID is required.' });
+    const choiceIndex = activeBallot.options.findIndex(o => o.name === voteChoice);
+    if (choiceIndex < 0) {
+      setStatus({ ...status, error: 'Please select a candidate option.' });
       return;
     }
 
     setStatus({ loading: true, error: null, success: null, receipt: null });
 
     try {
-      const formData = new FormData();
-      formData.append('ballotId', ballotId);
-      formData.append('password', password);
-      formData.append('qrCode', qrCode);
-      formData.append('voteChoice', voteChoice);
-      formData.append('biometricMode', biometricMode);
-
-      if (biometricMode === 'face') {
-        formData.append('faceImg', bioFile);
-      } else {
-        formData.append('irisImg', bioFile);
+      // Everything below runs on this device; only the finished transaction is sent
+      const credential = await openCredential(await qrCode.text(), password);
+      if (credential.mode !== biometricMode) {
+        throw new Error(`This credential was enrolled with ${credential.mode.toUpperCase()} — switch the mode above.`);
       }
+      const [ballot, commitments, sensors] = await Promise.all([
+        getChainBallot(activeBallot.id),
+        getCommitments(biometricMode),
+        getSensors(),
+      ]);
+      // The capture device signs the live sample for this vote session only
+      const session = await startVoteSession(credential, ballot);
+      const attestation = await attestCapture(biometricMode, bioFile, session.electionId, session.sessionCommit);
+      const tx = await prepareVote({
+        credential,
+        session,
+        attestation,
+        sensors,
+        ballot,
+        choiceIndex,
+        commitments,
+        artifacts: circuitArtifacts(biometricMode),
+      });
 
-      const res = await castVote(formData);
-      if (res.error) {
-        setStatus({ loading: false, error: res.error, success: null, receipt: null });
-      } else {
-        setStatus({
-          loading: false,
-          error: null,
-          success: 'Vote successfully cast and verified on-chain via ZK-SNARK.',
-          receipt: res
-        });
-        resetForm();
-        if (onVoteSuccess) onVoteSuccess();
-      }
+      const res = await submitVote(tx);
+      setStatus({
+        loading: false,
+        error: null,
+        success: 'Vote successfully cast and verified on-chain via ZK-SNARK.',
+        receipt: res
+      });
+      resetForm();
+      if (onVoteSuccess) onVoteSuccess();
     } catch (err) {
       setStatus({ loading: false, error: err.message || 'Voting failed.', success: null, receipt: null });
     }
@@ -145,7 +154,7 @@ export default function VoteCasting({ onVoteSuccess }) {
             <div className="receipt-box">
               <div><strong>Tx ID:</strong> <code>{status.receipt.voteId}</code></div>
               <div><strong>On-Chain Status:</strong> Verified (Groth16 ZK-SNARK)</div>
-              <div><strong>Nullifier:</strong> <code>{status.receipt.zkp?.nullifier || 'Verified'}</code></div>
+              <div><strong>Nullifier:</strong> <code>{status.receipt.nullifier ? `${status.receipt.nullifier.slice(0, 20)}...` : 'Verified'}</code></div>
             </div>
           )}
         </div>
@@ -204,10 +213,10 @@ export default function VoteCasting({ onVoteSuccess }) {
         )}
 
         <div className="form-group">
-          <label>Encrypted QR Credential Image</label>
+          <label>Encrypted Credential File</label>
           <input
             type="file"
-            accept="image/*"
+            accept=".json,application/json"
             onChange={e => setQrCode(e.target.files[0])}
             ref={qrCodeRef}
             required

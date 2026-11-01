@@ -1,0 +1,178 @@
+{
+  "encoding": "PCA-128",
+  "tau": 0.35,
+  "trials_per_target": 20,
+  "attacker_screening_model": "deployed ArcFace embedding (strongest case)",
+  "lfw": {
+    "identities": 2300,
+    "near_ties_rechecked": 0,
+    "zero_effort_pair_far": 8.8e-05,
+    "by_pool_size": {
+      "1": {
+        "trials": 46000,
+        "accepted": 2,
+        "success_rate": 4e-05
+      },
+      "10": {
+        "trials": 46000,
+        "accepted": 48,
+        "success_rate": 0.00104
+      },
+      "100": {
+        "trials": 46000,
+        "accepted": 392,
+        "success_rate": 0.00852
+      },
+      "1000": {
+        "trials": 46000,
+        "accepted": 3850,
+        "success_rate": 0.0837
+      },
+      "2299": {
+        "trials": 2300,
+        "accepted": 413,
+        "success_rate": 0.17957
+      }
+    },
+    "tau_sweep": {
+      "0.33": {
+        "test_frr": 0.00433,
+        "zero_effort_pair_far": 0.000209,
+        "by_pool_size": {
+          "10": {
+            "trials": 46000,
+            "accepted": 97,
+            "success_rate": 0.00211
+          },
+          "100": {
+            "trials": 46000,
+            "accepted": 955,
+            "success_rate": 0.02076
+          },
+          "1000": {
+            "trials": 46000,
+            "accepted": 8649,
+            "success_rate": 0.18802
+          }
+        }
+      },
+      "0.36": {
+        "test_frr": 0.0065,
+        "zero_effort_pair_far": 5.7e-05,
+        "by_pool_size": {
+          "10": {
+            "trials": 46000,
+            "accepted": 29,
+            "success_rate": 0.00063
+          },
+          "100": {
+            "trials": 46000,
+            "accepted": 257,
+            "success_rate": 0.00559
+          },
+          "1000": {
+            "trials": 46000,
+            "accepted": 2564,
+            "success_rate": 0.05574
+          }
+        }
+      },
+      "0.40": {
+        "test_frr": 0.00817,
+        "zero_effort_pair_far": 1.1e-05,
+        "by_pool_size": {
+          "10": {
+            "trials": 46000,
+            "accepted": 6,
+            "success_rate": 0.00013
+          },
+          "100": {
+            "trials": 46000,
+            "accepted": 60,
+            "success_rate": 0.0013
+          },
+          "1000": {
+            "trials": 46000,
+            "accepted": 467,
+            "success_rate": 0.01015
+          }
+        }
+      },
+      "0.45": {
+        "test_frr": 0.0165,
+        "zero_effort_pair_far": 2e-06,
+        "by_pool_size": {
+          "10": {
+            "trials": 46000,
+            "accepted": 2,
+            "success_rate": 4e-05
+          },
+          "100": {
+            "trials": 46000,
+            "accepted": 12,
+            "success_rate": 0.00026
+          },
+          "1000": {
+            "trials": 46000,
+            "accepted": 99,
+            "success_rate": 0.00215
+          }
+        }
+      }
+    }
+  },
+  "celeba": {
+    "identities": 2000,
+    "near_ties_rechecked": 0,
+    "zero_effort_pair_far": 0.000158,
+    "by_pool_size": {
+      "1": {
+        "trials": 40000,
+        "accepted": 4,
+        "success_rate": 0.0001
+      },
+      "10": {
+        "trials": 40000,
+        "accepted": 64,
+        "success_rate": 0.0016
+      },
+      "100": {
+        "trials": 40000,
+        "accepted": 661,
+        "success_rate": 0.01653
+      },
+      "1000": {
+        "trials": 40000,
+        "accepted": 5641,
+        "success_rate": 0.14103
+      },
+      "1999": {
+        "trials": 2000,
+        "accepted": 509,
+        "success_rate": 0.2545
+      }
+    },
+    "same_gender_by_pool_size": {
+      "1": {
+        "trials": 40000,
+        "accepted": 12,
+        "success_rate": 0.0003
+      },
+      "10": {
+        "trials": 40000,
+        "accepted": 84,
+        "success_rate": 0.0021
+      },
+      "100": {
+        "trials": 40000,
+        "accepted": 927,
+        "success_rate": 0.02318
+      },
+      "1000": {
+        "trials": 22440,
+        "accepted": 5739,
+        "success_rate": 0.25575
+      }
+    }
+  }
+}

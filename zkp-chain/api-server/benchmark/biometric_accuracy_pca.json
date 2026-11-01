@@ -1,0 +1,62 @@
+{
+  "encoding": "PCA-64 fitted on the LFW training split (deployed)",
+  "train_images": 7762,
+  "test_images": 5471,
+  "n_genuine": 6000,
+  "n_impostor": 6000,
+  "lfw": {
+    "eer": 0.04383,
+    "ci95": [
+      0.04017,
+      0.04775
+    ]
+  },
+  "circuit_op": {
+    "far": 0.00183,
+    "frr": 0.2075,
+    "tau": 0.5,
+    "sigma": 1000000
+  },
+  "pca_dim_sweep": {
+    "16": 0.0745,
+    "32": 0.052,
+    "48": 0.04458,
+    "64": 0.04383,
+    "80": 0.04383,
+    "96": 0.04383,
+    "112": 0.04383
+  },
+  "inversion": {
+    "mean_cosine_to_true": 0.9998,
+    "impersonation_eer": 0.04675
+  },
+  "celeba": {
+    "eer": 0.08091,
+    "ci95": [
+      0.07607,
+      0.08591
+    ],
+    "embedded": [
+      39715,
+      39733
+    ]
+  },
+  "fairness": {
+    "male": {
+      "eer": 0.07927,
+      "ci95": [
+        0.07359,
+        0.08378
+      ],
+      "n_identities": 878
+    },
+    "female": {
+      "eer": 0.10468,
+      "ci95": [
+        0.09892,
+        0.11001
+      ],
+      "n_identities": 1122
+    }
+  }
+}

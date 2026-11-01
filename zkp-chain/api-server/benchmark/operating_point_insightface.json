@@ -1,0 +1,109 @@
+{
+  "label": "insightface",
+  "cache": "face_embeddings_insightface_buffalo_l",
+  "far_target": 0.001,
+  "frr_target": 0.01,
+  "validation": {
+    "fit_identities": 2586,
+    "select_identities": 863,
+    "genuine_pairs": 2422,
+    "impostor_pairs": 200000
+  },
+  "test": {
+    "genuine_pairs": 6000,
+    "impostor_pairs": 200000
+  },
+  "per_dim": {
+    "32": {
+      "tau": 0.55,
+      "val_frr": 0.11396,
+      "tau_num": 3025,
+      "tau_den": 10000,
+      "test_far": 0.0006,
+      "test_frr": 0.09783,
+      "test_false_accepts": 121
+    },
+    "48": {
+      "tau": 0.45,
+      "val_frr": 0.04046,
+      "tau_num": 2025,
+      "tau_den": 10000,
+      "test_far": 0.00096,
+      "test_frr": 0.0255,
+      "test_false_accepts": 192
+    },
+    "64": {
+      "tau": 0.4,
+      "val_frr": 0.02147,
+      "tau_num": 1600,
+      "tau_den": 10000,
+      "test_far": 0.00081,
+      "test_frr": 0.01133,
+      "test_false_accepts": 163
+    },
+    "80": {
+      "tau": 0.36,
+      "val_frr": 0.01156,
+      "tau_num": 1296,
+      "tau_den": 10000,
+      "test_far": 0.00093,
+      "test_frr": 0.00633,
+      "test_false_accepts": 185
+    },
+    "96": {
+      "tau": 0.33,
+      "val_frr": 0.00537,
+      "tau_num": 1089,
+      "tau_den": 10000,
+      "test_far": 0.00112,
+      "test_frr": 0.00467,
+      "test_false_accepts": 224
+    },
+    "112": {
+      "tau": 0.31,
+      "val_frr": 0.00454,
+      "tau_num": 961,
+      "tau_den": 10000,
+      "test_far": 0.00101,
+      "test_frr": 0.00333,
+      "test_false_accepts": 201
+    },
+    "128": {
+      "tau": 0.29,
+      "val_frr": 0.00124,
+      "tau_num": 841,
+      "tau_den": 10000,
+      "test_far": 0.00104,
+      "test_frr": 0.00333,
+      "test_false_accepts": 209
+    },
+    "160": {
+      "tau": 0.27,
+      "val_frr": 0.00083,
+      "tau_num": 729,
+      "tau_den": 10000,
+      "test_far": 0.00081,
+      "test_frr": 0.00183,
+      "test_false_accepts": 162
+    },
+    "192": {
+      "tau": 0.25,
+      "val_frr": 0.0,
+      "tau_num": 625,
+      "tau_den": 10000,
+      "test_far": 0.00092,
+      "test_frr": 0.00167,
+      "test_false_accepts": 183
+    },
+    "256": {
+      "tau": 0.23,
+      "val_frr": 0.0,
+      "tau_num": 529,
+      "tau_den": 10000,
+      "test_far": 0.00082,
+      "test_frr": 0.00167,
+      "test_false_accepts": 164
+    }
+  },
+  "selected_dim": 96
+}
