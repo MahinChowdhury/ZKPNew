@@ -1,0 +1,169 @@
+{
+ "fixed": [
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/poseidon.circom`.",
+   "loc": "face_auth.circom:10"
+  },
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/comparators.circom`.",
+   "loc": "face_auth.circom:11"
+  },
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/bitify.circom`.",
+   "loc": "face_auth.circom:12"
+  },
+  {
+   "level": "warning",
+   "message": "Using `Num2Bits` to convert field elements to bits may lead to aliasing issues.",
+   "loc": "face_auth.circom:67"
+  },
+  {
+   "level": "warning",
+   "message": "Intermediate signals should typically occur in at least two separate constraints.",
+   "loc": "face_auth.circom:233"
+  }
+ ],
+ "P1_free_live_witness": [
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/poseidon.circom`.",
+   "loc": "face_auth.circom:10"
+  },
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/comparators.circom`.",
+   "loc": "face_auth.circom:11"
+  },
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/bitify.circom`.",
+   "loc": "face_auth.circom:12"
+  },
+  {
+   "level": "warning",
+   "message": "The parameter `sensorLevels` is never read.",
+   "loc": "face_auth.circom:122"
+  },
+  {
+   "level": "warning",
+   "message": "Intermediate signals should typically occur in at least two separate constraints.",
+   "loc": "face_auth.circom:201"
+  },
+  {
+   "level": "warning",
+   "message": "Using `Num2Bits` to convert field elements to bits may lead to aliasing issues.",
+   "loc": "face_auth.circom:67"
+  }
+ ],
+ "P2_public_threshold": [
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/poseidon.circom`.",
+   "loc": "face_auth.circom:10"
+  },
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/comparators.circom`.",
+   "loc": "face_auth.circom:11"
+  },
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/bitify.circom`.",
+   "loc": "face_auth.circom:12"
+  },
+  {
+   "level": "warning",
+   "message": "Intermediate signals should typically occur in at least two separate constraints.",
+   "loc": "face_auth.circom:282"
+  },
+  {
+   "level": "warning",
+   "message": "Using `Num2Bits` to convert field elements to bits may lead to aliasing issues.",
+   "loc": "face_auth.circom:134"
+  },
+  {
+   "level": "warning",
+   "message": "Using `Num2Bits` to convert field elements to bits may lead to aliasing issues.",
+   "loc": "face_auth.circom:67"
+  }
+ ],
+ "P3_path_bits": [
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/poseidon.circom`.",
+   "loc": "face_auth.circom:10"
+  },
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/comparators.circom`.",
+   "loc": "face_auth.circom:11"
+  },
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/bitify.circom`.",
+   "loc": "face_auth.circom:12"
+  },
+  {
+   "level": "warning",
+   "message": "Using `Num2Bits` to convert field elements to bits may lead to aliasing issues.",
+   "loc": "face_auth.circom:67"
+  },
+  {
+   "level": "warning",
+   "message": "Intermediate signals should typically occur in at least two separate constraints.",
+   "loc": "face_auth.circom:233"
+  }
+ ],
+ "P4_no_range_checks": [
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/poseidon.circom`.",
+   "loc": "face_auth.circom:10"
+  },
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/comparators.circom`.",
+   "loc": "face_auth.circom:11"
+  },
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/bitify.circom`.",
+   "loc": "face_auth.circom:12"
+  },
+  {
+   "level": "warning",
+   "message": "Intermediate signals should typically occur in at least two separate constraints.",
+   "loc": "face_auth.circom:223"
+  }
+ ],
+ "P5_unbound_public_inputs": [
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/poseidon.circom`.",
+   "loc": "face_auth.circom:10"
+  },
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/comparators.circom`.",
+   "loc": "face_auth.circom:11"
+  },
+  {
+   "level": "error",
+   "message": "Failed to open file `node_modules/circomlib/circuits/bitify.circom`.",
+   "loc": "face_auth.circom:12"
+  },
+  {
+   "level": "warning",
+   "message": "The signal `voteBinding` is not used by the template.",
+   "loc": "face_auth.circom:129"
+  },
+  {
+   "level": "warning",
+   "message": "Using `Num2Bits` to convert field elements to bits may lead to aliasing issues.",
+   "loc": "face_auth.circom:67"
+  }
+ ]
+}

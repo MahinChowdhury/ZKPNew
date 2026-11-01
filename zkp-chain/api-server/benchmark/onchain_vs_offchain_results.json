@@ -1,6 +1,6 @@
 {
   "meta": {
-    "date": "2026-07-24T10:03:43.697Z",
+    "date": "2026-11-01T07:36:51.561Z",
     "platform": "Linux x64",
     "iterations": 30,
     "warmup": 5,
@@ -8,47 +8,47 @@
   },
   "face": {
     "offchain": {
-      "mean": 2.231,
-      "sd": 0.075,
-      "min": 2.1,
-      "max": 2.47,
-      "p95": 2.367,
-      "ciLower": 2.204,
-      "ciUpper": 2.258
+      "mean": 2.134,
+      "sd": 0.035,
+      "min": 2.108,
+      "max": 2.297,
+      "p95": 2.184,
+      "ciLower": 2.122,
+      "ciUpper": 2.147
     },
     "onchain": {
-      "mean": 31.645,
-      "sd": 5.705,
-      "min": 24.726,
-      "max": 48.51,
-      "p95": 45.621,
-      "ciLower": 29.603,
-      "ciUpper": 33.686
+      "mean": 14.992,
+      "sd": 0.571,
+      "min": 14.125,
+      "max": 16.517,
+      "p95": 16.143,
+      "ciLower": 14.788,
+      "ciUpper": 15.196
     },
-    "overhead_ms": 29.414,
-    "overhead_pct": 1318.42
+    "overhead_ms": 12.858,
+    "overhead_pct": 602.53
   },
   "iris": {
     "offchain": {
-      "mean": 2.237,
-      "sd": 0.068,
-      "min": 2.145,
-      "max": 2.439,
-      "p95": 2.419,
-      "ciLower": 2.212,
-      "ciUpper": 2.261
+      "mean": 2.141,
+      "sd": 0.044,
+      "min": 2.106,
+      "max": 2.307,
+      "p95": 2.287,
+      "ciLower": 2.125,
+      "ciUpper": 2.156
     },
     "onchain": {
-      "mean": 31.427,
-      "sd": 5.791,
-      "min": 22.907,
-      "max": 50.219,
-      "p95": 41.155,
-      "ciLower": 29.354,
-      "ciUpper": 33.499
+      "mean": 14.914,
+      "sd": 0.895,
+      "min": 13.905,
+      "max": 17.349,
+      "p95": 17.178,
+      "ciLower": 14.594,
+      "ciUpper": 15.234
     },
-    "overhead_ms": 29.19,
-    "overhead_pct": 1304.87
+    "overhead_ms": 12.773,
+    "overhead_pct": 596.59
   },
   "security": {
     "offchain_accepted": 100,

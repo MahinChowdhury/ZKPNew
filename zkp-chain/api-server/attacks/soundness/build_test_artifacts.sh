@@ -49,8 +49,9 @@ build() {
 }
 
 case "${1:-all}" in
-    face) build face_auth ;;
-    iris) build iris_auth ;;
-    all)  build face_auth; build iris_auth ;;
-    *)    echo "usage: $0 [face|iris|all]"; exit 1 ;;
+    face)   build face_auth ;;
+    iris)   build iris_auth ;;
+    enroll) build enroll_auth ;;
+    all)    build face_auth; build iris_auth; build enroll_auth ;;
+    *)      echo "usage: $0 [face|iris|enroll|all]"; exit 1 ;;
 esac

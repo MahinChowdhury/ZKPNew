@@ -1,0 +1,19 @@
+{
+ "date": "2026-11-01T10:28:35.426Z",
+ "device": "Iphone 15",
+ "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3 Mobile/15E148 Safari/604.1",
+ "hardware_concurrency": 4,
+ "device_memory_gb": null,
+ "circuit": "face_auth (PCA-128, production keys)",
+ "zkey_bytes": 12947945,
+ "runs": 5,
+ "prove_ms": [
+  2174.000000000002,
+  2216,
+  2216.000000000002,
+  2262.9999999999964,
+  2242
+ ],
+ "prove_ms_mean": 2222.2,
+ "prove_ms_ci95": 29.258539676475735
+}

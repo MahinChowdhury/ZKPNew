@@ -53,6 +53,22 @@ export function electionIdFor(ballotId) {
 }
 
 // ------------------------------------------------------------
+// Attested enrollment (enroll_auth.circom, FINDINGS C26)
+// ------------------------------------------------------------
+// Election slot of an enrollment attestation: no electionId (< 2^128) equals it
+export const ENROLL_DOMAIN = 1n << 200n;
+
+// NID binding of an enrollment: first 248 bits of SHA256(nidHash), as the chaincode derives it
+export function nidFieldFor(nidHash) {
+  return BigInt("0x" + sha256Hex(String(nidHash)).slice(0, 62));
+}
+
+// What the enrollment kiosk binds its signature to, in SensorAttestation's session slot
+export async function enrollmentSessionCommit(nidHash) {
+  return H(nidFieldFor(nidHash), 0n);
+}
+
+// ------------------------------------------------------------
 // Biometric templates (circuit encoding)
 // ------------------------------------------------------------
 export function scaleEmbedding(floats) {
@@ -82,26 +98,44 @@ export function toTemplate(mode, raw) {
   return mode === "face" ? scaleEmbedding(raw) : downsampleIrisCode(raw.irisCode, raw.noiseMask);
 }
 
+// PackedCoordHash(d, 19): offset coordinates x + 2^19 take 20-bit slots,
+// floor(253 / 20) = 12 slots per field element, then one Poseidon per 16 elements.
+const FACE_COORD_BITS = 19n;
+const FACE_SLOTS = 12;
+
+async function packedCoordHash(template) {
+  const off = 1n << FACE_COORD_BITS;
+  const packed = [];
+  for (let e = 0; e * FACE_SLOTS < template.length; e++) {
+    let v = 0n;
+    for (let j = 0; j < FACE_SLOTS && e * FACE_SLOTS + j < template.length; j++) {
+      const x = BigInt(template[e * FACE_SLOTS + j]);
+      if (x < -off || x >= off) throw new Error(`Face coordinate ${x} outside the circuit range`);
+      v += (x + off) << ((FACE_COORD_BITS + 1n) * BigInt(j));
+    }
+    packed.push(v);
+  }
+  if (packed.length <= 16) return H(...packed);
+  const groups = [];
+  for (let q = 0; q < packed.length; q += 16) groups.push(await H(...packed.slice(q, q + 16)));
+  return H(...groups);
+}
+
 /**
  * Unsalted digest of a template, exactly as the circuit computes it
- * (PoseidonHashChunked for face, PackedBitsHash for iris). The capture
+ * (PackedCoordHash for face, PackedBitsHash for iris). The capture
  * device signs this for the live sample.
  */
 export async function templateDigest(mode, template) {
-  const chunks = [];
-  if (mode === "face") {
-    // PoseidonHashChunked(d, 8) with d/8 <= 16 chunks (one final Poseidon)
-    if (template.length % 8 || template.length > 128) throw new Error(`Unsupported face dimension ${template.length}`);
-    for (let i = 0; i < template.length / 8; i++) chunks.push(await H(...template.slice(i * 8, i * 8 + 8)));
-  } else {
-    const packed = [];
-    for (let i = 0; i < 32; i++) {
-      let v = 0n;
-      for (let j = 0; j < 8; j++) v += BigInt(template[i * 8 + j]) << BigInt(j);
-      packed.push(v);
-    }
-    for (let i = 0; i < 4; i++) chunks.push(await H(...packed.slice(i * 8, i * 8 + 8)));
+  if (mode === "face") return packedCoordHash(template);
+  const packed = [];
+  for (let i = 0; i < 32; i++) {
+    let v = 0n;
+    for (let j = 0; j < 8; j++) v += BigInt(template[i * 8 + j]) << BigInt(j);
+    packed.push(v);
   }
+  const chunks = [];
+  for (let i = 0; i < 4; i++) chunks.push(await H(...packed.slice(i * 8, i * 8 + 8)));
   return H(...chunks);
 }
 
@@ -279,6 +313,44 @@ export async function startVoteSession(credential, ballot) {
     sessionNonce: sessionNonce.toString(),
     sessionCommit: sessionCommit.toString(),
   };
+}
+
+/**
+ * Prove that a face credential's commitment opens to the template a
+ * registered enrollment kiosk captured for this NID (enroll_auth.circom).
+ * The credential must have been created from attestation.template.
+ * Returns { proof, publicSignals } for the RA's register transaction.
+ */
+export async function proveEnrollment({ credential, attestation, sensors, nidHash, artifacts }) {
+  if (credential.mode !== "face") throw new Error("Attested enrollment is implemented for face only");
+  if (attestation.template.some((x, i) => String(x) !== credential.template[i])) {
+    throw new Error("Credential template differs from the attested enrollment capture");
+  }
+  const sensorLeaves = [];
+  for (const s of sensors) sensorLeaves.push(await H(s.ax, s.ay));
+  const sensorPath = await merklePath(
+    sensorLeaves, await H(attestation.sensorPublicKey.ax, attestation.sensorPublicKey.ay), SENSOR_LEVELS,
+    "The enrollment kiosk that signed this capture is not an authorised device");
+  const input = {
+    commitment: credential.commitment,
+    nidField: nidFieldFor(nidHash).toString(),
+    sensorRoot: sensorPath.root.toString(),
+    enrolled: credential.template.map((x) => mod(BigInt(x)).toString()),
+    salt: credential.salt,
+    secretKey: credential.sk,
+    sensorAx: String(attestation.sensorPublicKey.ax),
+    sensorAy: String(attestation.sensorPublicKey.ay),
+    sigR8x: String(attestation.signature.R8x),
+    sigR8y: String(attestation.signature.R8y),
+    sigS: String(attestation.signature.S),
+    sensorPathElements: sensorPath.pathElements.map(String),
+    sensorPathIndices: sensorPath.pathIndices.map(String),
+  };
+  try {
+    return await snarkjs.groth16.fullProve(input, artifacts.wasm, artifacts.zkey);
+  } catch (err) {
+    throw new Error(`Enrollment capture attestation is invalid (proof could not be generated): ${err.message}`);
+  }
 }
 
 /**

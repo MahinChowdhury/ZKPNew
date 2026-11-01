@@ -1,0 +1,24 @@
+{
+ "date": "2026-11-01T09:08:01.145384Z",
+ "prover": "snarkjs WASM (Node)",
+ "results": [
+  {
+   "dim": 128,
+   "runs": 10,
+   "constraints": 19516,
+   "prove_ms_mean": 847.1614474,
+   "prove_ms_ci95": 12.983307849801514,
+   "zkey_bytes": 12947931,
+   "peak_rss_bytes": 920829952
+  },
+  {
+   "dim": 512,
+   "runs": 10,
+   "constraints": 38992,
+   "prove_ms_mean": 1556.6876846999999,
+   "prove_ms_ci95": 21.199377367260322,
+   "zkey_bytes": 27724019,
+   "peak_rss_bytes": 1117724672
+  }
+ ]
+}

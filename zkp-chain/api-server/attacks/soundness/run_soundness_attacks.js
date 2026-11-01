@@ -33,10 +33,16 @@ const NUM_OPTIONS = 2;
 async function setupWorld() {
   const contract = h.loadContract();
   const { ctx, state } = h.makeLedger();
+  // One authorised capture device, registered by the RA (face enrollment needs its signature)
+  const signer = await loadSigner();
+  await h.quiet(() => contract.registerSensor(ctx, signer.publicKey.ax, signer.publicKey.ay));
+  const sensorTree = await h.buildTree([await h.H(signer.publicKey.ax, signer.publicKey.ay)], h.SENSOR_LEVELS);
+  const sensor = { signer, tree: sensorTree, index: 0 };
+
   const face = [], iris = [];
   for (let i = 0; i < 4; i++) {
     const v = await h.makeFaceVoter();
-    await h.quiet(() => contract.register(ctx, `nid-face-${i}`, v.commitment.toString()));
+    await h.registerFace(contract, ctx, `nid-face-${i}`, v, sensor);
     face.push(v);
   }
   for (let i = 0; i < 4; i++) {
@@ -53,11 +59,6 @@ async function setupWorld() {
   const faceTree = await h.buildTree(face.map((v) => v.commitment));
   const irisTree = await h.buildTree(iris.map((v) => v.commitment));
 
-  // One authorised capture device, registered by the RA
-  const signer = await loadSigner();
-  await h.quiet(() => contract.registerSensor(ctx, signer.publicKey.ax, signer.publicKey.ay));
-  const sensorTree = await h.buildTree([await h.H(signer.publicKey.ax, signer.publicKey.ay)], h.SENSOR_LEVELS);
-  const sensor = { signer, tree: sensorTree, index: 0 };
 
   return { contract, ctx, state, face, iris, faceTree, irisTree, keypair, ballots, sensor };
 }
@@ -71,6 +72,41 @@ function flipBits(bits, n) {
 }
 
 const genuineLive = (v) => (v.kind === "face" ? h.noisyCopy(v.template) : flipBits(v.template, 20));
+
+// ------------------------------------------------------------
+// Packing alias (A24): PackedCoordHash packs 12 offset coordinates per
+// field element in 20-bit slots. Moving 2^20·c out of slot j and c into
+// slot j+1 leaves the packed element unchanged, so with c chosen from the
+// attacker's face the "registered" template points at the attacker while
+// hashing to the victim's digest. Only the coordinate range checks stop it.
+// ------------------------------------------------------------
+let _alias;
+function packingAlias(w) {
+  if (_alias) return _alias;
+  const victim = w.face[3];
+  const attacker = h.randomUnitEmbedding();
+  const T = victim.template, n = T.length, MU = 1n << 40n, SLOT = 1n << 20n;
+  const div = (a, b) => (a >= 0n ? (a + b / 2n) / b : -((-a + b / 2n) / b));
+  const alias = new Array(n);
+  for (let e = 0; e * 12 < n; e++) {
+    const slots = Math.min(12, n - e * 12);
+    let carry = 0n;
+    for (let j = 0; j < slots; j++) {
+      const i = e * 12 + j;
+      const c = j === slots - 1 ? 0n : -div(MU * attacker[i], SLOT);   // last slot of an element cannot carry out
+      alias[i] = T[i] - SLOT * c + carry;
+      carry = c;
+    }
+  }
+  return (_alias = { victim, attacker, alias });
+}
+
+// floor(1000 · cos^2(a, b)) in exact integer arithmetic
+function cosineSquaredMilli(a, b) {
+  const dot = a.reduce((s, x, i) => s + x * b[i], 0n);
+  const na = a.reduce((s, x) => s + x * x, 0n), nb = b.reduce((s, x) => s + x * x, 0n);
+  return (1000n * dot * dot) / (na * nb);
+}
 
 /**
  * Build and prove a vote the way a (possibly malicious) client would.
@@ -87,6 +123,7 @@ async function buildVote(w, v, ballotId, opts = {}) {
     : homomorphic.encryptBallot(w.keypair.keyOf(ballotId), NUM_OPTIONS, opts.choice ?? 0, ballotId, nullifier);
   const vote = await h.proveVote(v, {
     live: opts.live ?? genuineLive(v),
+    registered: opts.registered,
     electionId,
     root: treeOf(w, v).root,
     path: opts.path ?? (await h.merklePath(treeOf(w, v), opts.index)),
@@ -234,6 +271,25 @@ const attacks = [
     })),
   },
   {
+    id: "A24-base", finding: "-", expect: "ACCEPTED",
+    title: "Control: a carry-aliased template has the victim's digest and matches the attacker's face",
+    run: async (w) => {
+      const { victim, attacker, alias } = packingAlias(w);
+      if ((await h.faceDigestOf(alias)) !== (await h.faceDigestOf(victim.template))) throw new Error("digests differ");
+      const cos = cosineSquaredMilli(attacker, alias);
+      if (cos * 10000n < 1225n * 1000n) throw new Error(`cos^2 = ${cos}/1000 below threshold`);
+      return { detail: `same digest; cos^2(attacker, alias) = ${Number(cos) / 1000} (needs 0.1225); only the range checks stop it` };
+    },
+  },
+  {
+    id: "A24", finding: "packing",
+    title: "Stolen credential + attacker's own attested face: open the commitment with a carry-aliased template",
+    run: async (w) => {
+      const { victim, attacker, alias } = packingAlias(w);
+      return submit(w, await buildVote(w, victim, BALLOT_B, { index: 3, live: attacker, registered: alias }));
+    },
+  },
+  {
     id: "A6", finding: "C6",
     title: "Credential holder votes with no live capture: live := registered, self-signed with an unregistered key",
     run: async (w) => {
@@ -343,13 +399,66 @@ const attacks = [
     },
   },
   {
+    id: "A25", finding: "C26",
+    title: "Credential transfer at enrollment: B enrolls a commitment to A's face under B's NID, then A votes as B",
+    run: async (w) => {
+      const a = await h.makeFaceVoter();                      // A: the person who will actually vote
+      const nidB = `nid-transfer-${Date.now()}`;               // B's identity, checked by the RA
+      // Best enrollment evidence the colluders can get: A's face attested at A's own enrollment
+      const extra = h.enrollmentProof ? await h.enrollmentProof(a, `nid-of-A-${Date.now()}`, w.sensor) : [];
+      await h.quiet(() => w.contract.register(w.ctx, nidB, a.commitment.toString(), ...extra));
+      const all = JSON.parse(await h.quiet(() => w.contract.getCommitments(w.ctx))).map((c) => BigInt(c.value ?? c));
+      const tree = await h.buildTree(all);
+      w.faceTree = tree;   // the on-chain root moved; later attacks must prove against it
+      const index = all.findIndex((c) => c === BigInt(a.commitment));
+      const electionId = h.electionIdFor(BALLOT_B);
+      const nullifier = h.fieldStr(await h.nullifierOf(a, electionId));
+      const enc = homomorphic.encryptBallot(w.keypair.keyOf(BALLOT_B), NUM_OPTIONS, 0, BALLOT_B, nullifier);
+      const vote = await h.proveVote(a, {
+        live: h.noisyCopy(a.template), electionId, root: tree.root, path: await h.merklePath(tree, index),
+        voteBinding: homomorphic.computeVoteBinding(BALLOT_B, enc), sensor: w.sensor,
+      });
+      return submit(w, { ...vote, enc, ballotId: BALLOT_B, kind: "face" });
+    },
+  },
+  {
+    id: "A26", finding: "C26",
+    title: "Enroll A's face under B's NID with a vote-time kiosk signature (election slot instead of the enrollment domain)",
+    run: async (w) => {
+      const a = await h.makeFaceVoter();
+      const nidB = `nid-votecapture-${Date.now()}`;
+      const extra = await h.enrollmentProof(a, nidB, w.sensor, { domain: h.electionIdFor(BALLOT_B) });
+      return JSON.parse(await h.quiet(() => w.contract.register(w.ctx, nidB, a.commitment.toString(), ...extra)));
+    },
+  },
+  {
+    id: "A27", finding: "C26",
+    title: "RA registers a face commitment with no enrollment proof (pre-fix register call)",
+    run: async (w) => {
+      const a = await h.makeFaceVoter();
+      return JSON.parse(await h.quiet(() => w.contract.register(w.ctx, `nid-noproof-${Date.now()}`, a.commitment.toString())));
+    },
+  },
+  {
+    id: "A25-control", finding: "-", expect: "ACCEPTED",
+    title: "Control: an honest attested enrollment is accepted",
+    run: async (w) => {
+      const v = await h.makeFaceVoter();
+      const r = await h.registerFace(w.contract, w.ctx, `nid-honest-${Date.now()}`, v, w.sensor);
+      const all = JSON.parse(await h.quiet(() => w.contract.getCommitments(w.ctx))).map((c) => BigInt(c.value ?? c));
+      w.faceTree = await h.buildTree(all);   // the on-chain root moved
+      return { detail: r };
+    },
+  },
+  {
     id: "A10", finding: "C18",
     title: "Non-RA Fabric identity registers a phantom voter, which then votes",
     run: async (w) => {
       const { ctx: rogueCtx } = h.makeLedger("RogueMSP");
       rogueCtx.stub = w.ctx.stub; // same ledger, different client identity
       const phantom = await h.makeFaceVoter();
-      await h.quiet(() => w.contract.register(rogueCtx, "nid-phantom", phantom.commitment.toString()));
+      // Even with a valid kiosk-attested enrollment proof, only the RA's MSP may enrol
+      await h.registerFace(w.contract, rogueCtx, "nid-phantom", phantom, w.sensor);
       const all = JSON.parse(await h.quiet(() => w.contract.getCommitments(w.ctx)));
       w.faceTree = await h.buildTree(all);
       return submit(w, await buildVote(w, phantom, BALLOT_B, {

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { extractBiometric, registerCommitment } from './api';
-import { createCredential, sealCredential, toTemplate } from './crypto/voterClient';
+import { extractBiometric, registerCommitment, attestEnrollment, getSensors, circuitArtifacts } from './api';
+import { createCredential, sealCredential, toTemplate, proveEnrollment } from './crypto/voterClient';
 
 export default function Register({ onRegistrationSuccess }) {
   const [biometricMode, setBiometricMode] = useState('face');
@@ -54,13 +54,32 @@ export default function Register({ onRegistrationSuccess }) {
     }
     setStatus({ loading: true, error: null, success: null });
     try {
-      // Template, salt and secret key are created here and never sent anywhere
-      const reading = await extractBiometric(biometricMode, bioFile);
-      const credential = await createCredential(biometricMode, toTemplate(biometricMode, reading));
+      // Salt and secret key are created here and never sent anywhere
+      let credential, enrollment = {};
+      if (biometricMode === 'face') {
+        // Supervised kiosk signs the captured template for this NID; the
+        // credential is built from exactly that template and the client
+        // proves its commitment opens to it (enroll_auth.circom)
+        const attestation = await attestEnrollment(bioFile, nidNumber);
+        credential = await createCredential('face', attestation.template);
+        const sensors = await getSensors();
+        const t0 = performance.now();
+        const { proof, publicSignals } = await proveEnrollment({
+          credential, attestation, sensors, nidHash: attestation.nidHash,
+          artifacts: circuitArtifacts('enroll'),
+        });
+        // Enrollment proving time (ms), local only; read by benchmark/bench_browser.py
+        console.info('bbzkv-enroll-ms ' + (performance.now() - t0));
+        enrollment = { enrollProof: proof, enrollSignals: publicSignals };
+      } else {
+        const reading = await extractBiometric(biometricMode, bioFile);
+        credential = await createCredential(biometricMode, toTemplate(biometricMode, reading));
+      }
       const sealed = await sealCredential(credential, password);
 
-      // The RA receives only the NID (for deduplication) and the commitment
-      await registerCommitment(nidNumber, biometricMode, credential.commitment);
+      // The RA receives only the NID (for deduplication), the commitment and
+      // (face) the enrollment proof
+      await registerCommitment(nidNumber, biometricMode, credential.commitment, enrollment);
 
       downloadCredential(sealed, biometricMode);
       setStatus({

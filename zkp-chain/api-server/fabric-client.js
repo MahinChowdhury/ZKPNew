@@ -117,13 +117,14 @@ class FabricClient {
   // ============================
 
   /**
-   * Register a new voter by adding commitment to the global Merkle tree
+   * Register a new voter by adding commitment to the global Merkle tree.
+   * enrollProofJSON / enrollSignalsJSON: attested-enrollment proof (enroll_auth.circom)
    */
-  async registerUser(nidHash, commitment) {
+  async registerUser(nidHash, commitment, enrollProofJSON, enrollSignalsJSON) {
     try {
       const channel = this.routeChannel(nidHash);
       const contract = await this.getContract(channel);
-      const result = await contract.submitTransaction('register', nidHash, commitment);
+      const result = await contract.submitTransaction('register', nidHash, commitment, enrollProofJSON, enrollSignalsJSON);
       return JSON.parse(result.toString());
     } catch (error) {
       throw error;

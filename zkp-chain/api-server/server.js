@@ -48,6 +48,8 @@ const CIRCUIT_ARTIFACTS = {
   "face_auth.zkey": path.join(CIRCUITS_DIR, "face_auth.zkey"),
   "iris_auth.wasm": path.join(CIRCUITS_DIR, "iris_auth_js", "iris_auth.wasm"),
   "iris_auth.zkey": path.join(CIRCUITS_DIR, "iris_auth.zkey"),
+  "enroll_auth.wasm": path.join(CIRCUITS_DIR, "enroll_auth_js", "enroll_auth.wasm"),
+  "enroll_auth.zkey": path.join(CIRCUITS_DIR, "enroll_auth.zkey"),
 };
 app.get("/circuits/:file", (req, res) => {
   const file = CIRCUIT_ARTIFACTS[req.params.file];
@@ -233,7 +235,7 @@ async function startServer() {
       console.log(`   POST /api/v1/tally/setup/:ballotId - Setup homomorphic encryption`);
       console.log(`   POST /api/v1/vote - Relay a client-built vote (proof, nullifier, ciphertexts)`);
       console.log(`   GET  /api/v1/ballot/:ballotId/chain - On-chain ballot key for client encryption`);
-      console.log(`   GET  /circuits/{face,iris}_auth.{wasm,zkey} - Artifacts for client-side proving`);
+      console.log(`   GET  /circuits/{face,iris,enroll}_auth.{wasm,zkey} - Artifacts for client-side proving`);
       console.log(`   POST /api/v1/tally/compute/:ballotId - Compute homomorphic tally`);
       console.log(`   GET  /api/v1/vote/results - Get vote results`);
       console.log(`   GET  /api/v1/commitments - Get face voter commitments`);

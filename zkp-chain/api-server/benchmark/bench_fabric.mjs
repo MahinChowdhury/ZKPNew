@@ -32,7 +32,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const API = path.join(__dirname, "..");
 const FabricClient = require(path.join(API, "fabric-client"));
 const threshold = require(path.join(API, "crypto", "threshold"));
-const { loadSigner, attest } = require(path.join(API, "sensor", "attest-core"));
+const { loadSigner, attest, attestEnrollment } = require(path.join(API, "sensor", "attest-core"));
 const client = await import(path.join(API, "..", "frontend", "src", "crypto", "voterClient.js"));
 
 const VOTERS = parseInt(process.argv[2] || "40", 10);
@@ -41,6 +41,10 @@ const OPTIONS = 3;
 const ARTIFACTS = {
   wasm: path.join(API, "circuits", "face_auth_js", "face_auth.wasm"),
   zkey: path.join(API, "circuits", "face_auth.zkey"),
+};
+const ENROLL_ARTIFACTS = {
+  wasm: path.join(API, "circuits", "enroll_auth_js", "enroll_auth.wasm"),
+  zkey: path.join(API, "circuits", "enroll_auth.zkey"),
 };
 
 const now = () => performance.now();
@@ -116,9 +120,14 @@ const voters = [];
 const regT = [];
 for (let i = 0; i < VOTERS; i++) {
   const reading = unit();
-  const credential = await client.createCredential("face", client.toTemplate("face", reading));
   const nidHash = crypto.createHash("sha256").update(`${ballotId}-voter-${i}`).digest("hex");
-  const [ms] = await timed(() => quiet(() => fc.registerUser(nidHash, credential.commitment)));
+  // Attested enrollment, proved client-side beforehand (not timed: the transaction is)
+  const enrollAttestation = await attestEnrollment(device, { mode: "face", reading, nidHash });
+  const credential = await client.createCredential("face", enrollAttestation.template);
+  const enrollSensors = await quiet(() => fc.getSensors());
+  const { proof, publicSignals } = await quiet(() => client.proveEnrollment({
+    credential, attestation: enrollAttestation, sensors: enrollSensors, nidHash, artifacts: ENROLL_ARTIFACTS }));
+  const [ms] = await timed(() => quiet(() => fc.registerUser(nidHash, credential.commitment, JSON.stringify(proof), JSON.stringify(publicSignals))));
   regT.push(ms);
   voters.push({ reading, credential });
 }

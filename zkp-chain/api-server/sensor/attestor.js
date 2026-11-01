@@ -13,6 +13,7 @@
 //        -d "$(curl -s localhost:8001/public-key)"
 // ============================================================
 
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const express = require("express");
@@ -20,7 +21,7 @@ const cors = require("cors");
 const multer = require("multer");
 const axios = require("axios");
 const FormData = require("form-data");
-const { loadSigner, attest } = require("./attest-core");
+const { loadSigner, attest, attestEnrollment } = require("./attest-core");
 
 const PORT = process.env.SENSOR_PORT || 8001;
 const EXTRACTOR = process.env.BIOMETRIC_URL || "http://localhost:8000";
@@ -62,6 +63,29 @@ async function main() {
       const reading = mode === "face" ? data.embedding : { irisCode: data.iris_code, noiseMask: data.noise_mask };
 
       res.json({ ok: true, ...(await attest(signer, { mode, reading, electionId, sessionCommit })) });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.response?.data?.detail || err.message });
+    }
+  });
+
+  /**
+   * POST /attest-enrollment  (multipart; face only)
+   *   file       enrollment image, captured at the supervised kiosk
+   *   nidNumber  the NID the RA operator verified for the person present
+   * Signs the template for that NID (enroll_auth.circom); the client then
+   * builds its credential from the returned template and proves enrollment.
+   */
+  app.post("/attest-enrollment", upload.single("file"), async (req, res) => {
+    try {
+      const nidNumber = String(req.body?.nidNumber || "").trim();
+      if (!req.file || !nidNumber) {
+        return res.status(400).json({ ok: false, error: "Required: file, nidNumber" });
+      }
+      const nidHash = crypto.createHash("sha256").update(nidNumber).digest("hex");
+      const form = new FormData();
+      form.append("file", req.file.buffer, { filename: req.file.originalname, contentType: req.file.mimetype });
+      const { data } = await axios.post(EXTRACTOR + "/face/get-embedding", form, { headers: form.getHeaders() });
+      res.json({ ok: true, nidHash, ...(await attestEnrollment(signer, { mode: "face", reading: data.embedding, nidHash })) });
     } catch (err) {
       res.status(500).json({ ok: false, error: err.response?.data?.detail || err.message });
     }

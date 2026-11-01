@@ -131,7 +131,7 @@ def main():
     cost = json.load(open(COST)) if os.path.exists(COST) else {}
 
     def full_cost(d):
-        H = lambda x: cost.get(f"PoseidonHashChunked({x},8)")
+        H = lambda x: cost.get(f"PackedCoordHash({x})")
         C = lambda x: cost.get(f"SquaredCosineSimilarity({x})")
         base = cost.get("face_auth (dim)", 64)   # dimension of the compiled face circuit
         if None in (H(d), C(d), H(base), C(base), cost.get("face_auth (full)")):

@@ -93,6 +93,7 @@ export default function VoteCasting({ onVoteSuccess }) {
       // The capture device signs the live sample for this vote session only
       const session = await startVoteSession(credential, ballot);
       const attestation = await attestCapture(biometricMode, bioFile, session.electionId, session.sessionCommit);
+      const timings = {};
       const tx = await prepareVote({
         credential,
         session,
@@ -102,7 +103,10 @@ export default function VoteCasting({ onVoteSuccess }) {
         choiceIndex,
         commitments,
         artifacts: circuitArtifacts(biometricMode),
+        timings,
       });
+      // Per-phase client timings (ms), local only; read by benchmark/bench_browser.py
+      console.info('bbzkv-timings ' + JSON.stringify(timings));
 
       const res = await submitVote(tx);
       setStatus({

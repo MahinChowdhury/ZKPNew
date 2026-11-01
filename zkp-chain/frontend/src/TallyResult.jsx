@@ -44,7 +44,8 @@ export default function TallyResult() {
   };
 
   const renderResults = (data) => {
-    const results = data.results || data.tally || data.tallies || data;
+    // tallies = per-candidate counts; tally holds the partial decryptions and their proofs
+    const results = data.tallies || data.results || data;
     let entries = [];
     
     if (typeof results === 'object' && !Array.isArray(results)) {

@@ -11,16 +11,7 @@ include "node_modules/circomlib/circuits/poseidon.circom";
 include "node_modules/circomlib/circuits/comparators.circom";
 include "node_modules/circomlib/circuits/bitify.circom";
 include "common.circom";
-
-// ============================================================
-// SignedRangeCheck
-// Constrains x to the integer range [-2^bits, 2^bits).
-// ============================================================
-template SignedRangeCheck(bits) {
-    signal input in;
-    component n2b = Num2Bits(bits + 1);
-    n2b.in <== in + (1 << bits);
-}
+include "face_common.circom";
 
 // ============================================================
 // SquaredCosineSimilarity
@@ -116,7 +107,7 @@ template SquaredCosineSimilarity(n, thNum, thDen, coordBits) {
 // FaceAuth — Main circuit (Merkle + Nullifier architecture)
 //
 // Proves:
-//   1. faceHash = Poseidon(registeredEmbedding || salt)   (private)
+//   1. faceHash = Poseidon(PackedCoordHash(registeredEmbedding), salt)   (private)
 //   2. commitment = Poseidon(faceHash, secretKey) is in the Merkle tree
 //   3. nullifier = Poseidon(secretKey, electionId)
 //   4. cos(liveEmbedding, registeredEmbedding) >= sqrt(thNum/thDen)
@@ -129,6 +120,8 @@ template SquaredCosineSimilarity(n, thNum, thDen, coordBits) {
 // publishing it would link every ballot a voter casts across elections.
 // ============================================================
 template FaceAuth(embeddingSize, treeLevels, thNum, thDen, sensorLevels) {
+    var COORD_BITS = 19;
+
     // --- Public Inputs ---
     signal input merkleRoot;             // Root of the voter commitment Merkle tree
     signal input nullifier;              // Nullifier = Poseidon(secretKey, electionId)
@@ -158,9 +151,9 @@ template FaceAuth(embeddingSize, treeLevels, thNum, thDen, sensorLevels) {
     signal output valid;
 
     // =====================
-    // 1. faceHash = H(registeredEmbedding || salt)
+    // 1. faceHash = H(packed registeredEmbedding, salt)
     // =====================
-    component embeddingHash = PoseidonHashChunked(embeddingSize, 8);
+    component embeddingHash = PackedCoordHash(embeddingSize, COORD_BITS);
     for (var i = 0; i < embeddingSize; i++) {
         embeddingHash.in[i] <== registeredEmbedding[i];
     }
@@ -198,8 +191,9 @@ template FaceAuth(embeddingSize, treeLevels, thNum, thDen, sensorLevels) {
     // =====================
     // 4. Squared cosine similarity check
     // =====================
-    // Coordinates are unit-vector components scaled by 5e5 < 2^19
-    component cosine = SquaredCosineSimilarity(embeddingSize, thNum, thDen, 19);
+    // Coordinates are unit-vector components scaled by 5e5 < 2^19. These range
+    // checks also make both PackedCoordHash packings injective.
+    component cosine = SquaredCosineSimilarity(embeddingSize, thNum, thDen, COORD_BITS);
     for (var i = 0; i < embeddingSize; i++) {
         cosine.a[i] <== embedding[i];
         cosine.b[i] <== registeredEmbedding[i];
@@ -211,7 +205,7 @@ template FaceAuth(embeddingSize, treeLevels, thNum, thDen, sensorLevels) {
     // =====================
     // 5. Sensor attestation over the live embedding
     // =====================
-    component liveHash = PoseidonHashChunked(embeddingSize, 8);
+    component liveHash = PackedCoordHash(embeddingSize, COORD_BITS);
     for (var i = 0; i < embeddingSize; i++) {
         liveHash.in[i] <== embedding[i];
     }
@@ -233,8 +227,8 @@ template FaceAuth(embeddingSize, treeLevels, thNum, thDen, sensorLevels) {
     }
 
     // =====================
-    // 6. Bind voteBinding into the proof. A public input that appears in no
-    //    constraint is not bound by Groth16, so square it into a dummy signal.
+    // 6. Bind voteBinding into the proof. snarkjs already binds every public
+    //    input (one setup constraint each); the square is defensive only.
     // =====================
     signal voteBindingSq <== voteBinding * voteBinding;
 }

@@ -66,4 +66,16 @@ async function attest(signer, { mode, reading, electionId, sessionCommit }) {
   };
 }
 
-module.exports = { loadSigner, attest };
+/**
+ * Attest an enrollment capture (enroll_auth.circom). The kiosk binds the
+ * signature to the NID the RA operator entered, never to one the client
+ * supplies, in the slot where a vote attestation carries the election.
+ *   nidHash  hex SHA256 of the NID, as the gateway computes it
+ */
+async function attestEnrollment(signer, { mode, reading, nidHash }) {
+  const { client } = await deps();
+  const sessionCommit = await client.enrollmentSessionCommit(nidHash);
+  return attest(signer, { mode, reading, electionId: client.ENROLL_DOMAIN.toString(), sessionCommit: sessionCommit.toString() });
+}
+
+module.exports = { loadSigner, attest, attestEnrollment };

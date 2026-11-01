@@ -75,6 +75,9 @@ M["nFrr"] = pct(op["test_frr"])
 M["nFar"] = pct(op["test_far"], 3)
 M["nFalseAccepts"] = num(op["test_false_accepts"])
 M["nImpostorPairs"] = num(op["test_impostor_pairs"])
+# K-screening bound (Proposition prop:lookalike): 1 - (1 - FAR)^K at the deployed point
+for k, word in ((10, "Ten"), (100, "Hundred"), (1000, "Thousand")):
+    M[f"nLookBound{word}"] = pct(1 - (1 - op["test_far"]) ** k, 2 if k < 1000 else 1)
 M["nFacenetEer"] = pct(facenet["lfw"]["eer"])
 M["nFacenetEerLo"] = pct(facenet["lfw"]["ci95"][0])
 M["nFacenetEerHi"] = pct(facenet["lfw"]["ci95"][1])
@@ -141,7 +144,10 @@ M["nZeFrr"] = pct(op96["test_frr"])
 d = op["dim"]
 M["nFaceConstraints"] = num(cons["face_auth (full)"])
 M["nIrisConstraints"] = num(cons["iris_auth (full)"])
-M["nHashConstraints"] = num(cons[f"PoseidonHashChunked({d},8)"])
+M["nEnrollConstraints"] = num(cons["enroll_auth (full)"])
+M["nEnrollDomainExp"] = num(math.ceil(math.log2(cons["enroll_auth (full)"] + 3 + 1)))
+M["nHashConstraints"] = num(cons[f"PackedCoordHash({d})"])
+M["nChunkedHash"] = num(cons[f"PoseidonHashChunked({d},8)"])
 M["nCosConstraints"] = num(cons[f"SquaredCosineSimilarity({d})"])
 M["nEuclidConstraints"] = num(cons[f"SquaredEuclideanDistance({d})"])
 M["nMerkleConstraints"] = num(cons["MerkleTreeChecker(20)"])
@@ -161,7 +167,7 @@ def read(*parts):
 
 # Fixed-point scale and range bounds, read from the deployed client and circuit
 sigma = int(re.search(r"FACE_SCALE = (\d+);", read("frontend", "src", "crypto", "voterClient.js")).group(1))
-coord_bits = int(re.search(r"SquaredCosineSimilarity\(embeddingSize, thNum, thDen, (\d+)\)",
+coord_bits = int(re.search(r"var COORD_BITS = (\d+);",
                            read("api-server", "circuits", "face_auth.circom")).group(1))
 assert sigma < 2 ** coord_bits, "sigma must fit the circuit's coordinate range check"
 exp = len(str(sigma)) - 1
@@ -180,21 +186,51 @@ M["nDomainExp"] = num(math.ceil(math.log2(cons["face_auth (full)"] + n_public + 
 def substituted(dim, metric):
     """Full face circuit at another dimension/metric: the template is hashed twice (supp. Table S3)."""
     return (cons["face_auth (full)"]
-            + 2 * (cons[f"PoseidonHashChunked({dim},8)"] - cons[f"PoseidonHashChunked({d},8)"])
+            + 2 * (cons[f"PackedCoordHash({dim})"] - cons[f"PackedCoordHash({d})"])
             + cons[f"{metric}({dim})"] - cons[f"SquaredCosineSimilarity({d})"])
 
 
-for dim, word in ((16, "Sixteen"), (64, "SixtyFour"), (96, "NinetySix"), (160, "OneSixty"), (256, "TwoFiftySix")):
-    M[f"nHash{word}"] = num(cons[f"PoseidonHashChunked({dim},8)"])
+for dim, word in ((16, "Sixteen"), (64, "SixtyFour"), (96, "NinetySix"), (160, "OneSixty"), (256, "TwoFiftySix"),
+                  (512, "FiveTwelve")):
+    M[f"nHash{word}"] = num(cons[f"PackedCoordHash({dim})"])
     M[f"nCos{word}"] = num(cons[f"SquaredCosineSimilarity({dim})"])
     M[f"nFullCos{word}"] = num(substituted(dim, "SquaredCosineSimilarity"))
 M["nOneSixtyExtra"] = num(100 * (substituted(160, "SquaredCosineSimilarity") / cons["face_auth (full)"] - 1))
 M["nPerDim"] = num((substituted(256, "SquaredCosineSimilarity") - substituted(16, "SquaredCosineSimilarity")) / 240)
+# Packed vs per-coordinate (chunked) template hashing at the deployed d
+chunked_full = cons["face_auth (full)"] + 2 * (cons[f"PoseidonHashChunked({d},8)"] - cons[f"PackedCoordHash({d})"])
+M["nChunkedFull"] = num(chunked_full)
+M["nPackSave"] = num(100 * (1 - cons["face_auth (full)"] / chunked_full))
+M["nChunkedPerDim"] = num((2 * (cons["PoseidonHashChunked(256,8)"] - cons["PoseidonHashChunked(16,8)"])
+                           + cons["SquaredCosineSimilarity(256)"] - cons["SquaredCosineSimilarity(16)"]) / 240)
+M["nFiveTwelveDomainExp"] = num(math.ceil(math.log2(substituted(512, "SquaredCosineSimilarity") + n_public + 1)))
 M["nEuclidSixtyFour"] = num(cons["SquaredEuclideanDistance(64)"])
 M["nFullEuclidSixtyFour"] = num(substituted(64, "SquaredEuclideanDistance"))
 M["nFullEuclid"] = num(substituted(d, "SquaredEuclideanDistance"))
 M["nEuclidSaveSixtyFour"] = num(cons["SquaredCosineSimilarity(64)"] - cons["SquaredEuclideanDistance(64)"])
 M["nEuclidSave"] = num(cons[f"SquaredCosineSimilarity({d})"] - cons[f"SquaredEuclideanDistance({d})"])
+M["nEuclidSaveShare"] = num(100 * (cons[f"SquaredCosineSimilarity({d})"] - cons[f"SquaredEuclideanDistance({d})"])
+                            / cons["face_auth (full)"], 1)
+
+# Real-browser run (bench_browser.py: Playwright + Edge, the React client end to end)
+br = load("api-server", "results", "browser_results.json")
+assert br["impostorRejected"] and br["doubleVoteRejected"] and br["tallyMatches"], "browser run not clean"
+M["nBrowserVoters"] = num(br["votesAccepted"])
+M["nBrowserName"] = "Edge " + re.search(r"Edg/(\d+)", br["browser"]).group(1)
+M["nBrowserProveMs"] = num(br["phases"]["prove"]["mean"])
+M["nBrowserProveCi"] = num(br["phases"]["prove"]["ci95"])
+M["nBrowserClientMs"] = num(br["clientTotal"]["mean"])
+M["nBrowserClientCi"] = num(br["clientTotal"]["ci95"])
+M["nBrowserClientS"] = num(br["clientTotal"]["mean"] / 1000, 2)
+M["nBrowserColdMs"] = num(br["coldFirstVote"]["total"])
+M["nBrowserSubmitS"] = num(br["submitToConfirmed"]["mean"] / 1000, 1)
+M["nBrowserEnrollMs"] = num(br["enrollProve"]["mean"])
+M["nBrowserEnrollCi"] = num(br["enrollProve"]["ci95"])
+
+# Attack suite (run_soundness_attacks.js): attacks rejected by the deployed circuits + chaincode
+attacks = load("api-server", "attacks", "soundness", "results", "soundness_results.json")["results"]
+assert not [r for r in attacks if r["outcome"] in ("VULNERABLE", "OPEN", "HARNESS-FAIL")], "attack suite not clean"
+M["nAttacks"] = num(sum(r["outcome"] == "PROTECTED" for r in attacks))
 
 # Latency (bench_client.mjs: mean and 95% CI, ms)
 face, iris = lat["face"], lat["iris"]
@@ -244,6 +280,23 @@ M["nFabPublishS"] = num(fab["tally"]["publishTallyMs"] / 1000, 2)
 M["nFabKeygenS"] = num(fab["keygen"]["totalMs"] / 1000, 1)
 assert conc["failed"] == 0 and fab["tally"]["totalsMatchCommittedVotes"], "live run lost votes"
 M["nIrisProveShare"] = num(100 * iris["prove"]["mean"] / iris["clientTotal"]["mean"])
+# Deployed 128-D vs raw 512-D on the voter's prover (benchmark/bench_dim.sh; witness + proof, WASM)
+dims = {r["dim"]: r for r in load("api-server", "results", "dim_cost.json")["results"]}
+d128, d512 = dims[128], dims[512]
+assert d128["constraints"] == cons["face_auth (full)"] and \
+    num(d512["constraints"]) == M["nFullCosFiveTwelve"], "dim_cost.json was measured on other circuits"
+M["nDimProveMs"] = num(d128["prove_ms_mean"])
+M["nRawProveMs"] = num(d512["prove_ms_mean"])
+M["nRawProveIncrease"] = num(100 * (d512["prove_ms_mean"] / d128["prove_ms_mean"] - 1))
+M["nRawKeyMB"] = num(d512["zkey_bytes"] / 1e6, 1)
+M["nRawExtraMemMB"] = num((d512["peak_rss_bytes"] - d128["peak_rss_bytes"]) / 1e6)   # peak RSS of the Node prover
+# Phone, same prover and production keys (benchmark/phone/, saved from the phone's browser)
+phone = load("api-server", "results", "phone_results.json")
+assert phone["zkey_bytes"] == zkey_bytes, "phone run used a different proving key"
+M["nPhoneDevice"] = re.sub(r"(?i)^iphone", "iPhone", phone["device"])
+M["nPhoneProveMs"] = num(phone["prove_ms_mean"])
+M["nPhoneProveCi"] = num(phone["prove_ms_ci95"])
+M["nPhoneRatio"] = num(phone["prove_ms_mean"] / d128["prove_ms_mean"], 1)
 
 with open(os.path.join(HERE, "numbers.tex"), "w") as f:
     f.write("% Generated by make_numbers.py from api-server/{benchmark,results}/*.json. Do not edit.\n")

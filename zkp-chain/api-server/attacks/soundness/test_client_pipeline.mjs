@@ -22,7 +22,8 @@ const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const express = require("express");
 const h = require("./harness");
-const { loadSigner, attest } = require("../../sensor/attest-core");
+const crypto = require("crypto");
+const { loadSigner, attest, attestEnrollment } = require("../../sensor/attest-core");
 const client = await import("../../../frontend/src/crypto/voterClient.js");
 
 const API = path.join(__dirname, "..", "..");
@@ -30,6 +31,7 @@ const CIRCUITS = path.join(API, "circuits");
 const ARTIFACTS = {
   face: { wasm: path.join(CIRCUITS, "face_auth_js", "face_auth.wasm"), zkey: path.join(CIRCUITS, "face_auth.zkey") },
   iris: { wasm: path.join(CIRCUITS, "iris_auth_js", "iris_auth.wasm"), zkey: path.join(CIRCUITS, "iris_auth.zkey") },
+  enroll: { wasm: path.join(CIRCUITS, "enroll_auth_js", "enroll_auth.wasm"), zkey: path.join(CIRCUITS, "enroll_auth.zkey") },
 };
 const OPTIONS = ["Alice", "Bob", "Carol"];
 const PASSWORD = "correct horse battery staple";
@@ -52,7 +54,7 @@ const contract = new IdentityContract();
 const { ctx } = h.makeLedger();
 const cc = async (fn, ...args) => h.quiet(() => contract[fn](ctx, ...args));
 const fabricClient = {
-  registerUser: (nid, c) => cc("register", nid, c),
+  registerUser: (nid, c, p, s) => cc("register", nid, c, p, s),
   registerIrisUser: (nid, c) => cc("registerIris", nid, c),
   getCommitments: async () => JSON.parse(await cc("getCommitments")),
   getIrisCommitments: async () => JSON.parse(await cc("getIrisCommitments")),
@@ -97,9 +99,21 @@ const get = (p) => h.quiet(() => fetch(BASE + p).then((r) => r.json()));
 
 // ---------- voter-side helpers (what the frontend does) ----------
 async function registerVoter(nid, mode, reading) {
-  const credential = await client.createCredential(mode, client.toTemplate(mode, reading));
+  let credential, enrollment = {};
+  if (mode === "face") {
+    // Supervised kiosk: signs the captured template for the NID the RA entered
+    const nidHash = crypto.createHash("sha256").update(nid).digest("hex");
+    const attestation = await attestEnrollment(device, { mode, reading, nidHash });
+    credential = await client.createCredential(mode, attestation.template);
+    const { sensors } = await get("/sensors");
+    const { proof, publicSignals } = await h.quiet(() => client.proveEnrollment({
+      credential, attestation, sensors, nidHash, artifacts: ARTIFACTS.enroll }));
+    enrollment = { enrollProof: proof, enrollSignals: publicSignals };
+  } else {
+    credential = await client.createCredential(mode, client.toTemplate(mode, reading));
+  }
   const sealed = await client.sealCredential(credential, PASSWORD);
-  const r = await post("/register", { nidNumber: nid, biometricMode: mode, commitment: credential.commitment });
+  const r = await post("/register", { nidNumber: nid, biometricMode: mode, commitment: credential.commitment, ...enrollment });
   if (!r.ok) throw new Error(r.error);
   return { sealed, credential };
 }

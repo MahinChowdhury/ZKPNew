@@ -1,5 +1,6 @@
 // ============================================================
-// crypto/snark.js — ZK-SNARK proof generation & verification
+// crypto/snark.js — server-side ZK-SNARK verification and Merkle helpers
+// (proving runs in the voter client: frontend/src/crypto/voterClient.js)
 // Architecture: Merkle Tree + Nullifier (Semaphore-style)
 // Uses: snarkjs (Groth16), circomlibjs (Poseidon), ffjavascript
 // ============================================================
@@ -8,25 +9,12 @@ const snarkjs = require("snarkjs");
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
-const { execFile } = require("child_process");
-const util = require("util");
-const os = require("os");
-
-const execFileAsync = util.promisify(execFile);
 
 // ============================================================
 // Paths to compiled circuit artifacts
 // ============================================================
 const CIRCUITS_DIR = path.join(__dirname, "..", "circuits");
-const WASM_PATH = path.join(CIRCUITS_DIR, "face_auth_js", "face_auth.wasm");
-const ZKEY_PATH = path.join(CIRCUITS_DIR, "face_auth.zkey");
 const VKEY_PATH = path.join(CIRCUITS_DIR, "verification_key.json");
-
-const GPU_PROVER = process.platform === "win32"
-  ? path.join(CIRCUITS_DIR, "gpu-prover", "target", "release", "gpu-prover.exe")
-  : path.join(CIRCUITS_DIR, "gpu-prover", "target", "release", "gpu-prover");
-const RAPIDSNARK_PROVER = path.join(CIRCUITS_DIR, "rapidsnark", "package", "bin", "prover");
-const CPP_WITNESS_GEN = path.join(CIRCUITS_DIR, "face_auth_cpp", "face_auth");
 
 // ============================================================
 // Constants
@@ -35,20 +23,10 @@ const MERKLE_TREE_LEVELS = 20; // Supports up to 2^20 ~ 1M voters
 const SCALE_FACTOR = 500000; // 5e5, matches the circuit range check |x| < 2^19
 const BN128_PRIME = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 
-function toFieldString(val) {
-  let v = BigInt(val);
-  if (v < 0n) {
-    v = (v % BN128_PRIME) + BN128_PRIME;
-  }
-  return (v % BN128_PRIME).toString();
-}
-
 // ============================================================
 // Cache verification key and circuit artifacts
 // ============================================================
 let _vkey = null;
-let _wasmBuffer = null;
-let _zkeyBuffer = null;
 
 // Sparse Merkle tree caches
 let _zeroHashes = null;
@@ -84,37 +62,41 @@ async function initPoseidon() {
 }
 
 /**
- * Compute Poseidon hash of a 64-element embedding + salt
- * Mirrors PoseidonHashChunked(64, 8) in the circuit:
- *   1. Hash each chunk of 8 elements
- *   2. Hash the 8 intermediate digests
+ * Compute the salted Poseidon hash of an integer-scaled embedding.
+ * Mirrors PackedCoordHash(d, 19) in the circuit:
+ *   1. Pack offset coordinates x + 2^19 into 20-bit slots, 12 per field element
+ *   2. Poseidon over the packed elements (one per 16 for d > 192)
  *   3. Hash(embeddingHash, salt)
  *
- * @param {BigInt[]} embedding - 64 integer-scaled embedding values
+ * @param {BigInt[]} embedding - integer-scaled embedding values, |x| < 2^19
  * @param {BigInt} salt - salt value
  * @returns {Promise<BigInt>} Poseidon hash as field element
  */
 async function poseidonHashEmbedding(embedding, salt) {
   const { poseidon, F } = await initPoseidon();
+  const off = 1n << 19n;
 
-  if (embedding.length % 8 || embedding.length > 128) {
-    throw new Error(`Expected a multiple of 8 up to 128 elements, got ${embedding.length}`);
+  const packed = [];
+  for (let e = 0; e * 12 < embedding.length; e++) {
+    let v = 0n;
+    for (let j = 0; j < 12 && e * 12 + j < embedding.length; j++) {
+      const x = BigInt(embedding[e * 12 + j]);
+      if (x < -off || x >= off) throw new Error(`Coordinate ${x} outside the circuit range`);
+      v += (x + off) << (20n * BigInt(j));
+    }
+    packed.push(F.e(v));
   }
 
-  // Step 1: Hash d/8 chunks of 8 elements each (matching circuit chunkSize = 8)
-  const chunkHashes = [];
-  for (let i = 0; i < embedding.length / 8; i++) {
-    const chunk = embedding.slice(i * 8, (i + 1) * 8);
-    const h = poseidon(chunk.map((v) => F.e(v)));
-    chunkHashes.push(h);
+  let embeddingHash;
+  if (packed.length <= 16) {
+    embeddingHash = poseidon(packed);
+  } else {
+    const groups = [];
+    for (let q = 0; q < packed.length; q += 16) groups.push(poseidon(packed.slice(q, q + 16)));
+    embeddingHash = poseidon(groups);
   }
 
-  // Step 2: Hash the 8 chunk digests
-  const embeddingHash = poseidon(chunkHashes);
-
-  // Step 3: Hash(embeddingHash, salt)
   const finalHash = poseidon([embeddingHash, F.e(salt)]);
-
   return F.toObject(finalHash);
 }
 
@@ -363,179 +345,9 @@ async function computeNullifier(secretKey, electionId) {
   return F.toObject(h);
 }
 
-/**
- * Generate a random secret key (252 bits to fit safely in BN128 field)
- * @returns {BigInt}
- */
-function generateSecretKey() {
-  const bytes = crypto.randomBytes(32);
-  let sk = BigInt("0x" + bytes.toString("hex"));
-  // Mask to 252 bits to stay safely within the BN128 field
-  sk = sk & ((1n << 252n) - 1n);
-  if (sk === 0n) sk = 1n;
-  return sk;
-}
-
 // ============================================================
 // Proof generation
 // ============================================================
-
-/**
- * Generate a ZK-SNARK proof of biometric authentication + Merkle membership + nullifier
- *
- * @param {BigInt[]} embedding - live face embedding (integer-scaled, 64 elements)
- * @param {BigInt[]} registeredEmbedding - registered face embedding (integer-scaled)
- * @param {BigInt} salt - registration salt
- * @param {BigInt} secretKey - voter's secret key
- * @param {BigInt} faceHash - Poseidon hash commitment
- * @param {BigInt} merkleRoot - Merkle tree root
- * @param {BigInt[]} pathElements - Merkle proof sibling hashes
- * @param {number[]} pathIndices - Merkle proof directions (0=left, 1=right)
- * @param {BigInt} electionId - unique election identifier
- * @param {BigInt} nullifier - precomputed nullifier
- * @param {BigInt} voteBinding - homomorphic.computeVoteBinding() of the ballot
- *   ciphertexts (0n for login proofs that carry no ballot)
- * @returns {Promise<{proof: Object, publicSignals: string[]}>}
- *
- * The cosine threshold (0.5) is fixed inside the circuit; faceHash is only
- * used for logging and is not a public input.
- */
-async function generateProof(
-  embedding,
-  registeredEmbedding,
-  salt,
-  secretKey,
-  faceHash,
-  merkleRoot,
-  pathElements,
-  pathIndices,
-  electionId,
-  nullifier,
-  voteBinding = 0n
-) {
-  // Validate circuit artifacts exist
-  if (!fs.existsSync(WASM_PATH)) {
-    throw new Error(
-      `Circuit WASM not found at ${WASM_PATH}. Run: cd circuits && bash build_circuit.sh`
-    );
-  }
-  if (!fs.existsSync(ZKEY_PATH)) {
-    throw new Error(
-      `Proving key not found at ${ZKEY_PATH}. Run: cd circuits && bash build_circuit.sh`
-    );
-  }
-
-  // Build witness input
-  const input = {
-    // Public inputs
-    merkleRoot: toFieldString(merkleRoot),
-    nullifier: toFieldString(nullifier),
-    electionId: toFieldString(electionId),
-    voteBinding: toFieldString(voteBinding),
-
-    // Private inputs
-    embedding: embedding.map(toFieldString),
-    registeredEmbedding: registeredEmbedding.map(toFieldString),
-    salt: toFieldString(salt),
-    secretKey: toFieldString(secretKey),
-    pathElements: pathElements.map(toFieldString),
-    pathIndices: pathIndices.map(toFieldString),
-  };
-
-  console.log("\n=== SNARK PROOF GENERATION (Merkle + Nullifier) ===");
-  console.log(`Embedding size: ${embedding.length}`);
-  console.log(`faceHash: ${faceHash.toString().slice(0, 20)}...`);
-  console.log(`merkleRoot: ${merkleRoot.toString().slice(0, 20)}...`);
-  console.log(`nullifier: ${nullifier.toString().slice(0, 20)}...`);
-  console.log(`electionId: ${electionId.toString()}`);
-
-  const startTime = Date.now();
-
-  let proof;
-  let publicSignals;
-
-  // Prover binary priority: 1. GPU Prover (ICICLE CUDA), 2. rapidsnark (C++ CPU), 3. snarkjs (WASM)
-  const useGpuProver = fs.existsSync(GPU_PROVER);
-  const useRapidsnark = !useGpuProver && fs.existsSync(RAPIDSNARK_PROVER);
-  const useCppWitness = fs.existsSync(CPP_WITNESS_GEN);
-
-  if (useGpuProver || useRapidsnark) {
-    const proverName = useGpuProver ? "ICICLE GPU Prover (CUDA)" : "rapidsnark C++ Prover";
-    console.log(`  ⚡ Using ${proverName} for ultra-fast proof generation`);
-    if (useCppWitness) {
-      console.log("  ⚡ Using C++ native witness generator");
-    }
-
-    // Temporary files for IPC with native binaries
-    const tmpDir = os.tmpdir();
-    const nonce = crypto.randomBytes(8).toString('hex');
-    const inputPath = path.join(tmpDir, `zkp_input_${nonce}.json`);
-    const wtnsPath = path.join(tmpDir, `zkp_witness_${nonce}.wtns`);
-    const proofPath = path.join(tmpDir, `zkp_proof_${nonce}.json`);
-    const publicPath = path.join(tmpDir, `zkp_public_${nonce}.json`);
-
-    try {
-      // Write input JSON to disk for the witness generator
-      fs.writeFileSync(inputPath, JSON.stringify(input));
-
-      // 1. Generate Witness (.wtns)
-      const wtnsStart = Date.now();
-      if (useCppWitness) {
-        await execFileAsync(CPP_WITNESS_GEN, [inputPath, wtnsPath]);
-      } else {
-        console.log("  (Fallback) Using WASM witness generator");
-        await snarkjs.wtns.calculate(input, WASM_PATH, wtnsPath);
-      }
-      console.log(`  ⏱️  Witness generation: ${Date.now() - wtnsStart}ms`);
-
-      // 2. Generate Proof via selected prover binary
-      const proveStart = Date.now();
-      const proverBin = useGpuProver ? GPU_PROVER : RAPIDSNARK_PROVER;
-      await execFileAsync(proverBin, [ZKEY_PATH, wtnsPath, proofPath, publicPath]);
-      console.log(`  ⏱️  Proof generation (${proverName}): ${Date.now() - proveStart}ms`);
-
-      // Read output files
-      proof = JSON.parse(fs.readFileSync(proofPath, "utf8"));
-      publicSignals = JSON.parse(fs.readFileSync(publicPath, "utf8"));
-
-    } finally {
-      // Clean up temporary files
-      [inputPath, wtnsPath, proofPath, publicPath].forEach(p => {
-        if (fs.existsSync(p)) {
-          try { fs.unlinkSync(p); } catch(e) {}
-        }
-      });
-    }
-
-  } else {
-    // Fallback to pure WASM / NodeJS
-    console.log("  🐢 Using snarkjs pure WASM prover (fallback)");
-
-    // Cache artifacts in memory to prevent heavy I/O on every proof
-    if (!_wasmBuffer) {
-      _wasmBuffer = new Uint8Array(fs.readFileSync(WASM_PATH));
-    }
-    if (!_zkeyBuffer) {
-      _zkeyBuffer = new Uint8Array(fs.readFileSync(ZKEY_PATH));
-    }
-
-    // Generate proof using Groth16 in pure Node/WASM
-    const result = await snarkjs.groth16.fullProve(
-      input,
-      _wasmBuffer,
-      _zkeyBuffer
-    );
-    proof = result.proof;
-    publicSignals = result.publicSignals;
-  }
-
-  const elapsed = Date.now() - startTime;
-  console.log(`✅ Proof generated in ${elapsed}ms`);
-  console.log(`Public signals: ${publicSignals.length} values`);
-  console.log("=== SNARK PROOF COMPLETE ===\n");
-
-  return { proof, publicSignals };
-}
 
 // ============================================================
 // Proof verification
@@ -569,157 +381,12 @@ async function verifyProof(proof, publicSignals) {
 // Convenience: full pipeline for registration
 // ============================================================
 
-/**
- * Compute all registration data
- * @param {number[]} embeddingFloat - raw float64 embedding from FaceNet
- * @param {string} saltHex - random hex salt string
- * @returns {Promise<{faceHash, secretKey, commitment, salt, embeddingScaled}>}
- */
-async function computeRegistrationData(embeddingFloat, saltHex) {
-  // 1. Scale embedding to integers
-  const embeddingScaled = scaleEmbedding(embeddingFloat);
-
-  // 2. Convert salt hex to BigInt
-  const salt = BigInt("0x" + saltHex);
-
-  // 3. Compute Poseidon hash
-  const faceHash = await poseidonHashEmbedding(embeddingScaled, salt);
-
-  // 4. Generate random secret key
-  const secretKey = generateSecretKey();
-
-  // 5. Compute commitment = Poseidon(faceHash, secretKey)
-  const commitment = await computeCommitment(faceHash, secretKey);
-
-  return { faceHash, secretKey, commitment, salt, embeddingScaled };
-}
-
 // ============================================================
 // Convenience: full pipeline for login/vote proof
 // ============================================================
 
-/**
- * Generate a full authentication proof with Merkle membership + nullifier
- *
- * @param {number[]} liveEmbeddingFloat - live face embedding (float)
- * @param {number[]} registeredEmbeddingFloat - registered face embedding (float)
- * @param {string} saltHex - registration salt (hex string)
- * @param {BigInt} faceHash - pre-computed Poseidon hash
- * @param {BigInt} secretKey - voter's secret key
- * @param {BigInt[]} commitments - all registered commitments (for building Merkle tree)
- * @param {BigInt} electionId - unique election identifier
- * @param {BigInt} voteBinding - binding to the ballot ciphertexts (0n for login)
- * @returns {Promise<{proof, publicSignals, isValid, nullifier, merkleRoot}>}
- */
-async function generateAuthProof(
-  liveEmbeddingFloat,
-  registeredEmbeddingFloat,
-  saltHex,
-  faceHash,
-  secretKey,
-  commitments,
-  electionId,
-  voteBinding = 0n
-) {
-  const totalStart = Date.now();
-  const timings = {};
-
-  // Scale embeddings
-  let t0 = Date.now();
-  const liveScaled = scaleEmbedding(liveEmbeddingFloat);
-  const regScaled = scaleEmbedding(registeredEmbeddingFloat);
-  timings.scaling = Date.now() - t0;
-
-  // Compute float cosine similarity for logging
-  let dot = 0, normA = 0, normB = 0;
-  for (let i = 0; i < liveEmbeddingFloat.length; i++) {
-    dot += liveEmbeddingFloat[i] * registeredEmbeddingFloat[i];
-    normA += liveEmbeddingFloat[i] * liveEmbeddingFloat[i];
-    normB += registeredEmbeddingFloat[i] * registeredEmbeddingFloat[i];
-  }
-  const floatSim = dot / (Math.sqrt(normA) * Math.sqrt(normB));
-  console.log(`  📊 Biometric Cosine Similarity: ${floatSim.toFixed(4)} (Threshold required: >= 0.5000)`);
-
-  // Convert salt
-  const salt = BigInt("0x" + saltHex);
-
-  // Check faceHash consistency
-  const recomputedFaceHash = await poseidonHashEmbedding(regScaled, salt);
-  console.log(`  🔍 Credential faceHash: ${faceHash.toString()}`);
-  console.log(`  🔍 Recomputed faceHash: ${recomputedFaceHash.toString()}`);
-  if (recomputedFaceHash !== faceHash) {
-    console.error("  ❌ MISMATCH DETECTED: Poseidon faceHash from credential store does not match registeredEmbedding from QR!");
-  }
-
-  // Compute the voter's commitment
-  t0 = Date.now();
-  const commitment = await computeCommitment(faceHash, secretKey);
-  timings.commitment = Date.now() - t0;
-
-  // Find the voter's leaf index in the commitments array
-  const leafIndex = commitments.findIndex((c) => c === commitment);
-  if (leafIndex === -1) {
-    throw new Error(
-      "Voter commitment not found in the registered commitments. User may not be registered."
-    );
-  }
-
-  console.log(`Voter leaf index: ${leafIndex} out of ${commitments.length} commitments`);
-
-  // Build Merkle tree and get proof (OPTIMIZED — sparse tree)
-  t0 = Date.now();
-  const { root, layers, zeroHashes } = await buildMerkleTreeOptimized(commitments);
-  timings.merkleTree = Date.now() - t0;
-
-  t0 = Date.now();
-  const { pathElements, pathIndices } = getMerkleProofOptimized(layers, zeroHashes, leafIndex);
-  timings.merkleProof = Date.now() - t0;
-
-  // Compute nullifier
-  t0 = Date.now();
-  const nullifier = await computeNullifier(secretKey, electionId);
-  timings.nullifier = Date.now() - t0;
-
-  // Generate SNARK proof (Groth16); threshold cos >= 0.5 is fixed in the circuit
-  t0 = Date.now();
-  const { proof, publicSignals } = await generateProof(
-    liveScaled,
-    regScaled,
-    salt,
-    secretKey,
-    faceHash,
-    root,
-    pathElements,
-    pathIndices,
-    electionId,
-    nullifier,
-    voteBinding
-  );
-  timings.snarkProve = Date.now() - t0;
-
-  // Verify locally
-  t0 = Date.now();
-  const isValid = await verifyProof(proof, publicSignals);
-  timings.snarkVerify = Date.now() - t0;
-
-  const totalElapsed = Date.now() - totalStart;
-  console.log(`\n⏱️  AUTH PROOF TIMING BREAKDOWN:`);
-  console.log(`  Embedding scaling:  ${timings.scaling}ms`);
-  console.log(`  Commitment compute: ${timings.commitment}ms`);
-  console.log(`  Merkle tree build:  ${timings.merkleTree}ms`);
-  console.log(`  Merkle proof gen:   ${timings.merkleProof}ms`);
-  console.log(`  Nullifier compute:  ${timings.nullifier}ms`);
-  console.log(`  SNARK proof gen:    ${timings.snarkProve}ms`);
-  console.log(`  SNARK verification: ${timings.snarkVerify}ms`);
-  console.log(`  ─────────────────────────────`);
-  console.log(`  TOTAL:              ${totalElapsed}ms\n`);
-
-  return { proof, publicSignals, isValid, nullifier, merkleRoot: root };
-}
-
 module.exports = {
   // Core functions
-  generateProof,
   verifyProof,
   getVerificationKey,
 
@@ -742,13 +409,8 @@ module.exports = {
   // Commitment & Nullifier
   computeCommitment,
   computeNullifier,
-  generateSecretKey,
 
   // Embedding utilities
   scaleEmbedding,
   SCALE_FACTOR,
-
-  // Pipeline helpers
-  computeRegistrationData,
-  generateAuthProof,
 };

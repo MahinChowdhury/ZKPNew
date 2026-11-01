@@ -45,18 +45,30 @@ export const attestCapture = async (mode, file, electionId, sessionCommit) => {
   return jsonOrThrow(await fetch(`${SENSOR_BASE}/attest`, { method: 'POST', body: form }), 'Capture attestation failed');
 };
 
+/**
+ * Enrollment capture at the supervised kiosk (face). The RA operator enters
+ * the NID at the kiosk; the kiosk signs the captured template for that NID.
+ * @returns { nidHash, template, sensorPublicKey, signature }
+ */
+export const attestEnrollment = async (file, nidNumber) => {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('nidNumber', nidNumber);
+  return jsonOrThrow(await fetch(`${SENSOR_BASE}/attest-enrollment`, { method: 'POST', body: form }), 'Enrollment capture failed');
+};
+
 /** Public registry of authorised capture devices [{ax, ay}]. */
 export const getSensors = async () => {
   const res = await fetch(`${API_BASE}/sensors`);
   return (await jsonOrThrow(res, 'Could not fetch sensor registry')).sensors;
 };
 
-/** RA enrolment: only the NID and the client-built commitment leave the device. */
-export const registerCommitment = async (nidNumber, biometricMode, commitment) => {
+/** RA enrolment: only the NID, the client-built commitment and (face) the enrollment proof leave the device. */
+export const registerCommitment = async (nidNumber, biometricMode, commitment, enrollment = {}) => {
   const res = await fetch(`${API_BASE}/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nidNumber, biometricMode, commitment })
+    body: JSON.stringify({ nidNumber, biometricMode, commitment, ...enrollment })
   });
   return jsonOrThrow(res, 'Registration failed');
 };

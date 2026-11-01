@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Face circuit proving benchmark</title>
+<style>
+  body { font: 16px/1.4 system-ui, sans-serif; margin: 16px; max-width: 40em; }
+  button { font-size: 18px; padding: 10px 16px; margin: 4px 0; }
+  pre { background: #f2f2f2; padding: 8px; white-space: pre-wrap; word-break: break-all; }
+  label { display: block; margin: 8px 0; }
+</style>
+</head>
+<body>
+<h2>Face circuit proving benchmark</h2>
+<p>Proves the deployed face circuit (snarkjs WASM, the same prover as the voter client) on this device. Keep the screen on and the browser in front until it finishes.</p>
+<label>Device name (for the results file): <input id="device" placeholder="e.g. Pixel 7, Chrome 130"></label>
+<button id="run">Run benchmark</button>
+<pre id="log">Ready.</pre>
+<button id="save" disabled>Save results JSON</button>
+<script src="snarkjs.min.js"></script>
+<script>
+const log = (s) => { document.getElementById("log").textContent += "\n" + s; };
+let result = null;
+
+document.getElementById("run").onclick = async () => {
+  document.getElementById("run").disabled = true;
+  document.getElementById("log").textContent = "Loading inputs...";
+  try {
+    const inputs = await (await fetch("inputs.json")).json();
+    const t0 = performance.now();
+    const [wasm, zkey] = await Promise.all(["face_auth.wasm", "face_auth.zkey"].map(
+      async (f) => new Uint8Array(await (await fetch(f)).arrayBuffer())));
+    const loadMs = performance.now() - t0;
+    log(`Downloaded wasm + proving key: ${(zkey.length / 1e6).toFixed(1)} MB key, ${loadMs.toFixed(0)} ms`);
+    const times = [];
+    for (let r = 0; r < inputs.length; r++) {
+      const s = performance.now();
+      await snarkjs.groth16.fullProve(inputs[r], wasm, zkey);
+      const ms = performance.now() - s;
+      log(r === 0 ? `warm-up: ${ms.toFixed(0)} ms` : `run ${r}: ${ms.toFixed(0)} ms`);
+      if (r > 0) times.push(ms);
+    }
+    const mean = times.reduce((a, b) => a + b, 0) / times.length;
+    const sd = Math.sqrt(times.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, times.length - 1));
+    result = {
+      date: new Date().toISOString(),
+      device: document.getElementById("device").value || "unspecified",
+      user_agent: navigator.userAgent,
+      hardware_concurrency: navigator.hardwareConcurrency ?? null,
+      device_memory_gb: navigator.deviceMemory ?? null,
+      circuit: "face_auth (PCA-128, production keys)",
+      zkey_bytes: zkey.length,
+      runs: times.length,
+      prove_ms: times,
+      prove_ms_mean: mean,
+      prove_ms_ci95: 1.96 * sd / Math.sqrt(times.length),
+    };
+    log(`\nMean (witness + Groth16 proof): ${mean.toFixed(0)} ± ${result.prove_ms_ci95.toFixed(0)} ms over ${times.length} runs`);
+    document.getElementById("save").disabled = false;
+  } catch (e) {
+    log("FAILED: " + (e && e.message ? e.message : e));
+  }
+  document.getElementById("run").disabled = false;
+};
+
+document.getElementById("save").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(result, null, 1)], { type: "application/json" }));
+  a.download = "phone_results.json";
+  a.click();
+};
+</script>
+</body>
+</html>

@@ -6,11 +6,13 @@
   "scripts": {
     "start": "node server.js",
     "enroll": "node enrollUser.js",
-    "test:snark": "node test_snark.js",
-    "benchmark:paper": "node compareBenchmarks/benchmark_paper.js --runs 5",
-    "benchmark:quick": "node compareBenchmarks/benchmark_paper.js --runs 3",
+    "test:snark": "node test_snark.mjs",
     "build:circuit": "cd circuits && bash build_circuit.sh",
-    "build:iris": "cd circuits && bash build_iris_circuit.sh"
+    "build:iris": "cd circuits && bash build_iris_circuit.sh",
+    "test:soundness": "bash attacks/soundness/build_test_artifacts.sh && node attacks/soundness/run_soundness_attacks.js",
+    "test:client": "node attacks/soundness/test_client_pipeline.mjs",
+    "benchmark:client": "node benchmark/bench_client.mjs",
+    "benchmark:fabric": "node benchmark/bench_fabric.mjs"
   },
   "dependencies": {
     "axios": "^1.6.2",

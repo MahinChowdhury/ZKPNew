@@ -5,7 +5,9 @@
 // (frontend/src/crypto/voterClient.js). The RA receives only the NID,
 // for deduplication, and the commitment C = H(H(template, salt), sk):
 // it never sees sk, salt or the template, so it cannot link C to any
-// later nullifier or ballot.
+// later nullifier or ballot. For face, the client also sends a proof
+// (enroll_auth.circom) that C opens to the template the supervised kiosk
+// signed for this NID; the chaincode verifies it.
 // ============================
 
 const express = require("express");
@@ -21,11 +23,12 @@ function hashNidNumber(nidNumber) {
 
 /**
  * POST /api/v1/register
- * Body (JSON): { nidNumber, biometricMode: "face" | "iris", commitment: decimal string }
+ * Body (JSON): { nidNumber, biometricMode: "face" | "iris", commitment: decimal string,
+ *               enrollProof, enrollSignals }   (face: attested-enrollment proof)
  */
 router.post("/", async (req, res) => {
   try {
-    const { nidNumber, commitment } = req.body || {};
+    const { nidNumber, commitment, enrollProof, enrollSignals } = req.body || {};
     const mode = req.body?.biometricMode || "face";
     const { fabricClient, snark, irisSnark } = res.locals;
 
@@ -41,7 +44,10 @@ router.post("/", async (req, res) => {
 
     const nidHash = hashNidNumber(nidNumber);
     if (mode === "face") {
-      await fabricClient.registerUser(nidHash, String(commitment));
+      if (!enrollProof || !enrollSignals) {
+        return res.status(400).json({ ok: false, error: "Face enrollment requires the kiosk-attested enrollment proof" });
+      }
+      await fabricClient.registerUser(nidHash, String(commitment), JSON.stringify(enrollProof), JSON.stringify(enrollSignals));
       snark.invalidateMerkleCache();
     } else {
       await fabricClient.registerIrisUser(nidHash, String(commitment));

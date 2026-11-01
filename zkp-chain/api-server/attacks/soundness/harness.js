@@ -100,10 +100,29 @@ function noisyCopy(emb, sigma = 0.15) {
 
 const randomBits = (n = 256) => Array.from({ length: n }, () => (Math.random() < 0.5 ? 1 : 0));
 
+// Mirrors PackedCoordHash(d, 19): offset coordinates x + 2^19 in 20-bit slots,
+// 12 per field element. Packs whatever it is given (no range check), so an
+// attack can compute the digest of an out-of-range template.
+function packCoords(emb) {
+  const packed = [];
+  for (let e = 0; e * 12 < emb.length; e++) {
+    let v = 0n;
+    for (let j = 0; j < 12 && e * 12 + j < emb.length; j++) v += (BigInt(emb[e * 12 + j]) + (1n << 19n)) << (20n * BigInt(j));
+    packed.push(mod(v));
+  }
+  return packed;
+}
+
+async function faceDigestOf(emb) {
+  const packed = packCoords(emb);
+  if (packed.length <= 16) return H(...packed);
+  const groups = [];
+  for (let q = 0; q < packed.length; q += 16) groups.push(await H(...packed.slice(q, q + 16)));
+  return H(...groups);
+}
+
 async function faceHashOf(emb, salt) {
-  const chunks = [];
-  for (let i = 0; i < emb.length / 8; i++) chunks.push(await H(...emb.slice(i * 8, i * 8 + 8).map(mod)));
-  return H(await H(...chunks), salt);
+  return H(await faceDigestOf(emb), salt);
 }
 
 async function irisHashOf(bits, salt) {
@@ -158,14 +177,14 @@ async function prove(circuit, input) {
   return { proof, publicSignals };
 }
 
-function faceInput(v, { live, electionId, root, path: mp, voteBinding }) {
+function faceInput(v, { live, registered, electionId, root, path: mp, voteBinding }) {
   return {
     merkleRoot: fieldStr(root),
     nullifier: "0", // overwritten below
     electionId: fieldStr(electionId),
     voteBinding: fieldStr(voteBinding),
     embedding: live.map(fieldStr),
-    registeredEmbedding: v.template.map(fieldStr),
+    registeredEmbedding: (registered ?? v.template).map(fieldStr),
     salt: fieldStr(v.salt),
     secretKey: fieldStr(v.sk),
     pathElements: mp.pathElements.map(fieldStr),
@@ -205,7 +224,10 @@ const voterClient = async () => (_client ??= await import(path.join(__dirname, "
  */
 async function sensorFields(kind, live, electionId, nullifier, s) {
   const client = await voterClient();
-  const digest = await client.templateDigest(kind, s.signedTemplate ?? live);
+  // Face: the harness's own packer, so an out-of-range sample (A5b) reaches the
+  // circuit's range checks instead of being refused by the client.
+  const signed = s.signedTemplate ?? live;
+  const digest = kind === "face" ? await faceDigestOf(signed) : await client.templateDigest(kind, signed);
   const sessionNonce = randomSecret();
   const sessionCommit = await H(s.signNullifier ?? nullifier, sessionNonce);
   const sig = s.signer.sign(await H(digest, s.signElectionId ?? electionId, sessionCommit));
@@ -239,10 +261,46 @@ async function proveVote(v, opts) {
 const nullifierOf = (v, electionId) => H(v.sk, electionId);
 
 // ------------------------------------------------------------
+// Attested enrollment (enroll_auth.circom). The kiosk signs
+// Poseidon(digest, domain, Poseidon(nidField(nid), 0)); `domain` defaults to
+// the enrollment domain, an attacker may substitute an electionId (A26).
+// Returns the extra register() arguments [proofJSON, signalsJSON].
+// ------------------------------------------------------------
+const ENROLL_DOMAIN = 1n << 200n;
+const nidFieldOf = (nid) => BigInt("0x" + crypto.createHash("sha256").update(String(nid)).digest("hex").slice(0, 62));
+
+async function enrollmentProof(v, nid, sensor, { domain = ENROLL_DOMAIN } = {}) {
+  const nidField = nidFieldOf(nid);
+  const msg = await H(await faceDigestOf(v.template), domain, await H(nidField, 0n));
+  const sig = sensor.signer.sign(msg);
+  const p = await merklePath(sensor.tree, sensor.index);
+  const input = {
+    commitment: fieldStr(v.commitment),
+    nidField: fieldStr(nidField),
+    sensorRoot: fieldStr(sensor.tree.root),
+    enrolled: v.template.map(fieldStr),
+    salt: fieldStr(v.salt),
+    secretKey: fieldStr(v.sk),
+    sensorAx: sensor.signer.publicKey.ax, sensorAy: sensor.signer.publicKey.ay,
+    sigR8x: sig.R8x, sigR8y: sig.R8y, sigS: sig.S,
+    sensorPathElements: p.pathElements.map(fieldStr),
+    sensorPathIndices: p.pathIndices.map(fieldStr),
+  };
+  const { proof, publicSignals } = await prove("enroll_auth", input);
+  return [JSON.stringify(proof), JSON.stringify(publicSignals)];
+}
+
+// RA enrollment of a face voter through the attested path
+async function registerFace(contract, ctx, nid, v, sensor) {
+  return quiet(async () => contract.register(ctx, nid, v.commitment.toString(), ...(await enrollmentProof(v, nid, sensor))));
+}
+
+// ------------------------------------------------------------
 // Chaincode under an in-memory Fabric stub
 // ------------------------------------------------------------
 function loadContract() {
-  for (const [file, circuit] of [["verification_key.json", "face_auth"], ["iris_verification_key.json", "iris_auth"]]) {
+  for (const [file, circuit] of [["verification_key.json", "face_auth"], ["iris_verification_key.json", "iris_auth"],
+                                  ["enroll_verification_key.json", "enroll_auth"]]) {
     const resolved = path.join(CHAINCODE_LIB, file);
     require.cache[resolved] = {
       id: resolved, filename: resolved, loaded: true,
@@ -330,7 +388,8 @@ async function setupBallot(contract, ctx, ballotId, numOptions, { n = 3, t = 2, 
 module.exports = {
   P, LEVELS, SENSOR_LEVELS, SCALE, mod, modInv, fieldStr, H,
   zeroHashes, buildTree, merklePath,
-  randomUnitEmbedding, noisyCopy, randomBits,
+  randomUnitEmbedding, noisyCopy, randomBits, faceDigestOf,
   makeFaceVoter, makeIrisVoter, electionIdFor,
   proveVote, nullifierOf, loadContract, makeLedger, quiet, setupBallot,
+  enrollmentProof, registerFace, ENROLL_DOMAIN,
 };

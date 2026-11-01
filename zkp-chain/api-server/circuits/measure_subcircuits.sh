@@ -22,7 +22,7 @@ mkdir -p "$OUT"
 
 # name | include | instantiation
 SUBS=(
-  "PoseidonHashChunked(64,8)|common.circom|PoseidonHashChunked(64, 8)"
+  "PackedCoordHash(64)|face_lib.circom|PackedCoordHash(64, 19)"
   "SquaredCosineSimilarity(64)|face_lib.circom|SquaredCosineSimilarity(64, 1225, 10000, 19)"
   "MerkleTreeChecker(20)|common.circom|MerkleTreeChecker(20)"
   "SensorAttestation(10)|common.circom|SensorAttestation(10)"
@@ -33,11 +33,16 @@ SUBS=(
   "SquaredCosineSimilarity(128)|face_lib.circom|SquaredCosineSimilarity(128, 1225, 10000, 19)"
   "SquaredEuclideanDistance(64)|baselines/euclidean.circom|SquaredEuclideanDistance(64, 325000000000, 19)"
   "SquaredEuclideanDistance(128)|baselines/euclidean.circom|SquaredEuclideanDistance(128, 325000000000, 19)"
+  "PackedCoordHash(128)|face_lib.circom|PackedCoordHash(128, 19)"
+  # Per-coordinate chunked hashing the packed hash replaced (paper's before/after)
+  "PoseidonHashChunked(16,8)|common.circom|PoseidonHashChunked(16, 8)"
   "PoseidonHashChunked(128,8)|common.circom|PoseidonHashChunked(128, 8)"
+  "PoseidonHashChunked(256,8)|common.circom|PoseidonHashChunked(256, 8)"
 )
 # Output-dimension sweep (Fig. encoding_pareto, face_model_sweep.py): hash + comparator per d
-for d in 16 32 48 80 96 112 160 192 256; do
-  SUBS+=("PoseidonHashChunked($d,8)|common.circom|PoseidonHashChunked($d, 8)")
+# (512 = raw ArcFace, no projection)
+for d in 16 32 48 80 96 112 160 192 256 384 512; do
+  SUBS+=("PackedCoordHash($d)|face_lib.circom|PackedCoordHash($d, 19)")
   SUBS+=("SquaredCosineSimilarity($d)|face_lib.circom|SquaredCosineSimilarity($d, 1225, 10000, 19)")
 done
 
@@ -62,7 +67,7 @@ for entry in "${SUBS[@]}"; do
   echo >> "$OUT/subcircuit_constraints.json"; first=0
   printf '%-32s %8s\n' "$name" "$n"
 done
-for c in face_auth iris_auth; do
+for c in face_auth iris_auth enroll_auth; do
   "$CIRCOM" "$HERE/$c.circom" --O2 --r1cs -o "$WORK" -l "$HERE/node_modules" > /dev/null
   n=$(count "$WORK/$c.r1cs")
   printf '  ,"%s (full)": %s\n' "$c" "$n" >> "$OUT/subcircuit_constraints.json"

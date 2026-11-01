@@ -5,6 +5,7 @@ const snarkjs = require('snarkjs');
 const circomlibjs = require('circomlibjs');
 const faceVKey = require('./verification_key.json');
 const irisVKey = require('./iris_verification_key.json');
+const enrollVKey = require('./enroll_verification_key.json');
 const ballotCrypto = require('./ballotCrypto');
 const tallyCrypto = require('./tallyCrypto');
 
@@ -15,6 +16,9 @@ const REGISTRAR_MSPS = (process.env.REGISTRAR_MSPS || 'Org1MSP').split(',').map(
 // Public signal layout (set by the circom `main` declarations):
 //   [valid, merkleRoot, nullifier, electionId, voteBinding, sensorRoot]
 const PS = { VALID: 0, ROOT: 1, NULLIFIER: 2, ELECTION_ID: 3, VOTE_BINDING: 4, SENSOR_ROOT: 5, LENGTH: 6 };
+
+// Attested-enrollment public signals (enroll_auth.circom): [commitment, nidField, sensorRoot]
+const ENROLL_PS = { COMMITMENT: 0, NID_FIELD: 1, SENSOR_ROOT: 2, LENGTH: 3 };
 
 // Depth of the authorised capture-device registry (must match the circuits)
 const SENSOR_TREE_LEVELS = 10;
@@ -118,14 +122,19 @@ class IdentityContract extends Contract {
   }
 
   // Register a new voter by adding their Poseidon commitment
-  async register(ctx, nidHash, commitment) {
+  // Face enrollment is attested (FINDINGS C26): the proof shows that
+  // `commitment` opens to the template a registered kiosk captured and
+  // signed for this NID, so the RA no longer has to trust that the client's
+  // commitment encodes the enrollee's own face (attack A25).
+  async register(ctx, nidHash, commitment, enrollProofJSON, enrollSignalsJSON) {
     console.log('============= START : Register Identity ===========');
     this._assertRegistrar(ctx);
 
     // Validate inputs
-    if (!nidHash || !commitment) {
-      throw new Error('All parameters (nidHash, commitment) are required');
+    if (!nidHash || !commitment || !enrollProofJSON || !enrollSignalsJSON) {
+      throw new Error('All parameters (nidHash, commitment, enrollProof, enrollSignals) are required');
     }
+    await this._verifyEnrollment(ctx, nidHash, commitment, enrollProofJSON, enrollSignalsJSON);
 
     // Check if already registered (by NID)
     const exists = await this.userExists(ctx, nidHash);
@@ -439,6 +448,28 @@ class IdentityContract extends Contract {
     store.sensors.push({ ax: String(ax), ay: String(ay) });
     await ctx.stub.putState('GLOBAL_SENSORS', Buffer.from(JSON.stringify(store)));
     return JSON.stringify({ index: store.sensors.length - 1, root: (await this._sensorRoot(store)).toString() });
+  }
+
+  async _verifyEnrollment(ctx, nidHash, commitment, enrollProofJSON, enrollSignalsJSON) {
+    const proof = JSON.parse(enrollProofJSON);
+    const signals = JSON.parse(enrollSignalsJSON).map(String);
+    if (signals.length !== ENROLL_PS.LENGTH) {
+      throw new Error(`Enrollment proof must carry ${ENROLL_PS.LENGTH} public signals`);
+    }
+    if (signals[ENROLL_PS.COMMITMENT] !== String(commitment)) {
+      throw new Error('Enrollment proof is for a different commitment');
+    }
+    if (signals[ENROLL_PS.NID_FIELD] !== ballotCrypto.nidFieldFor(nidHash).toString()) {
+      throw new Error('Enrollment capture was attested for a different NID');
+    }
+    const bytes = await ctx.stub.getState('GLOBAL_SENSORS');
+    const store = bytes && bytes.length > 0 ? JSON.parse(bytes.toString()) : { sensors: [] };
+    if (signals[ENROLL_PS.SENSOR_ROOT] !== (await this._sensorRoot(store)).toString()) {
+      throw new Error('Enrollment capture device is not in the registry');
+    }
+    if (!(await snarkjs.groth16.verify(enrollVKey, signals, proof))) {
+      throw new Error('Enrollment proof is invalid');
+    }
   }
 
   async getSensors(ctx) {

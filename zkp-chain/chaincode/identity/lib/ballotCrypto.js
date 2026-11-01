@@ -102,4 +102,11 @@ function electionIdFor(ballotId) {
   return BigInt('0x' + hex.slice(0, 32));
 }
 
-module.exports = { verifyEncryptedBallot, computeVoteBinding, electionIdFor };
+// NID binding of an attested enrollment (enroll_auth.circom): first 248
+// bits of SHA256(nidHash). Mirrors voterClient.nidFieldFor.
+function nidFieldFor(nidHash) {
+  const hex = crypto.createHash('sha256').update(String(nidHash)).digest('hex');
+  return BigInt('0x' + hex.slice(0, 62));
+}
+
+module.exports = { verifyEncryptedBallot, computeVoteBinding, electionIdFor, nidFieldFor };

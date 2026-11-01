@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-01T05:06:53.311Z",
+  "date": "2026-11-01T07:48:12.739Z",
   "results": [
     {
       "id": "BASELINE-face",
@@ -20,7 +20,7 @@
       "finding": "C1",
       "title": "Unregistered attacker forges Merkle membership (face)",
       "outcome": "PROTECTED",
-      "detail": "Error: Assert Failed. Error in template MerkleTreeChecker_230 line: 75"
+      "detail": "Error: Assert Failed. Error in template MerkleTreeChecker_146 line: 75"
     },
     {
       "id": "A1-iris",
@@ -34,7 +34,7 @@
       "finding": "C2",
       "title": "Impostor face (random embedding) tries threshold_sq_num = 0",
       "outcome": "PROTECTED",
-      "detail": "Error: Assert Failed. Error in template Num2Bits_233 line: 38"
+      "detail": "Error: Assert Failed. Error in template FaceAuth_324 line: 261"
     },
     {
       "id": "A2-iris",
@@ -48,7 +48,7 @@
       "finding": "C2",
       "title": "Control: impostor face with no threshold tampering is rejected",
       "outcome": "OK",
-      "detail": "Error: Assert Failed. Error in template Num2Bits_233 line: 38"
+      "detail": "Error: Assert Failed. Error in template FaceAuth_324 line: 261"
     },
     {
       "id": "A3",
@@ -69,14 +69,28 @@
       "finding": "C9",
       "title": "Negated template (cos = -1) passes the squared-cosine check",
       "outcome": "PROTECTED",
-      "detail": "Error: Assert Failed. Error in template Num2Bits_233 line: 38"
+      "detail": "Error: Assert Failed. Error in template Num2Bits_149 line: 38"
     },
     {
       "id": "A5b",
       "finding": "C9",
       "title": "Out-of-range live embedding (template x 2^10, cos = 1) accepted",
       "outcome": "PROTECTED",
-      "detail": "Error: Assert Failed. Error in template Num2Bits_231 line: 38"
+      "detail": "Error: Assert Failed. Error in template Num2Bits_147 line: 38"
+    },
+    {
+      "id": "A24-base",
+      "finding": "-",
+      "title": "Control: a carry-aliased template has the victim's digest and matches the attacker's face",
+      "outcome": "OK",
+      "detail": "same digest; cos^2(attacker, alias) = 0.889 (needs 0.1225); only the range checks stop it"
+    },
+    {
+      "id": "A24",
+      "finding": "packing",
+      "title": "Stolen credential + attacker's own attested face: open the commitment with a carry-aliased template",
+      "outcome": "PROTECTED",
+      "detail": "Error: Assert Failed. Error in template Num2Bits_147 line: 38"
     },
     {
       "id": "A6",
@@ -90,7 +104,7 @@
       "finding": "C6",
       "title": "Credential holder uses the real device on THEIR OWN face, then proves with the victim's template",
       "outcome": "PROTECTED",
-      "detail": "Error: Assert Failed. Error in template ForceEqualIfEnabled_404 line: 56"
+      "detail": "Error: Assert Failed. Error in template ForceEqualIfEnabled_320 line: 56"
     },
     {
       "id": "A14",
@@ -147,6 +161,34 @@
       "title": "Ballot copying: attacker re-submits another voter's ciphertexts + proofs under own credential",
       "outcome": "PROTECTED",
       "detail": "Validity proof failed for option 0"
+    },
+    {
+      "id": "A25",
+      "finding": "C26",
+      "title": "Credential transfer at enrollment: B enrolls a commitment to A's face under B's NID, then A votes as B",
+      "outcome": "PROTECTED",
+      "detail": "Enrollment capture was attested for a different NID"
+    },
+    {
+      "id": "A26",
+      "finding": "C26",
+      "title": "Enroll A's face under B's NID with a vote-time kiosk signature (election slot instead of the enrollment domain)",
+      "outcome": "PROTECTED",
+      "detail": "Error: Assert Failed. Error in template ForceEqualIfEnabled_313 line: 56"
+    },
+    {
+      "id": "A27",
+      "finding": "C26",
+      "title": "RA registers a face commitment with no enrollment proof (pre-fix register call)",
+      "outcome": "PROTECTED",
+      "detail": "All parameters (nidHash, commitment, enrollProof, enrollSignals) are required"
+    },
+    {
+      "id": "A25-control",
+      "finding": "-",
+      "title": "Control: an honest attested enrollment is accepted",
+      "outcome": "OK",
+      "detail": "{\"nidHash\":\"nid-honest-1793519290352\",\"commitment\":\"21451507102447694011548146023323378132606700492413361833426414562920593685382\",\"registeredAt\":\"2026-11-01T07:48:10.000Z\",\"docType\":\"identity\"}"
     },
     {
       "id": "A10",

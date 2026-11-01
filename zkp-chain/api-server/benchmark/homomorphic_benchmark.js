@@ -11,6 +11,7 @@
 
 const crypto = require("crypto");
 const fs = require("fs");
+const path = require("path");
 const homomorphic = require("../crypto/homomorphic");
 const EC = require("elliptic").ec;
 const ec = new EC("secp256k1");

@@ -1,0 +1,187 @@
+{
+  "date": "2026-11-01T14:07:00",
+  "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0",
+  "hardwareConcurrency": 12,
+  "host": "AMD64 Family 25 Model 33 Stepping 2, AuthenticAMD",
+  "voters": 10,
+  "ballotId": "ballot_1793520327788",
+  "votesAccepted": 10,
+  "impostorRejected": true,
+  "doubleVoteRejected": true,
+  "expectedTotals": {
+    "Alice": 4,
+    "Bob": 3,
+    "Carol": 3
+  },
+  "tallyMatches": true,
+  "tallyText": "Homomorphic Tally Results\n\nDecrypt homomorphically aggregated ciphertexts on the ledger\n\nTally computed and decrypted successfully.\nElection Results\nTotal Votes: 10\nAlice\n4 votes (40%)\nBob\n3 votes (30%)\nCarol\n3 votes (30%)\nBallot ID\nCompute & Decrypt Tally",
+  "phases": {
+    "merklePaths": {
+      "mean": 6.5,
+      "ci95": 0.1,
+      "n": 10
+    },
+    "encryptBallot": {
+      "mean": 35.0,
+      "ci95": 5.5,
+      "n": 10
+    },
+    "witness": {
+      "mean": 133.2,
+      "ci95": 23.8,
+      "n": 10
+    },
+    "prove": {
+      "mean": 807.2,
+      "ci95": 14.3,
+      "n": 10
+    }
+  },
+  "coldFirstVote": {
+    "merklePaths": 6.5,
+    "encryptBallot": 49.1,
+    "witness": 141.1,
+    "prove": 825.7,
+    "total": 1022.4
+  },
+  "enrollProve": {
+    "mean": 573.8,
+    "ci95": 18.4,
+    "n": 9
+  },
+  "clientTotal": {
+    "mean": 982.0,
+    "ci95": 34.5
+  },
+  "submitToConfirmed": {
+    "mean": 3906.9,
+    "ci95": 156.9
+  },
+  "log": [
+    {
+      "step": "create ballot",
+      "ok": true,
+      "detail": "Election ballot created and encryption key initialized. Ballot ID: ballot_1793520327788"
+    },
+    {
+      "step": "enroll Aaron_Peirsol",
+      "ok": true,
+      "detail": "Registration successful (FACE mode). Your password-encrypted credential file has been downloaded \u2014 keep it; it cannot be"
+    },
+    {
+      "step": "enroll Aaron_Sorkin",
+      "ok": true,
+      "detail": "Registration successful (FACE mode). Your password-encrypted credential file has been downloaded \u2014 keep it; it cannot be"
+    },
+    {
+      "step": "enroll Abdel_Nasser_Assidi",
+      "ok": true,
+      "detail": "Registration successful (FACE mode). Your password-encrypted credential file has been downloaded \u2014 keep it; it cannot be"
+    },
+    {
+      "step": "enroll Abdoulaye_Wade",
+      "ok": true,
+      "detail": "Registration successful (FACE mode). Your password-encrypted credential file has been downloaded \u2014 keep it; it cannot be"
+    },
+    {
+      "step": "enroll Abdullah",
+      "ok": true,
+      "detail": "Registration successful (FACE mode). Your password-encrypted credential file has been downloaded \u2014 keep it; it cannot be"
+    },
+    {
+      "step": "enroll Abdullah_al-Attiyah",
+      "ok": true,
+      "detail": "Registration successful (FACE mode). Your password-encrypted credential file has been downloaded \u2014 keep it; it cannot be"
+    },
+    {
+      "step": "enroll Abdullah_Gul",
+      "ok": true,
+      "detail": "Registration successful (FACE mode). Your password-encrypted credential file has been downloaded \u2014 keep it; it cannot be"
+    },
+    {
+      "step": "enroll Abdullatif_Sener",
+      "ok": true,
+      "detail": "Registration successful (FACE mode). Your password-encrypted credential file has been downloaded \u2014 keep it; it cannot be"
+    },
+    {
+      "step": "enroll Abel_Pacheco",
+      "ok": true,
+      "detail": "Registration successful (FACE mode). Your password-encrypted credential file has been downloaded \u2014 keep it; it cannot be"
+    },
+    {
+      "step": "enroll Abid_Hamid_Mahmud_Al-Tikriti",
+      "ok": true,
+      "detail": "Registration successful (FACE mode). Your password-encrypted credential file has been downloaded \u2014 keep it; it cannot be"
+    },
+    {
+      "step": "vote Aaron_Peirsol",
+      "ok": true,
+      "detail": "Vote successfully cast and verified on-chain via ZK-SNARK.\nTx ID: VOTE_78e25e158618f170c413a4e96c264ea86a409d72f1f344030ec94e2c7aa9bd08\nOn-Chain Status: Verifie",
+      "wallMs": 3996
+    },
+    {
+      "step": "vote Aaron_Sorkin",
+      "ok": true,
+      "detail": "Vote successfully cast and verified on-chain via ZK-SNARK.\nTx ID: VOTE_e67db286c5696fd702036280628224f04e7f964decca893e1673df0dc2edf4a4\nOn-Chain Status: Verifie",
+      "wallMs": 3882
+    },
+    {
+      "step": "vote Abdel_Nasser_Assidi",
+      "ok": true,
+      "detail": "Vote successfully cast and verified on-chain via ZK-SNARK.\nTx ID: VOTE_e8e5f5130a9d6fc91a478cbcd3dbe71857190ceba5ab9555777fa1c943616743\nOn-Chain Status: Verifie",
+      "wallMs": 3963
+    },
+    {
+      "step": "vote Abdoulaye_Wade",
+      "ok": true,
+      "detail": "Vote successfully cast and verified on-chain via ZK-SNARK.\nTx ID: VOTE_4e0a11cb82db25bf1f0c222baaabb8b06f6920608e56211becc387c8ea69e0a8\nOn-Chain Status: Verifie",
+      "wallMs": 3872
+    },
+    {
+      "step": "vote Abdullah",
+      "ok": true,
+      "detail": "Vote successfully cast and verified on-chain via ZK-SNARK.\nTx ID: VOTE_90a85fa3fcdf8804a42df477a61764185e428288f5c24e429fdc38f39b903f9e\nOn-Chain Status: Verifie",
+      "wallMs": 3871
+    },
+    {
+      "step": "vote Abdullah_al-Attiyah",
+      "ok": true,
+      "detail": "Vote successfully cast and verified on-chain via ZK-SNARK.\nTx ID: VOTE_5dc48d340bc701809c27223ffe21a0b5e1b664662c4bca62d128353deedf2819\nOn-Chain Status: Verifie",
+      "wallMs": 4387
+    },
+    {
+      "step": "vote Abdullah_Gul",
+      "ok": true,
+      "detail": "Vote successfully cast and verified on-chain via ZK-SNARK.\nTx ID: VOTE_149ebcbc87ed050b7a46662ba67abb6e62cfbead8b906b542200d8b549b2d85c\nOn-Chain Status: Verifie",
+      "wallMs": 3983
+    },
+    {
+      "step": "vote Abdullatif_Sener",
+      "ok": true,
+      "detail": "Vote successfully cast and verified on-chain via ZK-SNARK.\nTx ID: VOTE_69090ba3fd922e37f5d2883503b673d91db7b9afd9bc634dc467adbaa3cf0880\nOn-Chain Status: Verifie",
+      "wallMs": 3877
+    },
+    {
+      "step": "vote Abel_Pacheco",
+      "ok": true,
+      "detail": "Vote successfully cast and verified on-chain via ZK-SNARK.\nTx ID: VOTE_dceb3453b266a813b51d17fe665efb201ca7d06f2ef0751906726e9b712a9435\nOn-Chain Status: Verifie",
+      "wallMs": 3440
+    },
+    {
+      "step": "vote Abid_Hamid_Mahmud_Al-Tikriti",
+      "ok": true,
+      "detail": "Vote successfully cast and verified on-chain via ZK-SNARK.\nTx ID: VOTE_8be555853ca4767f25128b1310f22eb7b77b2d0e3bc7faeda52f00fe9d9a2eaf\nOn-Chain Status: Verifie",
+      "wallMs": 3886
+    },
+    {
+      "step": "impostor Adam_Sandler with voter 0's credential",
+      "ok": false,
+      "detail": "Biometric did not match the enrolled template or the capture attestation is invalid (proof could not be generated): Error: Assert Failed. Error in template Num2"
+    },
+    {
+      "step": "double vote by voter 1",
+      "ok": false,
+      "detail": "Double voting detected - you have already cast a vote"
+    }
+  ]
+}

@@ -234,20 +234,22 @@
 }
 % NOTE: duplicate Civitas2008 entry removed from original bib
 
-@techreport{Gurkan2020,
-  author      = {Koh Wei Jie and Kobi Gurkan and others},
-  title       = {Semaphore: Zero-Knowledge Signaling on {Ethereum}},
-  institution = {Ethereum Foundation},
-  year        = {2020},
-  note        = {\url{https://semaphore.pse.dev}}
+@misc{Gurkan2020,
+  author       = {{Privacy \& Scaling Explorations, Ethereum Foundation}},
+  title        = {Semaphore: A Zero-Knowledge Protocol for Anonymous Group
+                  Signaling},
+  howpublished = {\url{https://github.com/semaphore-protocol/semaphore}},
+  year         = {2024},
+  note         = {Version~4. Accessed: Nov.~1, 2026}
 }
 
 @misc{Buterin2020,
-  author       = {Vitalik Buterin and Koh Wei Jie and Jan Weijers},
-  title        = {Minimal Anti-Collusion Infrastructure ({MACI})},
-  year         = {2020},
-  howpublished = {Privacy and Scaling Explorations, Ethereum Foundation},
-  note         = {\url{https://maci.pse.dev}}
+  author       = {Vitalik Buterin},
+  title        = {Minimal Anti-Collusion Infrastructure},
+  howpublished = {Ethereum Research forum,
+                  \url{https://ethresear.ch/t/minimal-anti-collusion-infrastructure/5413}},
+  month        = may,
+  year         = {2019}
 }
 
 @inproceedings{McCorry2017,
@@ -261,21 +263,38 @@
   publisher = {Springer}
 }
 
-@inproceedings{Wang2024,
-  author    = {Bin Wang and others},
+@article{Wang2024,
+  author    = {Baowei Wang and Fengxiao Guo and Yuting Liu and Bin Li
+               and Yi Yuan},
   title     = {An Efficient and Versatile {E}-Voting Scheme on Blockchain},
-  booktitle = {Cybersecurity},
+  journal   = {Cybersecurity},
+  volume    = {7},
+  number    = {1},
   year      = {2024},
-  publisher = {Springer}
+  doi       = {10.1186/s42400-024-00226-8}
 }
 
 @inproceedings{HuberKusters2024,
-  author    = {Nicolas Huber and Ralf K{\"u}sters},
+  author    = {Nicolas Huber and Ralf K{\"u}sters and Julian Liedtke
+               and Daniel Rausch},
   title     = {{ZK-SNARKs} for Ballot Validity: A Feasibility Study},
-  booktitle = {Proc.\ Computer Security -- {ESORICS} 2024},
+  booktitle = {Electronic Voting -- {E-Vote-ID} 2024},
   series    = {Lecture Notes in Computer Science},
+  pages     = {107--123},
   publisher = {Springer},
-  year      = {2024}
+  year      = {2024},
+  doi       = {10.1007/978-3-031-72244-8_7}
+}
+
+@inproceedings{Benaloh2024ElectionGuard,
+  author    = {Josh Benaloh and Michael Naehrig and Olivier Pereira
+               and Dan S. Wallach},
+  title     = {{ElectionGuard}: A Cryptographic Toolkit to Enable
+               Verifiable Elections},
+  booktitle = {Proc.\ 33rd {USENIX} Security Symposium},
+  pages     = {5485--5502},
+  year      = {2024},
+  publisher = {USENIX Association}
 }
 
 @article{Farzaliyev2025,
@@ -309,7 +328,8 @@
   year      = {2026},
   volume    = {23},
   number    = {3},
-  pages     = {5090--5105}
+  pages     = {5090--5105},
+  doi       = {10.1109/TDSC.2026.3651473}
 }
 
 @misc{eprint2022_430,
@@ -321,14 +341,12 @@
   note         = {\url{https://eprint.iacr.org/2022/430}}
 }
 
-% [FIX-2] — SmartphoneDemocracy: very recent preprint; expand
-%           comparison in Sec II before submission to any Q1 venue
 @misc{Jozwik2025,
-  author       = {Micha{\l} J{\'o}{\'z}wik and others},
+  author       = {Micha{\l} J{\'o}{\'z}wik and Johan Pouwelse},
   title        = {{SmartphoneDemocracy}: Privacy-Preserving {E}-Voting
                   on Decentralized Infrastructure using Novel
                   {European} Identity},
-  howpublished = {arXiv preprint arXiv:2507.09453 [concurrent preprint]},
+  howpublished = {arXiv preprint arXiv:2507.09453},
   year         = {2025}
 }
 
@@ -364,13 +382,12 @@
 
 % -------  Biometric Authentication  --------------------------
 
-% NOTE (ISO24745): recalled from memory, not looked up live — verify the
-% exact edition/year against iso.org before submission.
-@techreport{ISO24745,
-  author       = {{ISO/IEC JTC 1/SC 27}},
-  title        = {{ISO/IEC 24745:2022} Information Security, Cybersecurity
-                  and Privacy Protection — Biometric Information Protection},
-  institution  = {International Organization for Standardization},
+@misc{ISO24745,
+  author       = {{ISO/IEC}},
+  title        = {Information Security, Cybersecurity and Privacy
+                  Protection---Biometric Information Protection},
+  howpublished = {International Standard ISO/IEC 24745:2022, 2nd ed.},
+  month        = feb,
   year         = {2022}
 }
 
@@ -497,43 +514,57 @@
 }
 
 @article{Mao2023,
-  author    = {Xin Mao and others},
-  title     = {Privacy-Preserving Biometric Authentication: {BAZKP}},
+  author    = {Xuechun Mao and Ying Chen and Cong Deng and Xiaqing Zhou},
+  title     = {A Novel Privacy-Preserving Biometric Authentication Scheme},
   journal   = {{PLOS ONE}},
+  volume    = {18},
+  number    = {5},
+  pages     = {e0286215},
   year      = {2023},
-  publisher = {Public Library of Science}
+  doi       = {10.1371/journal.pone.0286215}
 }
 
 @article{Guo2024,
-  author    = {Chen Guo and others},
-  title     = {{BioAu-SVM+ZKP}: Biometric Authentication with
-               Zero-Knowledge Proofs},
+  author    = {Chunjie Guo and Lin You and Xingyu Li and Gengran Hu
+               and Shengguo Wang and Chengtang Cao},
+  title     = {A Novel Biometric Authentication Scheme with Privacy
+               Protection Based on {SVM} and {ZKP}},
   journal   = {Computers \& Security},
+  volume    = {144},
+  pages     = {103995},
   year      = {2024},
-  publisher = {Elsevier}
+  doi       = {10.1016/j.cose.2024.103995}
 }
 
-@misc{Blanton2024,
-  author       = {Marina Blanton and Daniel Murphy},
-  title        = {Privacy-Preserving Biometric Authentication under
-                  Malicious-Client Threat Models},
-  howpublished = {IACR ePrint Archive},
-  year         = {2024}
+@inproceedings{Blanton2024,
+  author    = {Marina Blanton and Dennis Murphy},
+  title     = {Privacy Preserving Biometric Authentication for
+               Fingerprints and Beyond},
+  booktitle = {Proc.\ 14th {ACM} Conference on Data and Application
+               Security and Privacy ({CODASPY})},
+  pages     = {367--378},
+  year      = {2024},
+  doi       = {10.1145/3626232.3653269}
 }
 
 @misc{Lai2024,
-  author       = {Jiayun Lai and others},
-  title        = {{BioZero}: Decentralized Biometric Authentication on
-                  Public Blockchains},
+  author       = {Zibin Lin and Taotao Wang and Junhao Lai and Shengli Zhang
+                  and Qing Yang and Soung Chang Liew},
+  title        = {{BioZero}: Privacy-Preserving and Publicly Verifiable
+                  On-Chain Biometric Authentication via Homomorphic
+                  Commitments and Zero-Knowledge Proofs},
   howpublished = {arXiv preprint arXiv:2409.17509},
   year         = {2024}
 }
 
-@article{Zhang2025,
-  author    = {Xin Zhang and others},
+@article{Mao2025,
+  author    = {Xuechun Mao and Xiaqing Zhou and Xiaoming Zhao and Ying Chen},
   title     = {A {ZKP}-Based Anonymous Biometric Authentication
-               Scheme for {E}-Health Systems},
+               Scheme for the {E}-Health Systems},
   journal   = {{PLOS ONE}},
+  volume    = {20},
+  number    = {6},
+  pages     = {e0324289},
   year      = {2025},
   doi       = {10.1371/journal.pone.0324289}
 }
@@ -560,11 +591,13 @@
 }
 
 @misc{WorldID2024,
-  author       = {{Worldcoin Foundation}},
-  title        = {{World ID}: Privacy-Preserving Proof of Personhood},
-  howpublished = {\url{https://world.org/world-id}},
+  author       = {Remco Bloemen and Bryan Gillespie and Daniel Kales
+                  and Philipp Sippl and Roman Walch},
+  title        = {Large-Scale {MPC}: Scaling Private Iris Code Uniqueness
+                  Checks to Millions of Users},
+  howpublished = {Cryptology ePrint Archive, Paper 2024/705},
   year         = {2024},
-  note         = {Accessed: 2024}
+  note         = {\url{https://eprint.iacr.org/2024/705}}
 }
 
 @misc{Karakosta2025,
@@ -577,7 +610,7 @@
 }
 
 @article{OudeRoelink2024,
-  author    = {D. Oude Roelink},
+  author    = {Bjorn {Oude Roelink} and Mohammed El-Hajj and Dipti Sarmah},
   title     = {Systematic Review: Comparing {zk-SNARK}, {zk-STARK},
                and Bulletproof Protocols for Privacy-Preserving
                Authentication},
@@ -589,14 +622,91 @@
   doi       = {10.1002/spy2.401}
 }
 
+% -------  SNARK Circuit Vulnerabilities  ---------------------
+
+@inproceedings{Chaliasos2024SoK,
+  author    = {Stefanos Chaliasos and Jens Ernstberger and David Theodore
+               and David Wong and Mohammad Jahanara and Benjamin Livshits},
+  title     = {{SoK}: What Don't We Know? {U}nderstanding Security
+               Vulnerabilities in {SNARKs}},
+  booktitle = {Proc.\ 33rd {USENIX} Security Symposium},
+  pages     = {3855--3872},
+  year      = {2024},
+  publisher = {USENIX Association}
+}
+
+@article{Pailoor2023,
+  author    = {Shankara Pailoor and Yanju Chen and Franklyn Wang
+               and Clara Rodr{\'i}guez and Jacob Van Geffen and Jason Morton
+               and Michael Chu and Brian Gu and Yu Feng and I{\c{s}}{\i}l Dillig},
+  title     = {Automated Detection of Under-Constrained Circuits in
+               Zero-Knowledge Proofs},
+  journal   = {Proc.\ {ACM} Program.\ Lang.},
+  volume    = {7},
+  number    = {PLDI},
+  pages     = {1510--1532},
+  year      = {2023},
+  doi       = {10.1145/3591282}
+}
+
+@inproceedings{Wen2024ZKAP,
+  author    = {Hongbo Wen and Jon Stephens and Yanju Chen and Kostas Ferles
+               and Shankara Pailoor and Kyle Charbonnet and I{\c{s}}{\i}l Dillig
+               and Yu Feng},
+  title     = {Practical Security Analysis of Zero-Knowledge Proof Circuits},
+  booktitle = {Proc.\ 33rd {USENIX} Security Symposium},
+  pages     = {1471--1487},
+  year      = {2024},
+  publisher = {USENIX Association}
+}
+
+@misc{Circomspect,
+  author       = {{Trail of Bits}},
+  title        = {Circomspect: A Static Analyzer and Linter for the {Circom}
+                  Zero-Knowledge {DSL}},
+  howpublished = {\url{https://github.com/trailofbits/circomspect}},
+  year         = {2025},
+  note         = {Version 0.9.0}
+}
+
+% -------  Attested Data in SNARKs  ---------------------------
+
+@inproceedings{Baldimtsi2024zkLogin,
+  author    = {Foteini Baldimtsi and Konstantinos Kryptos Chalkias and Yan Ji
+               and Jonas Lindstr{\o}m and Deepak Maram and Ben Riva
+               and Arnab Roy and Mahdi Sedaghat and Joy Wang},
+  title     = {{zkLogin}: Privacy-Preserving Blockchain Authentication
+               with Existing Credentials},
+  booktitle = {Proc.\ {ACM} {SIGSAC} Conference on Computer and
+               Communications Security ({CCS})},
+  pages     = {3182--3196},
+  year      = {2024},
+  doi       = {10.1145/3658644.3690356}
+}
+
+@inproceedings{Naveh2016PhotoProof,
+  author    = {Assa Naveh and Eran Tromer},
+  title     = {{PhotoProof}: Cryptographic Image Authentication for Any
+               Set of Permissible Transformations},
+  booktitle = {Proc.\ {IEEE} Symposium on Security and Privacy ({S\&P})},
+  pages     = {255--271},
+  year      = {2016},
+  doi       = {10.1109/SP.2016.23}
+}
+
 % -------  Circuit Tools  -------------------------------------
 
-@misc{Circom2023,
-  author       = {iden3},
-  title        = {Circom: Circuit Compiler for Zero-Knowledge Proofs},
-  howpublished = {\url{https://docs.circom.io}},
-  year         = {2023},
-  note         = {Version 2.2.3}
+@article{Circom2023,
+  author    = {Marta Bell{\'e}s-Mu{\~n}oz and Miguel Isabel and
+               Jose Luis Mu{\~n}oz-Tapia and Albert Rubio and Jordi Baylina},
+  title     = {Circom: A Circuit Description Language for Building
+               Zero-Knowledge Applications},
+  journal   = {{IEEE} Transactions on Dependable and Secure Computing},
+  volume    = {20},
+  number    = {6},
+  pages     = {4733--4751},
+  year      = {2023},
+  doi       = {10.1109/TDSC.2022.3232813}
 }
 
 % [NEW-6] — cite when comparing snarkjs vs rapidsnark proving times
@@ -703,22 +813,7 @@
   year      = {1971}
 }
 
-@inproceedings{Chialva2024,
-  author    = {L. Chialva and others},
-  title     = {Practical Fully Homomorphic Encryption for Biometric Verification},
-  booktitle = {Proc.\ IEEE International Conference on Biometrics (ICB)},
-  year      = {2024},
-  pages     = {1--8}
-}
-
-@article{Moustaka2024,
-  author    = {E. Moustaka and others},
-  title     = {Fully Homomorphic Encryption in Biometric Systems: A Survey of Recent Advances},
-  journal   = {IEEE Access},
-  volume    = {12},
-  pages     = {14205--14220},
-  year      = {2024}
-}
+% Chialva2024 and Moustaka2024 removed 2026-11-01: not found in any index.
 
 @inproceedings{Damgard2006,
   author    = {Ivan Damg{\aa}rd and Matthias Fitzi and Eike Kiltz and Jesper Buus Nielsen and Tomas Toft},
